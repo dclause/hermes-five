@@ -23,7 +23,7 @@ mod tests {
     #[test]
     fn test_compile_failures() {
         let t = TestCases::new();
-        t.compile_fail("tests/compile_fail/*.rs");
+        t.compile_fail("tests/compile_fail/incorrect_runtime.rs");
     }
 
     #[test]

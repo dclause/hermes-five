@@ -22,7 +22,7 @@ pub static SENDER: RwLock<Option<Sender<JoinHandle<()>>>> = RwLock::new(None);
 /// # Errors
 /// Returns an error if the lock cannot be acquired or if the sender is not initialized or if sending the task handle fails.
 ///
-/// # Examples
+/// # Example
 /// ```
 /// #[hermes_five::runtime]
 /// async fn main() {

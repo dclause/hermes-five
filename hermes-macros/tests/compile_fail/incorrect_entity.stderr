@@ -1,0 +1,61 @@
+error[E0601]: `main` function not found in crate `$CRATE`
+ --> tests/compile_fail/incorrect_entity.rs:9:2
+  |
+9 | }
+  |  ^ consider adding a `main` function to `$DIR/tests/compile_fail/incorrect_entity.rs`
+
+error[E0124]: field `id` is already declared
+ --> tests/compile_fail/incorrect_entity.rs:5:1
+  |
+5 | #[Entity]
+  | ^^^^^^^^^ field already declared
+6 | struct InvalidEntity {
+7 |     id: u8, // reserved
+  |     ------ `id` first declared here
+  |
+  = note: this error originates in the attribute macro `Entity` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0308]: mismatched types
+ --> tests/compile_fail/incorrect_entity.rs:5:1
+  |
+5 | #[Entity]
+  | ^^^^^^^^^ expected `usize`, found `u8`
+  |
+  = note: this error originates in the derive macro `hermes_five::storage::serde::Deserialize` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0062]: field `id` specified more than once
+ --> tests/compile_fail/incorrect_entity.rs:5:1
+  |
+5 | #[Entity]
+  | ^^^^^^^^^
+  | |
+  | used more than once
+  | first use of `id`
+  |
+  = note: this error originates in the attribute macro `Entity` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0308]: mismatched types
+ --> tests/compile_fail/incorrect_entity.rs:5:1
+  |
+5 | #[Entity]
+  | ^^^^^^^^^
+  | |
+  | expected `usize`, found `u8`
+  | expected `usize` because of return type
+  |
+  = note: this error originates in the attribute macro `Entity` (in Nightly builds, run with -Z macro-backtrace for more info)
+help: you can convert a `u8` to a `usize`
+  |
+5 | #[Entity].into()
+  |          +++++++
+
+error[E0308]: mismatched types
+ --> tests/compile_fail/incorrect_entity.rs:5:1
+  |
+5 | #[Entity]
+  | ^^^^^^^^^
+  | |
+  | expected `u8`, found `usize`
+  | expected due to the type of this binding
+  |
+  = note: this error originates in the attribute macro `Entity` (in Nightly builds, run with -Z macro-backtrace for more info)
