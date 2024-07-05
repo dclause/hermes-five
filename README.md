@@ -1,31 +1,29 @@
 # Hermes-Five
 
-### The Rust Robotics &amp; IoT Platform
+### The Rust Robotics & IoT Platform
 
 [![License](https://img.shields.io/github/license/dclause/hermes-five)](https://github.com/dclause/hermes-five/blob/develop/LICENSE)
 [![build](https://github.com/dclause/hermes-five/workflows/Build/badge.svg)](https://github.com/dclause/hermes-five/actions/workflows/build.yml)
 [![test](https://github.com/dclause/hermes-five/workflows/Test/badge.svg)](https://github.com/dclause/hermes-five/actions/workflows/test.yml)
 [![codecov](https://codecov.io/gh/dclause/hermes-five/graph/badge.svg?token=Q39BP43C5P)](https://codecov.io/gh/dclause/hermes-five)
 
-**Hermes-Five is an Open Source, [Firmata Protocol](https://github.com/firmata/protocol) based, IoT and Robotics
+**_Hermes-Five_ is an Open Source, [Firmata Protocol](https://github.com/firmata/protocol) based, IoT and Robotics
 programming framework.**
 
 _The Hermes-Five project is done on my spare time; it does not intend to compete with any other solutions you might want
-to try,_
-
+to try,_  
 _Hermes-Five reason to be is for [the author](https://github.com/dclause) to learn more about Rust and to create the
-foundation for HermesIO platform._
-
+foundation for HermesIO platform._  
 _The original intend is to mimic the functionality of [Johnny-Five](https://johnny-five.io/) framework where is finds
 its inspiration._
 
 ## Features
 
-Hermes-Five is a Rust library designed to control Arduino or supported boards remotely using Rust code.
+_Hermes-Five_ is a Rust library designed to control Arduino or supported boards remotely using Rust code.
 
 ## Instructions
 
-_@todo
+_@todo_
 
 ## Examples
 
@@ -50,7 +48,7 @@ respect the project's original philosophy._
 ### Research
 
 - [X] Explore asynchronous task spawning (dynamically spawn tasks, main() should wait for completion).
-- [ ] Explore event system (register/emit) and asynchronous callback
+- [X] Explore event system (register/emit) and asynchronous callback
 
 ### Proof-of-concept
 

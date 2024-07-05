@@ -11,7 +11,7 @@ use tokio::task::JoinHandle;
 /// Globally accessible runtime sender.
 pub static SENDER: RwLock<Option<Sender<JoinHandle<()>>>> = RwLock::new(None);
 
-/// Runs a given future as a Tokio task while ensuring the main function (marked by #[hermes_five::runtime])
+/// Runs a given future as a Tokio task while ensuring the main function (marked by `#[hermes_five::runtime]`)
 /// will not finish before all tasks running as done.
 /// This is done by using a globally accessible channel to communicate the handlers to be waited by the
 /// runtime.
@@ -68,14 +68,24 @@ mod tests {
     #[serial_test::serial]
     fn test_task_execution() {
         // Tasks should be parallel and function should be blocked until all done.
-        // Therefore the my_runtime() function should take more time then the longest task, but less
+        // Therefore the `my_runtime()` function should take more time than the longest task, but less
         // than the sum of task times.
         let start = SystemTime::now();
+
         my_runtime();
+
         let end = SystemTime::now();
 
         let duration = end.duration_since(start).unwrap().as_millis();
-        assert!(duration > 1000);
-        assert!(duration < 1100);
+        assert!(
+            duration > 1000,
+            "Duration should be greater than 1000ms (found: {})",
+            duration
+        );
+        assert!(
+            duration < 1100,
+            "Duration should be lower than 1000ms (found: {})",
+            duration
+        );
     }
 }

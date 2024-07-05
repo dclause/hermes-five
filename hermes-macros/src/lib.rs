@@ -29,6 +29,17 @@ use syn::{ItemFn, parse_macro_input};
 /// ```
 #[proc_macro_attribute]
 pub fn runtime(_: TokenStream, item: TokenStream) -> TokenStream {
+    macro_inner(item, false)
+}
+
+/// Same as `#[hermes_macros::runtime]` but for tests.
+#[proc_macro_attribute]
+pub fn test(_: TokenStream, item: TokenStream) -> TokenStream {
+    macro_inner(item, true)
+}
+
+/// Same as `#[hermes_macros::runtime]` but for tests.
+fn macro_inner(item: TokenStream, test: bool) -> TokenStream {
     let hermes_five = hermes_five_crate_path();
 
     let input = parse_macro_input!(item as ItemFn);
@@ -39,8 +50,16 @@ pub fn runtime(_: TokenStream, item: TokenStream) -> TokenStream {
         block,
     } = input;
 
-    // Define the #[tokio::main] macro attribute.
-    let tokio_main_attr = quote! { #[tokio::main] };
+    // Define the #[tokio::main] / #[tokio::test] tokio macro attribute.
+    let tokio_main_attr = match test {
+        true => quote! {
+            #[tokio::test]
+            #[serial_test::serial]
+        },
+        false => quote! {
+            #[tokio::main]
+        },
+    };
 
     let modified_block = quote! {
         {
