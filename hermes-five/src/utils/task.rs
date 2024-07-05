@@ -17,10 +17,10 @@ pub static SENDER: RwLock<Option<Sender<JoinHandle<()>>>> = RwLock::new(None);
 /// runtime.
 ///
 /// # Parameters
-/// - `future`: A future that implements `Future<Output = ()>`, `Send`, and has a `'static` lifetime.
+/// * `future`: A future that implements `Future<Output = ()>`, `Send`, and has a `'static` lifetime.
 ///
 /// # Errors
-/// - Returns an error if the lock cannot be acquired or if the sender is not initialized or if sending the task handle fails.
+/// Returns an error if the lock cannot be acquired or if the sender is not initialized or if sending the task handle fails.
 ///
 /// # Examples
 /// ```

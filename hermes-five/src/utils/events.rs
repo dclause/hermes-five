@@ -107,10 +107,10 @@ impl EventManager {
     /// callback type will be called. All others will be silently skipped.
     ///
     /// # Parameters
-    /// * `event` - The event name (any type that matches an Into<String>)
-    /// * `payload` - The event payload (must be 'static, Send, and Sync)
-    ///               The payload can be anything that might be both `Send + Sync`.
-    ///               You can trick multiple parameters by turning them in a single tuple.
+    /// * `event`:  The event name (any type that matches an `Into<String>`)
+    /// * `payload`: The event payload (must be `'static + Send + Sync`)
+    ///              The payload can be anything that might be both `Send + Sync`.
+    ///              You can trick multiple parameters by turning them in a single tuple.
     ///
     /// # Example
     ///
@@ -239,6 +239,14 @@ mod tests {
             let value = flag.load(Ordering::SeqCst);
             flag.store(value + 1, Ordering::SeqCst);
         });
+
+        events.on(
+            "multiple",
+            |(_not_matching, flag): (u8, Arc<AtomicUsize>)| async move {
+                let value = flag.load(Ordering::SeqCst);
+                flag.store(value + 1, Ordering::SeqCst);
+            },
+        );
 
         events.emit("multiple", flag.clone()).await;
 

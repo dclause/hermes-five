@@ -52,12 +52,13 @@ fn macro_inner(item: TokenStream, test: bool) -> TokenStream {
 
     // Define the #[tokio::main] / #[tokio::test] tokio macro attribute.
     let tokio_main_attr = match test {
+        #[cfg(test)]
         true => quote! {
-            #[tokio::test]
-            #[serial_test::serial]
+            #[#hermes_five::utils::tokio::test]
+            #[#hermes_five::utils::serial_test::serial]
         },
-        false => quote! {
-            #[tokio::main]
+        _ => quote! {
+            #[#hermes_five::utils::tokio::main]
         },
     };
 
@@ -65,7 +66,7 @@ fn macro_inner(item: TokenStream, test: bool) -> TokenStream {
         {
             // Channel for communicating task completions.
             // The arbitrary hardcoded limit is 50 concurrent running tasks.
-            let (sender, mut receiver) = tokio::sync::mpsc::channel::<tokio::task::JoinHandle<()>>(100);
+            let (sender, mut receiver) = #hermes_five::utils::tokio::sync::mpsc::channel::<tokio::task::JoinHandle<()>>(100);
 
             // Update the global task sender
             {

@@ -5,7 +5,7 @@
 [![License](https://img.shields.io/github/license/dclause/hermes-five)](https://github.com/dclause/hermes-five/blob/develop/LICENSE)
 [![build](https://github.com/dclause/hermes-five/workflows/Build/badge.svg)](https://github.com/dclause/hermes-five/actions/workflows/build.yml)
 [![test](https://github.com/dclause/hermes-five/workflows/Test/badge.svg)](https://github.com/dclause/hermes-five/actions/workflows/test.yml)
-[![codecov](https://codecov.io/gh/dclause/hermes-five/graph/badge.svg?token=Q39BP43C5P)](https://codecov.io/gh/dclause/hermes-five)
+[![codecov](https://codecov.io/gh/dclause/hermes-five/graph/badge.svg?token=KF8EFDUQ7A)](https://codecov.io/gh/dclause/hermes-five)
 
 **_Hermes-Five_ is an Open Source, [Firmata Protocol](https://github.com/firmata/protocol) based, IoT and Robotics
 programming framework.**
