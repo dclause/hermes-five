@@ -1,0 +1,21 @@
+[package]
+name = "hermes-five"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+readme.workspace = true
+license.workspace = true
+
+[lib]
+# Authorize doctest when https://github.com/rust-lang/rust/issues/67295
+doctest = false
+
+[dependencies]
+anyhow.workspace = true
+tokio.workspace = true
+hermes-macros = { path = "../hermes-macros" }
+futures = "0.3.30"
+
+[dev-dependencies]
+serial_test = "3.1.1"
