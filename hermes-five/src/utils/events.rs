@@ -2,11 +2,12 @@
 
 use std::any::Any;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use futures::future::BoxFuture;
 use futures::FutureExt;
+use tokio::sync::Mutex;
 
 use crate::utils::task;
 
@@ -63,7 +64,7 @@ impl EventManager {
     /// // No matching handler (because of parameters) will be called
     /// events.emit("ready", ("bar")).await;
     /// ```
-    pub fn on<S, F, T, Fut>(&self, event: S, mut callback: F) -> EventHandler
+    pub async fn on<S, F, T, Fut>(&self, event: S, mut callback: F) -> EventHandler
     where
         S: Into<String>,
         T: 'static + Send + Sync + Clone,
@@ -94,7 +95,7 @@ impl EventManager {
 
         self.callbacks
             .lock()
-            .unwrap()
+            .await
             .entry(event_name)
             .or_default()
             .push(wrapper);
@@ -140,7 +141,7 @@ impl EventManager {
         T: 'static + Send + Sync,
     {
         let payload_any: Arc<dyn Any + Send + Sync> = Arc::new(payload);
-        if let Some(callbacks) = self.callbacks.lock().unwrap().get_mut(&event.into()) {
+        if let Some(callbacks) = self.callbacks.lock().await.get_mut(&event.into()) {
             for wrapper in callbacks.iter_mut() {
                 let payload_clone = payload_any.clone();
                 let future = (wrapper.callback)(payload_clone);
@@ -172,11 +173,11 @@ impl EventManager {
     /// // Only the callback2 remains to be called here.
     /// events.emit("ready", 42).await;
     /// ```
-    pub fn unregister(&self, handler: EventHandler) {
+    pub async fn unregister(&self, handler: EventHandler) {
         let _ = &self
             .callbacks
             .lock()
-            .unwrap()
+            .await
             .values_mut()
             .for_each(|v| v.retain(|cb| cb.id != handler));
     }
@@ -193,9 +194,11 @@ mod tests {
         let events: EventManager = Default::default();
         let payload = Arc::new(AtomicBool::new(false));
 
-        events.on("register", |flag: Arc<AtomicBool>| async move {
-            flag.store(true, Ordering::SeqCst);
-        });
+        events
+            .on("register", |flag: Arc<AtomicBool>| async move {
+                flag.store(true, Ordering::SeqCst);
+            })
+            .await;
 
         events.emit("register", payload.clone()).await;
 
@@ -211,11 +214,13 @@ mod tests {
         let events: EventManager = Default::default();
         let flag = Arc::new(AtomicBool::new(false));
 
-        let handler = events.on("unregister", |flag: Arc<AtomicBool>| async move {
-            flag.store(true, Ordering::SeqCst);
-        });
+        let handler = events
+            .on("unregister", |flag: Arc<AtomicBool>| async move {
+                flag.store(true, Ordering::SeqCst);
+            })
+            .await;
 
-        events.unregister(handler);
+        events.unregister(handler).await;
         events.emit("unregister", flag.clone()).await;
 
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
@@ -230,23 +235,29 @@ mod tests {
         let events: EventManager = Default::default();
         let flag = Arc::new(AtomicUsize::new(0));
 
-        events.on("multiple", |flag: Arc<AtomicUsize>| async move {
-            let value = flag.load(Ordering::SeqCst);
-            flag.store(value + 1, Ordering::SeqCst);
-        });
-
-        events.on("multiple", |flag: Arc<AtomicUsize>| async move {
-            let value = flag.load(Ordering::SeqCst);
-            flag.store(value + 1, Ordering::SeqCst);
-        });
-
-        events.on(
-            "multiple",
-            |(_not_matching, flag): (u8, Arc<AtomicUsize>)| async move {
+        events
+            .on("multiple", |flag: Arc<AtomicUsize>| async move {
                 let value = flag.load(Ordering::SeqCst);
                 flag.store(value + 1, Ordering::SeqCst);
-            },
-        );
+            })
+            .await;
+
+        events
+            .on("multiple", |flag: Arc<AtomicUsize>| async move {
+                let value = flag.load(Ordering::SeqCst);
+                flag.store(value + 1, Ordering::SeqCst);
+            })
+            .await;
+
+        events
+            .on(
+                "multiple",
+                |(_not_matching, flag): (u8, Arc<AtomicUsize>)| async move {
+                    let value = flag.load(Ordering::SeqCst);
+                    flag.store(value + 1, Ordering::SeqCst);
+                },
+            )
+            .await;
 
         events.emit("multiple", flag.clone()).await;
 
@@ -263,12 +274,14 @@ mod tests {
         let events: EventManager = Default::default();
         let flag = Arc::new(AtomicU8::new(0));
 
-        events.on(
-            "payload",
-            |(number1, number2, container): (u8, u8, Arc<AtomicU8>)| async move {
-                container.store(number1 + number2, Ordering::SeqCst);
-            },
-        );
+        events
+            .on(
+                "payload",
+                |(number1, number2, container): (u8, u8, Arc<AtomicU8>)| async move {
+                    container.store(number1 + number2, Ordering::SeqCst);
+                },
+            )
+            .await;
         events.emit("payload", (42u8, 69u8, flag.clone())).await;
 
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;

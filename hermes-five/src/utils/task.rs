@@ -1,15 +1,15 @@
 //! Defines Hermes-Five Runtime task runner.
 
 use std::future::Future;
-use std::sync::RwLock;
 
 use anyhow::anyhow;
+use tokio::sync::{OnceCell, RwLock};
 use tokio::sync::mpsc::Sender;
 use tokio::task;
 use tokio::task::JoinHandle;
 
 /// Globally accessible runtime sender.
-pub static SENDER: RwLock<Option<Sender<JoinHandle<()>>>> = RwLock::new(None);
+pub static SENDER: OnceCell<RwLock<Option<Sender<JoinHandle<()>>>>> = OnceCell::const_new();
 
 /// Runs a given future as a Tokio task while ensuring the main function (marked by `#[hermes_five::runtime]`)
 /// will not finish before all tasks running as done.
@@ -33,10 +33,7 @@ pub async fn run<F>(future: F)
 where
     F: Future<Output = ()> + Send + 'static,
 {
-    let lock = SENDER
-        .read()
-        .map_err(|err| anyhow!("Tasks lock cannot be acquired: {}", err))
-        .unwrap();
+    let lock = SENDER.get().unwrap().read().await;
     let sender = lock
         .as_ref()
         .ok_or_else(|| anyhow!("Tasks transmitter not initialized"))
@@ -54,12 +51,20 @@ mod tests {
     #[hermes_macros::runtime]
     async fn my_runtime() {
         task::run(async move {
-            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+            task::run(async move {
+                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                task::run(async move {
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                })
+                .await;
+            })
+            .await;
         })
         .await;
 
         task::run(async move {
-            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+            tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
         })
         .await;
     }
@@ -78,13 +83,13 @@ mod tests {
 
         let duration = end.duration_since(start).unwrap().as_millis();
         assert!(
-            duration > 1000,
-            "Duration should be greater than 1000ms (found: {})",
+            duration > 300,
+            "Duration should be greater than 300ms (found: {})",
             duration
         );
         assert!(
-            duration < 1100,
-            "Duration should be lower than 1000ms (found: {})",
+            duration < 350,
+            "Duration should be lower than 350ms (found: {})",
             duration
         );
     }
