@@ -65,29 +65,29 @@ fn macro_inner(item: TokenStream, test: bool) -> TokenStream {
 
     let modified_block = quote! {
         {
+
+            // Initialize a volatile storage.
+            #hermes_five::storage::storage::Storage::init_volatile().unwrap();
+
+
             // Channel for communicating task completions.
             // The arbitrary hardcoded limit is 50 concurrent running tasks.
             let (sender, mut receiver) = #hermes_five::utils::tokio::sync::mpsc::channel::<tokio::task::JoinHandle<()>>(100);
 
             // Update the global task sender
-            {
-                let mut write_guard = #hermes_five::utils::task::SENDER.write().unwrap();
-                *write_guard = Some(sender.clone());
-            }
+            let _ = #hermes_five::utils::task::SENDER.get_or_init(|| async {
+                #hermes_five::utils::tokio::sync::RwLock::new(Some(sender.clone()))
+            }).await;
 
             #block
 
-            {
-                let mut w = #hermes_five::utils::task::SENDER.write().unwrap();
-                *w = None;
-            }
-            drop(sender); // Drop the cloned sender to close the channel
-
             // Wait for all dynamically spawned tasks to complete.
-            while let Some(handle) = receiver.recv().await {
-                handle
-                    .await
-                    .expect("Failed to join dynamically spawned task");
+            while receiver.len() > 0 {
+                if let Some(handle) = receiver.recv().await {
+                    handle
+                        .await
+                        .expect("Failed to join dynamically spawned task");
+                }
             }
         }
     };
