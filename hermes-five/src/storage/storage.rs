@@ -38,6 +38,11 @@ pub struct Storage {
 }
 
 impl Storage {
+    /// Checks if the storage has already been initialized.
+    pub fn is_init() -> bool {
+        STORAGE.read().unwrap().is_some()
+    }
+
     /// Initializes the storage a volatile 'in-memory' only storage.
     pub fn init_volatile() -> Result<()> {
         let mut w = STORAGE.write().unwrap();
@@ -410,14 +415,14 @@ mod tests {
 
     // Test volatile storage initialization
     #[test]
-    #[serial_test::serial]
+    #[serial_test::serial(storage)]
     fn test_init_volatile() {
         assert!(Storage::init_volatile().is_ok());
     }
 
     // Test persistent storage initialization with reset
     #[test]
-    #[serial_test::serial]
+    #[serial_test::serial(storage)]
     fn test_init_persistent_with_reset() {
         assert!(Storage::init_persistent(
             "./tests/generated/test_init_persistent_with_reset",
@@ -429,7 +434,7 @@ mod tests {
 
     // Test persistent storage initialization without reset
     #[test]
-    #[serial_test::serial]
+    #[serial_test::serial(storage)]
     fn test_init_persistent_without_reset() {
         let storage = Storage::init_persistent(
             "./tests/generated/test_init_persistent_without_reset",
@@ -441,7 +446,7 @@ mod tests {
 
     // Test getting an entity
     #[test]
-    #[serial_test::serial]
+    #[serial_test::serial(storage)]
     fn test_get_entity() {
         Storage::init_volatile().expect("panic");
         let entity = TestStorage::default();
@@ -457,7 +462,7 @@ mod tests {
 
     // Test setting an entity
     #[test]
-    #[serial_test::serial]
+    #[serial_test::serial(storage)]
     fn test_set_entity() {
         Storage::init_volatile().expect("panic");
         let entity = TestStorage::default();
@@ -468,7 +473,7 @@ mod tests {
 
     // Integration test: Test setting and getting an entity
     #[test]
-    #[serial_test::serial]
+    #[serial_test::serial(storage)]
     fn test_set_and_get_entity() {
         Storage::init_volatile().expect("panic");
         let entity = TestStorage::default();
@@ -481,7 +486,7 @@ mod tests {
 
     // Integration test: Test setting and getting multiple entities
     #[test]
-    #[serial_test::serial]
+    #[serial_test::serial(storage)]
     fn test_set_and_get_multiple_entities() {
         Storage::init_volatile().expect("panic");
         let entity1 = TestStorage::default();
@@ -501,7 +506,7 @@ mod tests {
 
     // Test dumping storage content
     #[test]
-    #[serial_test::serial]
+    #[serial_test::serial(storage)]
     fn test_persistence() {
         Storage::init_volatile().expect("panic");
         TestStorage::default().save().expect("panic");
@@ -541,7 +546,7 @@ mod tests {
 
     // Test debug method
     // #[test]
-    // #[serial_test::serial]
+    // #[serial_test::serial(storage)]
     // fn test_debug() {
     //     let _ = Storage::init_volatile();
     //     let entity = Dummy::default();

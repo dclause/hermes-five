@@ -121,14 +121,14 @@ mod tests {
 
     // Test getting entity type
     #[test]
-    #[serial_test::serial]
+    #[serial_test::serial(storage)]
     fn test_get_entity_type() {
         assert_eq!(TestEntity::get_entity_type(), "TestEntity");
     }
 
     // Test saving entity
     #[test]
-    #[serial_test::serial]
+    #[serial_test::serial(storage)]
     fn test_save_entity() {
         let _ = Storage::init_volatile();
         let entity = TestEntity::default();
@@ -137,7 +137,7 @@ mod tests {
 
     // Test getting entity by id
     #[test]
-    #[serial_test::serial]
+    #[serial_test::serial(storage)]
     fn test_get_entity_by_id() {
         let _ = Storage::init_volatile();
         let entity = TestEntity::default();
@@ -148,7 +148,7 @@ mod tests {
 
     // Test list entity
     #[test]
-    #[serial_test::serial]
+    #[serial_test::serial(storage)]
     fn test_list_entity() {
         let _ = Storage::init_volatile();
         TestEntity::default().save().expect("panic");
@@ -159,7 +159,7 @@ mod tests {
 
     // Test delete entity
     #[test]
-    #[serial_test::serial]
+    #[serial_test::serial(storage)]
     fn test_delete_entity() {
         let _ = Storage::init_volatile();
         TestEntity::default().save().expect("panic");

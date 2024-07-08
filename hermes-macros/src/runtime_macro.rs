@@ -52,7 +52,9 @@ pub fn runtime_macro(item: TokenStream, test: bool) -> TokenStream {
         {
 
             // Initialize a volatile storage.
-            #hermes_five::storage::storage::Storage::init_volatile().unwrap();
+            if (!#hermes_five::storage::storage::Storage::is_init()) {
+                #hermes_five::storage::storage::Storage::init_volatile().unwrap();
+            }
 
             let mut lock = #hermes_five::utils::task::RECEIVER
                 .get_or_init(|| async {
