@@ -9,9 +9,12 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 
-use quote::quote;
-use syn::{Fields, ItemFn, ItemStruct, parse_macro_input};
-use syn::parse::{Nothing, Parser};
+use crate::entity_macro::entity_macro_internal;
+use crate::runtime_macro::{runtime_macro_internal, test_macro_internal};
+
+mod entity_macro;
+mod helpers;
+mod runtime_macro;
 
 /// Macro definition for Hermes-Five Runtime.
 ///
@@ -29,79 +32,14 @@ use syn::parse::{Nothing, Parser};
 /// }
 /// ```
 #[proc_macro_attribute]
-pub fn runtime(_: TokenStream, item: TokenStream) -> TokenStream {
-    macro_inner(item, false)
+pub fn runtime(args: TokenStream, item: TokenStream) -> TokenStream {
+    runtime_macro_internal(args.into(), item.into()).into()
 }
 
-/// Same as `#[hermes_macros::runtime]` but for tests.
+/// Defines `#[hermes_macros::runtime]` test macro.
 #[proc_macro_attribute]
-pub fn test(_: TokenStream, item: TokenStream) -> TokenStream {
-    macro_inner(item, true)
-}
-
-/// Same as `#[hermes_macros::runtime]` but for tests.
-fn macro_inner(item: TokenStream, test: bool) -> TokenStream {
-    let hermes_five = hermes_five_crate_path();
-
-    let input = parse_macro_input!(item as ItemFn);
-    let ItemFn {
-        attrs,
-        vis,
-        sig,
-        block,
-    } = input;
-
-    // Define the #[tokio::main] / #[tokio::test] tokio macro attribute.
-    let tokio_main_attr = match test {
-        #[cfg(test)]
-        true => quote! {
-            #[#hermes_five::utils::tokio::test]
-            #[#hermes_five::utils::serial_test::serial]
-        },
-        _ => quote! {
-            #[#hermes_five::utils::tokio::main]
-        },
-    };
-
-    let modified_block = quote! {
-        {
-
-            // Initialize a volatile storage.
-            #hermes_five::storage::storage::Storage::init_volatile().unwrap();
-
-
-            // Channel for communicating task completions.
-            // The arbitrary hardcoded limit is 50 concurrent running tasks.
-            let (sender, mut receiver) = #hermes_five::utils::tokio::sync::mpsc::channel::<tokio::task::JoinHandle<()>>(100);
-
-            // Update the global task sender
-            let _ = #hermes_five::utils::task::SENDER.get_or_init(|| async {
-                #hermes_five::utils::tokio::sync::RwLock::new(Some(sender.clone()))
-            }).await;
-
-            #block
-
-            // Wait for all dynamically spawned tasks to complete.
-            while receiver.len() > 0 {
-                if let Some(handle) = receiver.recv().await {
-                    handle
-                        .await
-                        .expect("Failed to join dynamically spawned task");
-                }
-            }
-        }
-    };
-
-    // Reconstruct the function with the modified block
-    let output = quote! {
-        #tokio_main_attr
-        #(#attrs)*
-        #vis #sig
-        #modified_block
-    };
-
-    // Return the modified function as a TokenStream
-    output.into()
+pub fn test(args: TokenStream, item: TokenStream) -> TokenStream {
+    test_macro_internal(args.into(), item.into()).into()
 }
 
 // #################################################################################
@@ -109,54 +47,7 @@ fn macro_inner(item: TokenStream, test: bool) -> TokenStream {
 #[proc_macro_attribute]
 #[allow(non_snake_case)]
 pub fn Entity(args: TokenStream, input: TokenStream) -> TokenStream {
-    let crate_path = hermes_five_crate_path();
-    let mut item_struct = parse_macro_input!(input as ItemStruct);
-    let _ = parse_macro_input!(args as Nothing);
-
-    if let Fields::Named(ref mut fields) = item_struct.fields {
-        fields.named.push(
-            syn::Field::parse_named
-                .parse2(quote! { pub(crate) id: #crate_path::storage::entity::Id })
-                .unwrap(),
-        );
-    }
-
-    let name = &item_struct.ident;
-
-    return quote! {
-        use #crate_path::storage::typetag;
-
-        #[derive(#crate_path::storage::serde::Serialize, #crate_path::storage::serde::Deserialize)]
-        #item_struct
-
-        #[typetag::serde]
-        impl #crate_path::storage::entity::Entity for #name {
-            fn get_id(&self) -> #crate_path::storage::entity::Id {
-                self.id
-            }
-            fn set_id(&mut self, id: #crate_path::storage::entity::Id) {
-                self.id = id
-            }
-        }
-    }
-    .into();
+    entity_macro_internal(args.into(), input.into()).into()
 }
 
 // #################################################################################
-
-/// Determines what crate name should be used to refer to `hermes_core`.
-/// crate::... or hermes_five::... depending.
-fn hermes_five_crate_path() -> syn::Path {
-    let is_internal = std::env::var("CARGO_CRATE_NAME")
-        .map(|pkg_name| pkg_name == "hermes_five")
-        .unwrap_or_default();
-
-    #[cfg(doctest)]
-    let is_internal = false;
-
-    if is_internal {
-        syn::parse_quote!(crate)
-    } else {
-        syn::parse_quote!(hermes_five)
-    }
-}
