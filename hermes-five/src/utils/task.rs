@@ -4,12 +4,14 @@ use std::future::Future;
 
 use anyhow::anyhow;
 use tokio::sync::{OnceCell, RwLock};
-use tokio::sync::mpsc::Sender;
+use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::task;
 use tokio::task::JoinHandle;
 
 /// Globally accessible runtime sender.
-pub static SENDER: OnceCell<RwLock<Option<Sender<JoinHandle<()>>>>> = OnceCell::const_new();
+pub(crate) static SENDER: OnceCell<RwLock<Option<Sender<JoinHandle<()>>>>> = OnceCell::const_new();
+pub(crate) static RECEIVER: OnceCell<RwLock<Option<Receiver<JoinHandle<()>>>>> =
+    OnceCell::const_new();
 
 /// Runs a given future as a Tokio task while ensuring the main function (marked by `#[hermes_five::runtime]`)
 /// will not finish before all tasks running as done.
@@ -39,7 +41,10 @@ where
         .ok_or_else(|| anyhow!("Tasks transmitter not initialized"))
         .unwrap();
     let handle = task::spawn(future);
-    sender.send(handle).await.expect("Task handler not sent");
+    match sender.send(handle).await {
+        Ok(_) => {}
+        Err(e) => panic!("Task handler not sent: {}", e),
+    };
 }
 
 #[cfg(test)]
@@ -70,7 +75,6 @@ mod tests {
     }
 
     #[test]
-    #[serial_test::serial]
     fn test_task_execution() {
         // Tasks should be parallel and function should be blocked until all done.
         // Therefore the `my_runtime()` function should take more time than the longest task, but less

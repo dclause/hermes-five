@@ -1,5 +1,3 @@
-extern crate proc_macro2;
-
 use proc_macro::TokenStream;
 
 use proc_macro2::TokenStream as TokenStream2;
@@ -42,10 +40,8 @@ pub fn runtime_macro(item: TokenStream, test: bool) -> TokenStream {
 
     // Define the #[tokio::main] / #[tokio::test] tokio macro attribute.
     let tokio_main_attr = match test {
-        #[cfg(test)]
         true => quote! {
             #[#hermes_five::utils::tokio::test]
-            #[#hermes_five::utils::serial_test::serial]
         },
         _ => quote! {
             #[#hermes_five::utils::tokio::main]
@@ -58,15 +54,27 @@ pub fn runtime_macro(item: TokenStream, test: bool) -> TokenStream {
             // Initialize a volatile storage.
             #hermes_five::storage::storage::Storage::init_volatile().unwrap();
 
+            let mut lock = #hermes_five::utils::task::RECEIVER
+                .get_or_init(|| async {
+                    // If we need to init a receiver, that also mean we need to init a sender.
+                    let (sender, mut receiver) =
+                        #hermes_five::utils::tokio::sync::mpsc::channel::<tokio::task::JoinHandle<()>>(100);
 
-            // Channel for communicating task completions.
-            // The arbitrary hardcoded limit is 50 concurrent running tasks.
-            let (sender, mut receiver) = #hermes_five::utils::tokio::sync::mpsc::channel::<tokio::task::JoinHandle<()>>(100);
+                    if (#hermes_five::utils::task::SENDER.initialized()) {
+                        panic!("A sender exists while a receiver don't");
+                    }
 
-            // Update the global task sender
-            let _ = #hermes_five::utils::task::SENDER.get_or_init(|| async {
-                #hermes_five::utils::tokio::sync::RwLock::new(Some(sender.clone()))
-            }).await;
+                    let _ =  #hermes_five::utils::task::SENDER
+                        .get_or_init(|| async {
+                            #hermes_five::utils::tokio::sync::RwLock::new(Some(sender.clone()))
+                        })
+                        .await;
+                    #hermes_five::utils::tokio::sync::RwLock::new(Some(receiver))
+                })
+                .await
+                .write()
+                .await;
+            let receiver = lock.as_mut().unwrap();
 
             #block
 
