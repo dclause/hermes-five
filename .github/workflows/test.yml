@@ -17,7 +17,13 @@ jobs:
     strategy:
       matrix:
         os: [ ubuntu-latest ]
+
     steps:
+
+      - name: Build | install dependencies
+        if: inputs.runs_on == 'ubuntu-latest'
+        run: |
+          sudo apt install libudev-dev
       - name: Checkout sources
         uses: actions/checkout@v4
 
