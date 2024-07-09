@@ -1,3 +1,5 @@
+use std::panic::UnwindSafe;
+
 use crate::protocols::Protocol;
 use crate::protocols::serial::SerialProtocol;
 use crate::utils::events::{EventHandler, EventManager};
@@ -9,6 +11,16 @@ pub struct Board {
     events: EventManager,
     /// The communication protocol used by this board.
     protocol: Box<dyn Protocol>,
+}
+
+/// Custom clone: do not clone events.
+impl Clone for Board {
+    fn clone(&self) -> Self {
+        Self {
+            events: EventManager::default(),
+            protocol: self.protocol.clone(),
+        }
+    }
 }
 
 impl Default for Board {
@@ -104,7 +116,6 @@ impl Board {
             // b.report_digital(0, 1)?;
             // b.report_digital(1, 1)?;
             // Ok(b)
-
             events.emit("ready", callback_board).await;
             Ok(())
         })
@@ -167,7 +178,7 @@ impl Board {
     where
         S: Into<String>,
         T: 'static + Send + Sync + Clone,
-        F: FnMut(T) -> Fut + Send + 'static,
+        F: FnMut(T) -> Fut + Send + 'static + UnwindSafe,
         Fut: std::future::Future<Output = ()> + Send + 'static,
     {
         self.events.on(event, callback).await
