@@ -5,7 +5,6 @@ use crate::protocols::serial::SerialProtocol;
 use crate::utils::events::{EventHandler, EventManager};
 use crate::utils::task;
 
-#[derive(Clone)]
 pub struct Board {
     /// The event manager for the board.
     events: EventManager,
