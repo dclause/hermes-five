@@ -117,27 +117,21 @@ mod tests {
     fn code_coverage() {
         // This code doesn't check much. Instead, it does macro expansion at run time to let
         // tarpaulin measure code coverage for the macro.
-        let mut path = std::env::current_dir().unwrap();
-        path.push("tests");
-        path.push("runtime_macro.rs");
-        let file = std::fs::File::open(path.clone()).unwrap();
+        let file = std::fs::File::open("tests/runtime_macro.rs").unwrap();
         emulate_attributelike_macro_expansion(file, &[("runtime", runtime_macro_internal)])
             .unwrap();
-        let file = std::fs::File::open(path).unwrap();
+
+        let file = std::fs::File::open("tests/runtime_macro.rs").unwrap();
         emulate_attributelike_macro_expansion(file, &[("test", test_macro_internal)]).unwrap();
     }
 
     #[test]
     fn syntax_error() {
         // This code makes sure that the given file doesn't compile.
-        let mut path = std::env::current_dir().unwrap();
-        path.push("tests");
-        path.push("compile_fail");
-        path.push("incorrect_runtime.rs");
-        let file = std::fs::File::open(path.clone()).unwrap();
+        let file = std::fs::File::open("tests/compile_fail/incorrect_runtime.rs").unwrap();
         emulate_attributelike_macro_expansion(file, &[("runtime", runtime_macro_internal)])
             .unwrap();
-        let file = std::fs::File::open(path).unwrap();
+        let file = std::fs::File::open("tests/compile_fail/incorrect_runtime.rs").unwrap();
         emulate_attributelike_macro_expansion(file, &[("test", test_macro_internal)]).unwrap();
     }
 }
