@@ -2,15 +2,39 @@
 
 use std::future::Future;
 
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use tokio::sync::{OnceCell, RwLock};
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::task;
 use tokio::task::JoinHandle;
 
 /// Globally accessible runtime sender.
-pub static SENDER: OnceCell<RwLock<Option<Sender<JoinHandle<()>>>>> = OnceCell::const_new();
-pub static RECEIVER: OnceCell<RwLock<Option<Receiver<JoinHandle<()>>>>> = OnceCell::const_new();
+pub static SENDER: OnceCell<RwLock<Option<Sender<JoinHandle<TaskResult>>>>> = OnceCell::const_new();
+pub static RECEIVER: OnceCell<RwLock<Option<Receiver<JoinHandle<TaskResult>>>>> =
+    OnceCell::const_new();
+
+/// Represents the result of a TaskResult.
+/// A task may return either () or Result<(), Error> for flexibility which
+/// will be converted to TaskResult sent to the runtime..
+pub enum TaskResult {
+    Ok,
+    Err(anyhow::Error),
+}
+
+impl From<Result<()>> for TaskResult {
+    fn from(result: Result<()>) -> Self {
+        match result {
+            Ok(_) => TaskResult::Ok,
+            Err(e) => TaskResult::Err(e),
+        }
+    }
+}
+
+impl From<()> for TaskResult {
+    fn from(_: ()) -> Self {
+        TaskResult::Ok
+    }
+}
 
 /// Runs a given future as a Tokio task while ensuring the main function (marked by `#[hermes_five::runtime]`)
 /// will not finish before all tasks running as done.
@@ -30,16 +54,17 @@ pub static RECEIVER: OnceCell<RwLock<Option<Receiver<JoinHandle<()>>>>> = OnceCe
 ///     // whatever
 /// }
 /// ```
-pub async fn run<F>(future: F)
+pub async fn run<F, T>(future: F)
 where
-    F: Future<Output = ()> + Send + 'static,
+    F: Future<Output = T> + Send + 'static,
+    T: Into<TaskResult> + Send + 'static,
 {
     let lock = SENDER.get().unwrap().read().await;
     let sender = lock
         .as_ref()
         .ok_or_else(|| anyhow!("Tasks transmitter not initialized"))
         .unwrap();
-    let handle = task::spawn(future);
+    let handle = task::spawn(async move { future.await.into() });
     match sender.send(handle).await {
         Ok(_) => {}
         Err(e) => panic!("Task handler not sent: {}", e),
@@ -49,6 +74,8 @@ where
 #[cfg(test)]
 mod tests {
     use std::time::SystemTime;
+
+    use anyhow::bail;
 
     use crate::utils::task;
 
@@ -79,7 +106,6 @@ mod tests {
     }
 
     #[test]
-    #[serial_test::serial]
     fn test_task_execution() {
         // Tasks should be parallel and function should be blocked until all done.
         // Therefore the `my_runtime()` function should take more time than the longest task, but less
@@ -99,5 +125,18 @@ mod tests {
             "Duration should be lower than 1500ms (found: {})",
             duration,
         );
+    }
+
+    #[hermes_macros::test]
+    async fn test_task_with_result() {
+        let task = task::run(async move { Ok(()) });
+
+        assert_eq!(task.await, (), "An Ok(()) task do not panic the runtime");
+
+        let task = task::run(async move {
+            bail!("Wow panic!");
+        });
+
+        assert_eq!(task.await, (), "A panicking task do not panic the runtime");
     }
 }

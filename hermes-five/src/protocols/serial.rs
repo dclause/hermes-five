@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use anyhow::{bail, format_err, Result};
-use log::{error, trace};
+use log::trace;
 use serialport::{DataBits, FlowControl, Parity, SerialPort, StopBits};
 
 use crate::protocols::Protocol;
@@ -68,10 +68,7 @@ impl Protocol for SerialProtocol {
             .open()
         {
             Ok(connexion) => connexion,
-            Err(err) => {
-                error!("Cannot open port ({}): {}", self.port, err.description);
-                bail!("Cannot open port ({}): {}", self.port, err.description)
-            }
+            Err(err) => bail!("Error opening port ({}): {}", self.port, err.description),
         };
         self.connexion = Arc::new(Mutex::new(Some(connexion)));
 
@@ -82,7 +79,6 @@ impl Protocol for SerialProtocol {
     fn close(&mut self) -> Result<()> {
         trace!("Close serial protocol on port: {}", self.port);
         *self.connexion.lock().map_err(|err| {
-            error!("Error closing port ({}): {}", self.port, err.to_string());
             format_err!("Error closing port ({}): {}", self.port, err.to_string())
         })? = None;
         Ok(())

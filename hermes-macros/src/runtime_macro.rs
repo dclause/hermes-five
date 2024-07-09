@@ -54,7 +54,7 @@ pub fn runtime_macro(item: TokenStream, test: bool) -> TokenStream {
                 .get_or_init(|| async {
                     // If we need to init a receiver, that also mean we need to init a sender.
                     let (sender, mut receiver) =
-                        #hermes_five::utils::tokio::sync::mpsc::channel::<tokio::task::JoinHandle<()>>(100);
+                        #hermes_five::utils::tokio::sync::mpsc::channel::<tokio::task::JoinHandle<#hermes_five::utils::task::TaskResult>>(100);
 
                     if (#hermes_five::utils::task::SENDER.initialized()) {
                         panic!("A sender exists while a receiver don't");
@@ -77,9 +77,19 @@ pub fn runtime_macro(item: TokenStream, test: bool) -> TokenStream {
             // Wait for all dynamically spawned tasks to complete.
             while receiver.len() > 0 {
                 if let Some(handle) = receiver.recv().await {
-                    handle
-                        .await
-                        .expect("Failed to join dynamically spawned task");
+                    match handle.await {
+                        Ok(#hermes_five::utils::task::TaskResult::Ok) => {},
+                        Ok(#hermes_five::utils::task::TaskResult::Err(e)) => {
+                            eprintln!("Task failed: {:?}", e.to_string());
+                        },
+                        Err(e) => {
+                            if e.is_panic() {
+                                eprintln!("Task failed: {:?}", e.to_string());
+                            } else {
+                                eprintln!("Task failed: {:?}", e.to_string());
+                            }
+                        }
+                    }
                 }
             }
         }

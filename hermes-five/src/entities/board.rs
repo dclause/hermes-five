@@ -94,8 +94,19 @@ impl Board {
         let mut protocol = self.protocol.clone();
         let callback_board = self.clone();
         task::run(async move {
-            protocol.open().unwrap();
+            protocol.open()?;
+            // b.query_firmware()?;
+            // b.read_and_decode()?;
+            // b.query_capabilities()?;
+            // b.read_and_decode()?;
+            // b.query_analog_mapping()?;
+            // b.read_and_decode()?;
+            // b.report_digital(0, 1)?;
+            // b.report_digital(1, 1)?;
+            // Ok(b)
+
             events.emit("ready", callback_board).await;
+            Ok(())
         })
         .await;
         self
