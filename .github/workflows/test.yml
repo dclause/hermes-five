@@ -21,7 +21,7 @@ jobs:
     steps:
 
       - name: Build | install dependencies
-        if: inputs.runs_on == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt install libudev-dev
       - name: Checkout sources
