@@ -19,6 +19,7 @@ use anyhow::Result;
 ///  let file = resolve_file("./Cargo.toml").unwrap();
 /// // Resolves to `/home/pi/user/Cargo.toml` if the file exists.
 /// ```
+#[allow(dead_code)]
 pub fn resolve_file<P: AsRef<Path>>(path: P) -> Result<PathBuf> {
     let file_path = path.as_ref();
     let absolute_path: PathBuf = match file_path.is_absolute() {

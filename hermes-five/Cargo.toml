@@ -15,6 +15,7 @@ doctest = false
 default = []
 libudev = ["serialport/libudev"]
 serde = ["dep:serde", "dep:serde_json"]
+storage = ["serde"]
 
 [dependencies]
 hermes-macros = { path = "../hermes-macros" }
@@ -47,3 +48,7 @@ path = "examples/board/close_event.rs"
 [[example]]
 name = "board_custom_port"
 path = "examples/board/custom_port.rs"
+
+[[example]]
+name = "board_multiple_events"
+path = "examples/board/multiple_events.rs"

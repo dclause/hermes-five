@@ -1,3 +1,5 @@
+#![cfg(feature = "serde")]
+
 extern crate hermes_macros;
 
 use hermes_five::storage::{entity::Entity as EntityTrait, entity::Id};
