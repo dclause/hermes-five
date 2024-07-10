@@ -23,6 +23,7 @@ anyhow = "1.0.86"
 dyn-clone = "1.0.17"
 log = "0.4.22"
 futures = "0.3.30"
+snafu = "0.8.4"
 tokio = { version = "1.38.0", features = ["macros", "rt-multi-thread", "signal", "sync", "time"] }
 typetag = "0.2.16"
 # Protocol(s)
@@ -52,3 +53,10 @@ path = "examples/board/custom_port.rs"
 [[example]]
 name = "board_multiple_events"
 path = "examples/board/multiple_events.rs"
+
+# #################################################
+# SYNC examples
+
+[[example]]
+name = "sync_blink"
+path = "examples/sync/blink.rs"

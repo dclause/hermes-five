@@ -6,8 +6,8 @@ async fn main() {
     let board = Board::run().await;
 
     board
-        .on("ready", |_: Board| async move {
-            // Do blink
+        .on("ready", |board: Board| async move {
+            println!("Board connected: {}", board);
         })
         .await;
 }

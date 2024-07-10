@@ -2,24 +2,27 @@
 //! ` code.
 //! It allows communication of boards connected via a serial port to HERMES.
 use std::borrow::Cow;
-use std::fmt::{Debug, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use anyhow::{bail, format_err, Result};
 use log::trace;
-use serialport::{DataBits, FlowControl, Parity, SerialPort, StopBits};
+use serialport::{DataBits, FlowControl, Parity, StopBits};
+use serialport::SerialPort;
+use snafu::prelude::*;
 
-use crate::protocols::Protocol;
+use crate::protocols::*;
+use crate::protocols::Error::*;
 
 /// The `SerialProtocol` is made to communicate with a remote board using the serial protocol.
-#[derive(Clone)]
-#[cfg_attr(feature = "storage", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug)]
 pub struct SerialProtocol {
-    // The connection port
+    /// The connection port.
     port: String,
-    #[cfg_attr(feature = "storage", serde(skip))]
-    connexion: Arc<Mutex<Option<Box<dyn SerialPort>>>>,
+    /// A Read/Write io object.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    io: Arc<Mutex<Option<Box<dyn SerialPort>>>>,
 }
 
 impl SerialProtocol {
@@ -35,7 +38,7 @@ impl SerialProtocol {
         let port = port_cow.as_ref();
         Self {
             port: port.to_string(),
-            connexion: Arc::new(Mutex::new(None)),
+            io: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -53,40 +56,55 @@ impl Default for SerialProtocol {
     }
 }
 
-#[cfg_attr(feature = "storage", typetag::serde)]
+#[cfg_attr(feature = "serde", typetag::serde)]
 impl Protocol for SerialProtocol {
     /// Open the communication with the registered port.
-    fn open(&mut self) -> Result<()> {
+    fn open(&mut self) -> Result<(), Error> {
         trace!("Open serial protocol on port: {}", self.port);
 
-        let connexion = match serialport::new(self.port.clone(), 57_600)
+        let connexion = serialport::new(self.port.clone(), 57_600)
             .data_bits(DataBits::Eight)
             .parity(Parity::None)
             .stop_bits(StopBits::One)
             .flow_control(FlowControl::None)
             .timeout(Duration::from_millis(1000))
             .open()
-        {
-            Ok(connexion) => connexion,
-            Err(err) => bail!("Error opening port ({}): {}", self.port, err.description),
-        };
-        self.connexion = Arc::new(Mutex::new(Some(connexion)));
+            .context(SerialPortSnafu)?;
+        self.io = Arc::new(Mutex::new(Some(connexion)));
 
         Ok(())
     }
 
     /// Gracefully shuts down the serial port communication.
-    fn close(&mut self) -> Result<()> {
+    fn close(&mut self) -> Result<(), Error> {
         trace!("Close serial protocol on port: {}", self.port);
-        *self.connexion.lock().map_err(|err| {
-            format_err!("Error closing port ({}): {}", self.port, err.to_string())
-        })? = None;
+        *self.io.lock().map_err(|_| MutexPoison)? = None;
         Ok(())
+    }
+
+    fn write(&mut self, buf: &[u8]) -> Result<usize, Error> {
+        self.io
+            .lock()
+            .map_err(|_| MutexPoison)?
+            .as_mut()
+            .ok_or(NotInitialized)?
+            .write(buf)
+            .context(IoExceptionSnafu)
     }
 }
 
-impl Debug for SerialProtocol {
+impl Display for SerialProtocol {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("").field(&self.port).finish()
+        let io = self.io.lock().unwrap();
+        write!(
+            f,
+            "firmware={}, version={}, protocol={}, connection={:?}",
+            "todo",
+            "todo",
+            // self.firmware,
+            // self.version,
+            "SerialProtocol",
+            io
+        )
     }
 }

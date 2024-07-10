@@ -1,6 +1,7 @@
+use std::fmt::Display;
 use std::panic::UnwindSafe;
 
-use crate::protocols::Protocol;
+use crate::protocols::{Error, Protocol};
 use crate::protocols::serial::SerialProtocol;
 use crate::utils::events::{EventHandler, EventManager};
 use crate::utils::task;
@@ -73,13 +74,13 @@ impl Board {
     /// ```
     /// let board = Board::default().with_protocol(SerialProtocol::new("COM4")).open().await;
     /// ```
-    pub fn with_protocol<P: Protocol + 'static>(mut self, protocol: P) -> Board {
+    pub fn with_protocol<P: Protocol + 'static>(mut self, protocol: P) -> Self {
         self.protocol = Box::new(protocol);
         self
     }
 
     /// Starts a board connexion procedure (using the appropriate configured protocol) in an asynchronous way.
-    /// _Note 1:    you probably might not want to call this method yourself and use `Board::run().await` instead._
+    /// _Note 1:    you probably might not want to call this method yourself and use [`Self::run()`] instead._
     /// _Note 2:    after this method, you cannot consider the board to be connected until you receive the "ready" event._
     ///
     /// # Example
@@ -102,24 +103,23 @@ impl Board {
     ///
     pub async fn open(self) -> Self {
         let events = self.events.clone();
-        let mut protocol = self.protocol.clone();
-        let callback_board = self.clone();
+        let mut callback_board = self.clone();
         task::run(async move {
-            protocol.open()?;
-            // b.query_firmware()?;
-            // b.read_and_decode()?;
-            // b.query_capabilities()?;
-            // b.read_and_decode()?;
-            // b.query_analog_mapping()?;
-            // b.read_and_decode()?;
-            // b.report_digital(0, 1)?;
-            // b.report_digital(1, 1)?;
-            // Ok(b)
+            callback_board.protocol.open()?;
+            callback_board.protocol.handshake()?;
             events.emit("ready", callback_board).await;
             Ok(())
         })
         .await;
         self
+    }
+
+    /// Blocking version of [`Self::open()`] method.
+    pub fn blocking_open(mut self) -> Result<Self, Error> {
+        self.protocol.open()?;
+        self.protocol.handshake()?;
+        println!("Board connected: {}", self);
+        Ok(self)
     }
 
     /// Close a board connexion (using the appropriate configured protocol) in an asynchronous way.
@@ -149,18 +149,35 @@ impl Board {
         let mut protocol = self.protocol.clone();
         let callback_board = self.clone();
         task::run(async move {
-            protocol.close().unwrap();
+            protocol.close()?;
             events.emit("close", callback_board).await;
+            Ok(())
         })
         .await;
         self
     }
 
+    // ########################################
+    // Protocol related
+
+    // /// Get the firmware name.
+    // fn firmware_name(&mut self) -> &String;
+    // /// Get the firmware version.
+    // fn firmware_version(&mut self) -> &String;
+    //
+    // /// Get pins that the board has access to.
+    // fn pins(&mut self) -> &Vec<Pin>;
+    // /// Get the current Firmata protocol version.
+    // fn protocol_version(&mut self) -> &String;
+
+    // ########################################
+    // Event related functions
+
     /// Registers a callback to be executed on a given event on the board.
     ///
     /// Available events for a board are:
-    /// * `ready`: Triggered when the board is connected and ready to run. To use it, register though the `on(...)` method.
-    /// * `exit`: Triggered when the board is disconnected. To use it, register though the `on(...)` method.
+    /// * `ready`: Triggered when the board is connected and ready to run. To use it, register though the [`Self::on()`] method.
+    /// * `exit`: Triggered when the board is disconnected. To use it, register though the [`Self::on()`] method.
     ///
     /// # Example
     ///
@@ -181,5 +198,11 @@ impl Board {
         Fut: std::future::Future<Output = ()> + Send + 'static,
     {
         self.events.on(event, callback).await
+    }
+}
+
+impl Display for Board {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Board ({})", self.protocol)
     }
 }

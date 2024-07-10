@@ -1,10 +1,5 @@
 //! Defines Hermes-Five Runtime macro.
 
-#![doc(test(
-    no_crate_inject,
-    attr(deny(warnings, rust_2018_idioms), allow(dead_code, unused_variables))
-))]
-
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
