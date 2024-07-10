@@ -6,7 +6,8 @@ use hermes_five::entities::Board;
 // The idea remains the same, excepted no callbacks, events or async code can be used.
 
 fn main() -> Result<()> {
-    let board = Board::default().blocking_open()?;
+    let mut board = Board::default().blocking_open()?;
     println!("Board connected: {}", board);
+    println!("Pins {:#?}", board.protocol.pins());
     Ok(())
 }

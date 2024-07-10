@@ -1,4 +1,4 @@
-use crate::protocols::firmata::*;
+use crate::protocols::constants::*;
 
 /// The current state and configuration of a pin.
 #[derive(Debug, Clone)]

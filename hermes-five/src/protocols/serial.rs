@@ -13,6 +13,8 @@ use snafu::prelude::*;
 
 use crate::protocols::*;
 use crate::protocols::Error::*;
+use crate::protocols::errors::{IoExceptionSnafu, SerialPortSnafu};
+use crate::protocols::pins::Pin;
 
 /// The `SerialProtocol` is made to communicate with a remote board using the serial protocol.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -23,6 +25,11 @@ pub struct SerialProtocol {
     /// A Read/Write io object.
     #[cfg_attr(feature = "serde", serde(skip))]
     io: Arc<Mutex<Option<Box<dyn SerialPort>>>>,
+    pins: Vec<Pin>,
+    i2c_data: Vec<I2CReply>,
+    protocol_version: String,
+    firmware_name: String,
+    firmware_version: String,
 }
 
 impl SerialProtocol {
@@ -39,6 +46,11 @@ impl SerialProtocol {
         Self {
             port: port.to_string(),
             io: Arc::new(Mutex::new(None)),
+            pins: vec![],
+            i2c_data: vec![],
+            protocol_version: String::default(),
+            firmware_name: String::default(),
+            firmware_version: String::default(),
         }
     }
 }
@@ -58,6 +70,40 @@ impl Default for SerialProtocol {
 
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl Protocol for SerialProtocol {
+    // ########################################
+    // Inner data related functions
+
+    fn pins(&mut self) -> &mut Vec<Pin> {
+        &mut self.pins
+    }
+    fn with_pins(&mut self, pins: Vec<Pin>) {
+        self.pins = pins;
+    }
+    fn protocol_version(&mut self) -> &String {
+        &self.protocol_version
+    }
+    fn with_protocol_version(&mut self, protocol_version: String) {
+        self.protocol_version = protocol_version.into();
+    }
+    fn firmware_name(&mut self) -> &String {
+        &self.firmware_name
+    }
+    fn with_firmware_name(&mut self, firmware_name: String) {
+        self.firmware_name = firmware_name.into();
+    }
+    fn firmware_version(&mut self) -> &String {
+        &self.firmware_version
+    }
+    fn with_firmware_version(&mut self, firmware_version: String) {
+        self.firmware_version = firmware_version.into();
+    }
+    fn i2c_data(&mut self) -> &mut Vec<I2CReply> {
+        &mut self.i2c_data
+    }
+    fn with_i2c_data(&mut self, i2c_data: Vec<I2CReply>) {
+        self.i2c_data = i2c_data;
+    }
+
     /// Open the communication with the registered port.
     fn open(&mut self) -> Result<(), Error> {
         trace!("Open serial protocol on port: {}", self.port);
@@ -82,29 +128,41 @@ impl Protocol for SerialProtocol {
         Ok(())
     }
 
-    fn write(&mut self, buf: &[u8]) -> Result<usize, Error> {
-        self.io
-            .lock()
-            .map_err(|_| MutexPoison)?
+    /// Write to  the internal connection. For more details see [`std::io::Write::write`].
+    fn write(&mut self, buf: &[u8]) -> Result<(), Error> {
+        let mut lock = self.io.lock().map_err(|_| MutexPoison)?;
+        let bytes_written = lock
             .as_mut()
             .ok_or(NotInitialized)?
             .write(buf)
+            .context(IoExceptionSnafu)?;
+
+        // Check if all bytes were successfully written
+        if bytes_written == buf.len() {
+            Ok(())
+        } else {
+            Err(MessageTooShort)
+        }
+    }
+
+    /// Read from the internal connection. For more details see [`std::io::Read::read_exact`].
+    fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), Error> {
+        let mut lock = self.io.lock().map_err(|_| MutexPoison)?;
+        lock.as_mut()
+            .ok_or(NotInitialized)?
+            .read_exact(buf)
             .context(IoExceptionSnafu)
     }
 }
 
+// @todo Make [`Self::io`] generic (Read + Write + Debug) so we can actually make this 'dyn Protocol' generic
 impl Display for SerialProtocol {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let io = self.io.lock().unwrap();
         write!(
             f,
             "firmware={}, version={}, protocol={}, connection={:?}",
-            "todo",
-            "todo",
-            // self.firmware,
-            // self.version,
-            "SerialProtocol",
-            io
+            self.firmware_name, self.firmware_version, "SerialProtocol", io
         )
     }
 }

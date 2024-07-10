@@ -10,7 +10,7 @@ pub struct Board {
     /// The event manager for the board.
     events: EventManager,
     /// The communication protocol used by this board.
-    protocol: Box<dyn Protocol>,
+    pub protocol: Box<dyn Protocol>,
 }
 
 /// Custom clone: do not clone events.
