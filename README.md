@@ -7,32 +7,77 @@
 [![test](https://github.com/dclause/hermes-five/workflows/Test/badge.svg)](https://github.com/dclause/hermes-five/actions/workflows/test.yml)
 [![codecov](https://codecov.io/gh/dclause/hermes-five/graph/badge.svg?token=KF8EFDUQ7A)](https://codecov.io/gh/dclause/hermes-five)
 
-**_Hermes-Five_ is an Open Source, [Firmata Protocol](https://github.com/firmata/protocol) based, IoT and Robotics
+**_Hermes-Five_ is an Open Source, [Firmata Protocol](https://github.com/firmata/protocol)-based, IoT and Robotics
 programming framework.**
 
-_The Hermes-Five project is done on my spare time; it does not intend to compete with any other solutions you might want
-to try,_  
-_Hermes-Five reason to be is for [the author](https://github.com/dclause) to learn more about Rust and to create the
-foundation for HermesIO platform._  
-_The original intend is to mimic the functionality of [Johnny-Five](https://johnny-five.io/) framework where is finds
-its inspiration._
+_The ultimate goal of this project is to mimic the functionalities of [Johnny-Five](https://johnny-five.io/) framework
+where it finds its inspiration. That being said, the project is done in [my spare time](https://github.com/dclause) and
+does not intend
+to compete with any other solutions you might want to try,_
 
 ## Features
 
-_Hermes-Five_ is a Rust library designed to control Arduino or supported boards remotely using Rust code.
+**Hermes-Five** is a Rust library designed to control Arduino or supported boards remotely using Rust code.
+
+**_If you wish to control your Hermes compatible boards using a UI rather than Rust code, please consult
+the [HermesStudio](https://github.com/dclause/HermesStudio)
+project._**
 
 ## Instructions
 
-_@todo_
+- Install the
+  compatible [Firmata Protocol client](https://github.com/firmata/arduino/blob/main/examples/StandardFirmataPlus/StandardFirmataPlus.ino)
+  on your Arduino board.
+- Create a new Rust project:
+
+```
+cargo new my_project
+cd my_project
+```
+
+- Add this crate to your dependencies in the _Cargo.toml_
+  file
+
+```
+[dependencies]
+hermes-five = { branch = "develop", git = "https://github.com/dclause/hermes-five" }
+```
+
+- Start by exploring the [examples](https://github.com/dclause/hermes-five/tree/develop/hermes-five/examples) code and
+  the project API
 
 ## Examples
 
 All available examples and details can be found in
 the [examples](https://github.com/dclause/hermes-five/tree/develop/hermes-five/examples) folder.
 
-## Contributing
+To start an example, run the following command:
 
-All contributions are more than welcomed though PR and issue queue.
+```
+cargo run --example examplename
+```
+
+To run an example in a file called `examples/folder/my_file.rs` the `examplename` to be used is the concatenation
+of `folder_my_file`.
+
+If you want the "full" output you can use:
+
+```
+RUST_LOG=DEBUG cargo run --example folder_my_file
+```
+
+## Roadmap
+
+For details, see the full [roadmap](https://github.com/dclause/hermes-five/blob/develop/roadmap.md):
+
+- ~~Phase 0: Research~~
+- Phase 1: Proof-of-concept
+- Phase 2: Animations
+
+## Contribution
+
+All contributions are more than welcomed though [PR](https://github.com/dclause/hermes-five/pulls) and
+the [issue queue](https://github.com/dclause/hermes-five/issues).
 
 - Fork the repository
 - Create a new branch (git checkout -b feature-branch)
@@ -43,26 +88,9 @@ All contributions are more than welcomed though PR and issue queue.
 _The author does not claim to know everything about Rust programming or IoT, and all ideas are welcome as long as they
 respect the project's original philosophy._
 
-## Roadmap
-
-### Research
-
-- [X] Explore asynchronous task spawning (dynamically spawn tasks, main() should wait for completion).
-- [X] Explore event system (register/emit) and asynchronous callback
-
-### Proof-of-concept
-
-- [ ] Simple board connection using Firmata protocol.
-- [ ] Simple led control (on/off) and asynchronous task (blink)
-- [ ] Demonstrate the ability to use Hermes-Five for HermesIO requirements
-
-### Development
-
-- [ ] _to be defined_
-
 ## License
 
-This project is licensed under the MIT License - see
+This project is licensed under the MIT License. See
 the [LICENSE](https://github.com/dclause/hermes-five/blob/develop/LICENSE) file for details.
 
 ## Contact
