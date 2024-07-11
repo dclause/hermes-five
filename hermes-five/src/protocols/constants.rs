@@ -123,9 +123,17 @@ pub const PIN_MODE_STEPPER: u8 = 8;
 /// Pin configured for rotary encoders
 pub const PIN_MODE_ENCODER: u8 = 9;
 /// Pin configured for serial communication
-pub const PIN_MODE_SERIAL: u8 = 10;
+pub const PIN_MODE_SERIAL: u8 = 0x0A;
 /// Enable internal pull-up resistor for pin
-pub const PIN_MODE_PULLUP: u8 = 11;
+pub const PIN_MODE_PULLUP: u8 = 0x0B;
+/// Pin configured for SPI
+pub const PIN_MODE_SPI: u8 = 0x0C;
+/// Pin configured for proximity sensors
+pub const PIN_MODE_SONAR: u8 = 0x0D;
+/// Pin configured for piezzo buzzer tone generation
+pub const PIN_MODE_TONE: u8 = 0x0E;
+/// Pin configured for DHT humidity and temperature sensors
+pub const PIN_MODE_DHT: u8 = 0x0F;
 /// Pin configured to be ignored by digitalWrite and capabilityResponse
 pub const PIN_MODE_IGNORE: u8 = 0x7F;
 /// Total number of pin modes.

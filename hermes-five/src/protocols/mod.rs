@@ -1,38 +1,39 @@
-use std::fmt::Display;
+use std::any::type_name;
+use std::fmt::{Debug, Display, Formatter};
 use std::io::{Read, Write};
+use std::ops::{Deref, DerefMut};
 
 use dyn_clone::DynClone;
-use snafu::{OptionExt, ResultExt};
+use snafu::ResultExt;
 
 use crate::protocols::constants::*;
 use crate::protocols::Error::{BadByte, MessageTooShort, UnknownSysEx};
-use crate::protocols::errors::{MessageTooShortSnafu, Utf8Snafu};
 pub use crate::protocols::errors::Error;
+use crate::protocols::errors::Utf8Snafu;
 pub use crate::protocols::i2c_reply::I2CReply;
 pub use crate::protocols::pins::Pin;
+use crate::protocols::protocol::ProtocolHardware;
 pub use crate::protocols::serial::SerialProtocol;
 
 pub mod constants;
 mod errors;
 mod i2c_reply;
 mod pins;
+mod protocol;
 pub mod serial;
+
+// Makes a Box<dyn Protocol> clone (used for Board cloning).
+dyn_clone::clone_trait_object!(Protocol);
+
 /// Defines the trait all protocols must implements.
 #[cfg_attr(feature = "serde", typetag::serde(tag = "type"))]
-pub trait Protocol: DynClone + Send + Sync + Display {
+pub trait Protocol: DynClone + Send + Sync + Debug {
     // ########################################
     // Inner data related functions
 
-    fn pins(&mut self) -> &mut Vec<Pin>;
-    fn with_pins(&mut self, pins: Vec<Pin>);
-    fn protocol_version(&mut self) -> &String;
-    fn with_protocol_version(&mut self, protocol_version: String);
-    fn firmware_name(&mut self) -> &String;
-    fn with_firmware_name(&mut self, firmware_name: String);
-    fn firmware_version(&mut self) -> &String;
-    fn with_firmware_version(&mut self, firmware_version: String);
-    fn i2c_data(&mut self) -> &mut Vec<I2CReply>;
-    fn with_i2c_data(&mut self, i2c_data: Vec<I2CReply>);
+    /// Retrieve the internal hardware.
+    fn hardware(&self) -> &ProtocolHardware;
+    fn hardware_mut(&mut self) -> &mut ProtocolHardware;
 
     // ########################################
     // Functions specifically bound to the protocol.
@@ -48,6 +49,16 @@ pub trait Protocol: DynClone + Send + Sync + Display {
 
     // ########################################
     // Protocol related functions
+
+    /// Returns the protocol name (used for Display only)
+    fn get_protocol_name(&self) -> &'static str {
+        type_name::<Self>().split("::").last().unwrap()
+    }
+
+    /// Returns the protocol internal details (used for Display only)
+    fn get_protocol_details(&self) -> String {
+        String::from("()")
+    }
 
     /// Starts a conversation with the board: validate the firmware version and...
     fn handshake(&mut self) -> Result<(), Error> {
@@ -82,7 +93,7 @@ pub trait Protocol: DynClone + Send + Sync + Display {
 
     /// Write `level` to the analog `pin`.
     fn analog_write(&mut self, pin: i32, level: i32) -> Result<(), Error> {
-        self.pins()[pin as usize].value = level;
+        self.hardware_mut().pins[pin as usize].value = level;
         self.write(&[
             ANALOG_MESSAGE | pin as u8,
             level as u8 & SYSEX_REALTIME,
@@ -95,10 +106,10 @@ pub trait Protocol: DynClone + Send + Sync + Display {
         let mut value = 0i32;
         let mut i = 0;
 
-        self.pins()[pin as usize].value = level;
+        self.hardware_mut().pins[pin as usize].value = level;
 
         while i < 8 {
-            if self.pins()[8 * port + i].value != 0 {
+            if self.hardware().pins[8 * port + i].value != 0 {
                 value |= 1 << i
             }
             i += 1;
@@ -121,7 +132,7 @@ pub trait Protocol: DynClone + Send + Sync + Display {
     }
     /// Set the `mode` of the specified `pin`.
     fn set_pin_mode(&mut self, pin: i32, mode: u8) -> Result<(), Error> {
-        self.pins()[pin as usize].modes = vec![mode];
+        self.hardware_mut().pins[pin as usize].supported_modes = vec![mode];
         self.write(&[SET_PIN_MODE, pin as u8, mode])
     }
 
@@ -174,149 +185,185 @@ pub trait Protocol: DynClone + Send + Sync + Display {
     fn read_and_decode(&mut self) -> Result<Message, Error> {
         let mut buf = vec![0; 3];
         self.read_exact(&mut buf)?;
+
         match buf[0] {
-            REPORT_VERSION => {
-                self.with_protocol_version(format!("{:o}.{:o}", buf[1], buf[2]));
-                Ok(Message::ProtocolVersion)
-            }
-            ANALOG_MESSAGE..=ANALOG_MESSAGE_BOUND => {
-                if buf.len() < 3 {
-                    return Err(MessageTooShort);
-                }
-                let pin = ((buf[0] as i32) & 0x0F) + 14;
-                let value = (buf[1] as i32) | ((buf[2] as i32) << 7);
-                if self.pins().len() as i32 > pin {
-                    self.pins()[pin as usize].value = value;
-                }
-                Ok(Message::Analog)
-            }
-            DIGITAL_MESSAGE..=DIGITAL_MESSAGE_BOUND => {
-                if buf.len() < 3 {
-                    return Err(MessageTooShort);
-                }
-                let port = (buf[0] as i32) & 0x0F;
-                let value = (buf[1] as i32) | ((buf[2] as i32) << 7);
-
-                for i in 0..8 {
-                    let pin = (8 * port) + i;
-                    let mode: u8 = self.pins()[pin as usize].mode;
-                    if self.pins().len() as i32 > pin && mode == PIN_MODE_INPUT {
-                        self.pins()[pin as usize].value = (value >> (i & 0x07)) & 0x01;
-                    }
-                }
-                Ok(Message::Digital)
-            }
-            START_SYSEX => {
-                loop {
-                    // Read until END_SYSEX.
-                    let mut byte = [0];
-                    self.read_exact(&mut byte)?;
-                    buf.push(byte[0]);
-                    if byte[0] == END_SYSEX {
-                        break;
-                    }
-                }
-                match buf[1] {
-                    END_SYSEX => Ok(Message::EmptyResponse),
-                    ANALOG_MAPPING_RESPONSE => {
-                        let mut i = 2;
-                        // Also break before pins indexing is out of bounds.
-                        let upper = (buf.len() - 1).min(self.pins().len() + 2);
-                        while i < upper {
-                            if buf[i] != 127u8 {
-                                let pin = &mut self.pins()[i - 2];
-                                pin.mode = PIN_MODE_ANALOG;
-                                pin.modes = vec![PIN_MODE_ANALOG];
-                                pin.resolution = DEFAULT_ANALOG_RESOLUTION;
-                            }
-                            i += 1;
-                        }
-                        Ok(Message::AnalogMappingResponse)
-                    }
-                    CAPABILITY_RESPONSE => {
-                        let mut i = 2;
-                        self.with_pins(vec![Pin::default()]); // 0 is unused
-                        let mut modes = vec![];
-                        let mut resolution = None;
-                        while i < buf.len() - 1 {
-                            // Completed a pin, push and continue.
-                            if buf[i] == 127u8 {
-                                self.pins().push(Pin {
-                                    mode: buf[i],           // *modes.first().expect("pin mode"),
-                                    modes: vec![],          // modes.drain(..).collect(),
-                                    resolution: buf[i + 1], // resolution.take().expect("pin resolution"),
-                                    value: 0,
-                                });
-
-                                i += 1;
-                            } else {
-                                modes.push(buf[i]);
-                                if resolution.is_none() {
-                                    // Only keep the first.
-                                    resolution.replace(buf[i + 1]);
-                                }
-                                i += 2;
-                            }
-                        }
-                        Ok(Message::CapabilityResponse)
-                    }
-                    REPORT_FIRMWARE => {
-                        let major = buf.get(2).with_context(|| MessageTooShortSnafu)?;
-                        let minor = buf.get(3).with_context(|| MessageTooShortSnafu)?;
-                        self.with_firmware_version(format!("{:o}.{:o}", major, minor));
-                        if 4 < buf.len() - 1 {
-                            self.with_firmware_name(
-                                std::str::from_utf8(&buf[4..buf.len() - 1])
-                                    .with_context(|_| Utf8Snafu)?
-                                    .to_string(),
-                            );
-                        }
-                        Ok(Message::ReportFirmware)
-                    }
-                    I2C_REPLY => {
-                        let len = buf.len();
-                        if len < 8 {
-                            return Err(Error::MessageTooShort);
-                        }
-                        let mut reply = I2CReply {
-                            address: (buf[2] as i32) | ((buf[3] as i32) << 7),
-                            register: (buf[4] as i32) | ((buf[5] as i32) << 7),
-                            data: vec![buf[6] | buf[7] << 7],
-                        };
-                        let mut i = 8;
-
-                        while i < len - 1 {
-                            if buf[i] == 0xF7 {
-                                break;
-                            }
-                            if i + 2 > len {
-                                break;
-                            }
-                            reply.data.push(buf[i] | buf[i + 1] << 7);
-                            i += 2;
-                        }
-                        self.i2c_data().push(reply);
-                        Ok(Message::I2CReply)
-                    }
-                    PIN_STATE_RESPONSE => {
-                        let pin = buf[2];
-                        if buf[3] == END_SYSEX {
-                            return Ok(Message::PinStateResponse);
-                        }
-                        let pin = &mut self.pins()[pin as usize];
-                        pin.modes = vec![buf[3]];
-                        // @todo: Extended values.
-                        pin.value = buf[4] as i32;
-
-                        Ok(Message::PinStateResponse)
-                    }
-                    _ => Err(UnknownSysEx { code: buf[1] }),
-                }
-            }
+            REPORT_VERSION => self.handle_report_version(&buf),
+            ANALOG_MESSAGE..=ANALOG_MESSAGE_BOUND => self.handle_analog_message(&buf),
+            DIGITAL_MESSAGE..=DIGITAL_MESSAGE_BOUND => self.handle_digital_message(&buf),
+            START_SYSEX => self.handle_sysex_message(&mut buf),
             _ => Err(BadByte { byte: buf[0] }),
         }
     }
+
+    fn handle_report_version(&mut self, buf: &[u8]) -> Result<Message, Error> {
+        self.hardware_mut().protocol_version = format!("{:o}.{:o}", buf[1], buf[2]);
+        Ok(Message::ProtocolVersion)
+    }
+
+    fn handle_analog_message(&mut self, buf: &[u8]) -> Result<Message, Error> {
+        if buf.len() < 3 {
+            return Err(MessageTooShort);
+        }
+        let pin = ((buf[0] as i32) & 0x0F) + 14;
+        let value = (buf[1] as i32) | ((buf[2] as i32) << 7);
+        if self.hardware().pins.len() as i32 > pin {
+            self.hardware_mut().pins[pin as usize].value = value;
+        }
+        Ok(Message::Analog)
+    }
+
+    fn handle_digital_message(&mut self, buf: &[u8]) -> Result<Message, Error> {
+        if buf.len() < 3 {
+            return Err(MessageTooShort);
+        }
+        let port = (buf[0] as i32) & 0x0F;
+        let value = (buf[1] as i32) | ((buf[2] as i32) << 7);
+
+        for i in 0..8 {
+            let pin = (8 * port) + i;
+            let mode: u8 = self.hardware().pins[pin as usize].mode;
+            if self.hardware().pins.len() as i32 > pin && mode == PIN_MODE_INPUT {
+                self.hardware_mut().pins[pin as usize].value = (value >> (i & 0x07)) & 0x01;
+            }
+        }
+        Ok(Message::Digital)
+    }
+
+    fn handle_sysex_message(&mut self, buf: &mut Vec<u8>) -> Result<Message, Error> {
+        loop {
+            // Read until END_SYSEX.
+            let mut byte = [0];
+            self.read_exact(&mut byte)?;
+            buf.push(byte[0]);
+            if byte[0] == END_SYSEX {
+                break;
+            }
+        }
+        match buf[1] {
+            END_SYSEX => Ok(Message::EmptyResponse),
+            ANALOG_MAPPING_RESPONSE => self.handle_analog_mapping_response(buf),
+            CAPABILITY_RESPONSE => self.handle_capability_response(buf),
+            REPORT_FIRMWARE => self.handle_report_firmware(buf),
+            I2C_REPLY => self.handle_i2c_reply(buf),
+            PIN_STATE_RESPONSE => self.handle_pin_state_response(buf),
+            _ => Err(UnknownSysEx { code: buf[1] }),
+        }
+    }
+
+    fn handle_analog_mapping_response(&mut self, buf: &[u8]) -> Result<Message, Error> {
+        let mut i = 2;
+        let upper = (buf.len() - 1).min(self.hardware().pins.len() + 2);
+        while i < upper {
+            if buf[i] != 127u8 {
+                let pin = &mut self.hardware_mut().pins[i - 2];
+                pin.mode = PIN_MODE_ANALOG;
+                pin.supported_modes = vec![PIN_MODE_ANALOG];
+                pin.resolution = DEFAULT_ANALOG_RESOLUTION;
+            }
+            i += 1;
+        }
+        Ok(Message::AnalogMappingResponse)
+    }
+
+    fn handle_capability_response(&mut self, buf: &[u8]) -> Result<Message, Error> {
+        let mut id = 0;
+        let mut i = 2;
+        self.hardware_mut().pins = vec![];
+        let mut supported_modes = vec![];
+        let mut resolution = None;
+        while i < buf.len() - 1 {
+            if buf[i] == 127u8 {
+                self.hardware_mut().pins.push(Pin {
+                    id,
+                    mode: buf[i],
+                    supported_modes: vec![],
+                    resolution: buf[i + 1],
+                    value: 0,
+                });
+                id += 1;
+                i += 1;
+            } else {
+                supported_modes.push(buf[i]);
+                if resolution.is_none() {
+                    resolution.replace(buf[i + 1]);
+                }
+                i += 2;
+            }
+        }
+        Ok(Message::CapabilityResponse)
+    }
+
+    fn handle_report_firmware(&mut self, buf: &[u8]) -> Result<Message, Error> {
+        let major = *buf.get(2).ok_or(MessageTooShort)?;
+        let minor = *buf.get(3).ok_or(MessageTooShort)?;
+        self.hardware_mut().firmware_version = format!("{:o}.{:o}", major, minor);
+        if 4 < buf.len() - 1 {
+            self.hardware_mut().firmware_name = std::str::from_utf8(&buf[4..buf.len() - 1])
+                .with_context(|_| Utf8Snafu)?
+                .to_string();
+        }
+        Ok(Message::ReportFirmware)
+    }
+
+    fn handle_i2c_reply(&mut self, buf: &[u8]) -> Result<Message, Error> {
+        if buf.len() < 8 {
+            return Err(MessageTooShort);
+        }
+        let mut reply = I2CReply {
+            address: (buf[2] as i32) | ((buf[3] as i32) << 7),
+            register: (buf[4] as i32) | ((buf[5] as i32) << 7),
+            data: vec![buf[6] | buf[7] << 7],
+        };
+        let mut i = 8;
+        while i < buf.len() - 1 {
+            if buf[i] == 0xF7 {
+                break;
+            }
+            if i + 2 > buf.len() {
+                break;
+            }
+            reply.data.push(buf[i] | buf[i + 1] << 7);
+            i += 2;
+        }
+        self.hardware_mut().i2c_data.push(reply);
+        Ok(Message::I2CReply)
+    }
+
+    fn handle_pin_state_response(&mut self, buf: &[u8]) -> Result<Message, Error> {
+        let pin_index = buf[2] as usize;
+        if buf[3] == END_SYSEX {
+            return Ok(Message::PinStateResponse);
+        }
+        let pin = &mut self.hardware_mut().pins[pin_index];
+        pin.supported_modes = vec![buf[3]];
+        pin.value = buf[4] as i32;
+        Ok(Message::PinStateResponse)
+    }
 }
 
-// Makes a Box<dyn Protocol> clone (used for Board cloning).
-dyn_clone::clone_trait_object!(Protocol);
+impl Display for Box<dyn Protocol> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "firmware={}, version={}, protocol={}, connection={:?}",
+            self.firmware_name,
+            self.firmware_version,
+            self.get_protocol_name(),
+            self.get_protocol_details()
+        )
+    }
+}
+
+impl Deref for dyn Protocol {
+    type Target = ProtocolHardware;
+
+    fn deref(&self) -> &Self::Target {
+        self.hardware()
+    }
+}
+
+impl DerefMut for dyn Protocol {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.hardware_mut()
+    }
+}

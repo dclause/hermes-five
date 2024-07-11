@@ -1,5 +1,7 @@
 use std::fmt::Display;
+use std::ops::{Deref, DerefMut};
 use std::panic::UnwindSafe;
+use std::time::Duration;
 
 use crate::protocols::{Error, Protocol};
 use crate::protocols::serial::SerialProtocol;
@@ -11,9 +13,8 @@ pub struct Board {
     /// The event manager for the board.
     #[cfg_attr(feature = "serde", serde(skip))]
     events: EventManager,
-    /// The communication protocol used by this board.
-    // @todo remove 'pub' and add pass through
-    pub protocol: Box<dyn Protocol>,
+    /// The inner protocol used by this Board.
+    protocol: Box<dyn Protocol>,
 }
 
 /// Custom clone: do not clone events.
@@ -109,6 +110,8 @@ impl Board {
         let mut callback_board = self.clone();
         task::run(async move {
             callback_board.protocol.open()?;
+            // give it some time: some arduino (like nano) may be slow.
+            tokio::time::sleep(Duration::from_millis(200)).await;
             callback_board.protocol.handshake()?;
             events.emit("ready", callback_board).await;
             Ok(())
@@ -161,20 +164,6 @@ impl Board {
     }
 
     // ########################################
-    // Protocol related
-
-    // @todo here
-    // /// Get the firmware name.
-    // fn firmware_name(&mut self) -> &String;
-    // /// Get the firmware version.
-    // fn firmware_version(&mut self) -> &String;
-    //
-    // /// Get pins that the board has access to.
-    // fn pins(&mut self) -> &Vec<Pin>;
-    // /// Get the current Firmata protocol version.
-    // fn protocol_version(&mut self) -> &String;
-
-    // ########################################
     // Event related functions
 
     /// Registers a callback to be executed on a given event on the board.
@@ -205,9 +194,22 @@ impl Board {
     }
 }
 
-// @todo display the firmware from here, hence enough dervice(Debug) on protocol.
 impl Display for Board {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Board ({})", self.protocol)
+    }
+}
+
+impl Deref for Board {
+    type Target = Box<dyn Protocol>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.protocol
+    }
+}
+
+impl DerefMut for Board {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.protocol
     }
 }

@@ -6,9 +6,9 @@ async fn main() {
     let board = Board::run().await;
 
     board
-        .on("ready", |mut board: Board| async move {
+        .on("ready", |board: Board| async move {
             println!("Board connected: {}", board);
-            println!("Pins {:#?}", board.protocol.pins());
+            println!("Pins {:#?}", board.pins);
         })
         .await;
 }

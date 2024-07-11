@@ -2,7 +2,8 @@
 //! ` code.
 //! It allows communication of boards connected via a serial port to HERMES.
 use std::borrow::Cow;
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::Debug;
+use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -14,7 +15,7 @@ use snafu::prelude::*;
 use crate::protocols::*;
 use crate::protocols::Error::*;
 use crate::protocols::errors::{IoExceptionSnafu, SerialPortSnafu};
-use crate::protocols::pins::Pin;
+use crate::protocols::protocol::ProtocolHardware;
 
 /// The `SerialProtocol` is made to communicate with a remote board using the serial protocol.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -25,16 +26,8 @@ pub struct SerialProtocol {
     /// A Read/Write io object.
     #[cfg_attr(feature = "serde", serde(skip))]
     io: Arc<Mutex<Option<Box<dyn SerialPort>>>>,
-    #[cfg_attr(feature = "serde", serde(skip))]
-    pins: Vec<Pin>,
-    #[cfg_attr(feature = "serde", serde(skip))]
-    i2c_data: Vec<I2CReply>,
-    #[cfg_attr(feature = "serde", serde(skip))]
-    protocol_version: String,
-    #[cfg_attr(feature = "serde", serde(skip))]
-    firmware_name: String,
-    #[cfg_attr(feature = "serde", serde(skip))]
-    firmware_version: String,
+    /// The base-protocol attributes.
+    hardware: ProtocolHardware,
 }
 
 impl SerialProtocol {
@@ -51,11 +44,7 @@ impl SerialProtocol {
         Self {
             port: port.to_string(),
             io: Arc::new(Mutex::new(None)),
-            pins: vec![],
-            i2c_data: vec![],
-            protocol_version: String::default(),
-            firmware_name: String::default(),
-            firmware_version: String::default(),
+            hardware: ProtocolHardware::default(),
         }
     }
 }
@@ -78,35 +67,20 @@ impl Protocol for SerialProtocol {
     // ########################################
     // Inner data related functions
 
-    fn pins(&mut self) -> &mut Vec<Pin> {
-        &mut self.pins
+    /// Retrieve the internal hardware.
+    fn hardware(&self) -> &ProtocolHardware {
+        &self.hardware
     }
-    fn with_pins(&mut self, pins: Vec<Pin>) {
-        self.pins = pins;
+    /// Retrieve the internal hardware.
+    fn hardware_mut(&mut self) -> &mut ProtocolHardware {
+        &mut self.hardware
     }
-    fn protocol_version(&mut self) -> &String {
-        &self.protocol_version
-    }
-    fn with_protocol_version(&mut self, protocol_version: String) {
-        self.protocol_version = protocol_version.into();
-    }
-    fn firmware_name(&mut self) -> &String {
-        &self.firmware_name
-    }
-    fn with_firmware_name(&mut self, firmware_name: String) {
-        self.firmware_name = firmware_name.into();
-    }
-    fn firmware_version(&mut self) -> &String {
-        &self.firmware_version
-    }
-    fn with_firmware_version(&mut self, firmware_version: String) {
-        self.firmware_version = firmware_version.into();
-    }
-    fn i2c_data(&mut self) -> &mut Vec<I2CReply> {
-        &mut self.i2c_data
-    }
-    fn with_i2c_data(&mut self, i2c_data: Vec<I2CReply>) {
-        self.i2c_data = i2c_data;
+
+    // ########################################
+    // Protocol related functions
+
+    fn get_protocol_details(&self) -> String {
+        format!("via port {}", self.port)
     }
 
     /// Open the communication with the registered port.
@@ -160,14 +134,16 @@ impl Protocol for SerialProtocol {
     }
 }
 
-// @todo Make [`Self::io`] generic (Read + Write + Debug) so we can actually make this 'dyn Protocol' generic
-impl Display for SerialProtocol {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let io = self.io.lock().unwrap();
-        write!(
-            f,
-            "firmware={}, version={}, protocol={}, connection={:?}",
-            self.firmware_name, self.firmware_version, "SerialProtocol", io
-        )
+impl Deref for SerialProtocol {
+    type Target = ProtocolHardware;
+
+    fn deref(&self) -> &Self::Target {
+        &self.hardware
+    }
+}
+
+impl DerefMut for SerialProtocol {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.hardware
     }
 }

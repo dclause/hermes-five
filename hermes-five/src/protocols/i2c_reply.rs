@@ -1,5 +1,6 @@
 /// An I2C reply.
-#[derive(Debug, Default, Clone)]
+#[derive(Default, Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct I2CReply {
     pub address: i32,
     pub register: i32,
