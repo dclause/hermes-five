@@ -22,11 +22,10 @@ pub const PROTOCOL_MAJOR_VERSION: u8 = 2;
 /// For backwards-compatible changes
 pub const PROTOCOL_MINOR_VERSION: u8 = 5;
 /// For bugfix releases
-pub const PROTOCOL_BUGFIX_VERSION: u8 = 1;
+pub const PROTOCOL_BUGFIX_VERSION: u8 = 7;
 
 // ########################################
 // Message command bytes (128-255/0x80-0xFF)
-
 /// Send data for a digital port (collection of 8 pins)
 pub const DIGITAL_MESSAGE: u8 = 0x90;
 /// Send data for an analog pin (or PWM)
@@ -101,43 +100,6 @@ pub const SCHEDULER_DATA: u8 = 0x7B;
 pub const SYSEX_NON_REALTIME: u8 = 0x7E;
 /// MIDI Reserved for realtime messages
 pub const SYSEX_REALTIME: u8 = 0x7F;
-
-/// Same as INPUT defined in Arduino.
-pub const PIN_MODE_INPUT: u8 = 0;
-/// Same as OUTPUT defined in Arduino.h
-pub const PIN_MODE_OUTPUT: u8 = 1;
-/// Analog pin in analogInput mode
-pub const PIN_MODE_ANALOG: u8 = 2;
-/// Digital pin in PWM output mode
-pub const PIN_MODE_PWM: u8 = 3;
-/// Digital pin in Servo output mode
-pub const PIN_MODE_SERVO: u8 = 4;
-/// shiftIn/shiftOut mode
-pub const PIN_MODE_SHIFT: u8 = 5;
-/// Pin included in I2C setup
-pub const PIN_MODE_I2C: u8 = 6;
-/// Pin configured for 1-wire
-pub const PIN_MODE_ONEWIRE: u8 = 7;
-/// Pin configured for stepper motor
-pub const PIN_MODE_STEPPER: u8 = 8;
-/// Pin configured for rotary encoders
-pub const PIN_MODE_ENCODER: u8 = 9;
-/// Pin configured for serial communication
-pub const PIN_MODE_SERIAL: u8 = 0x0A;
-/// Enable internal pull-up resistor for pin
-pub const PIN_MODE_PULLUP: u8 = 0x0B;
-/// Pin configured for SPI
-pub const PIN_MODE_SPI: u8 = 0x0C;
-/// Pin configured for proximity sensors
-pub const PIN_MODE_SONAR: u8 = 0x0D;
-/// Pin configured for piezzo buzzer tone generation
-pub const PIN_MODE_TONE: u8 = 0x0E;
-/// Pin configured for DHT humidity and temperature sensors
-pub const PIN_MODE_DHT: u8 = 0x0F;
-/// Pin configured to be ignored by digitalWrite and capabilityResponse
-pub const PIN_MODE_IGNORE: u8 = 0x7F;
-/// Total number of pin modes.
-pub const TOTAL_PIN_MODES: u8 = 13;
 
 // I2C additions.
 pub const I2C_WRITE: u8 = 0x00;

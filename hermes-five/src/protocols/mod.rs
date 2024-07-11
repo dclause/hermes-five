@@ -12,6 +12,7 @@ pub use crate::protocols::errors::Error;
 use crate::protocols::errors::Utf8Snafu;
 pub use crate::protocols::i2c_reply::I2CReply;
 pub use crate::protocols::pins::Pin;
+use crate::protocols::pins::PinMode;
 use crate::protocols::protocol::ProtocolHardware;
 pub use crate::protocols::serial::SerialProtocol;
 
@@ -131,9 +132,9 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         self.write(&[REPORT_DIGITAL | pin as u8, state as u8])
     }
     /// Set the `mode` of the specified `pin`.
-    fn set_pin_mode(&mut self, pin: i32, mode: u8) -> Result<(), Error> {
+    fn set_pin_mode(&mut self, pin: i32, mode: PinMode) -> Result<(), Error> {
         self.hardware_mut().pins[pin as usize].supported_modes = vec![mode];
-        self.write(&[SET_PIN_MODE, pin as u8, mode])
+        self.write(&[SET_PIN_MODE, pin as u8, mode.into()])
     }
 
     // ########################################
@@ -196,7 +197,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     }
 
     fn handle_report_version(&mut self, buf: &[u8]) -> Result<Message, Error> {
-        self.hardware_mut().protocol_version = format!("{:o}.{:o}", buf[1], buf[2]);
+        self.hardware_mut().protocol_version = format!("{:o}.{:o}.{:o}", buf[1], buf[2], buf[3]);
         Ok(Message::ProtocolVersion)
     }
 
@@ -221,8 +222,8 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
 
         for i in 0..8 {
             let pin = (8 * port) + i;
-            let mode: u8 = self.hardware().pins[pin as usize].mode;
-            if self.hardware().pins.len() as i32 > pin && mode == PIN_MODE_INPUT {
+            let mode: PinMode = self.hardware().pins[pin as usize].mode;
+            if self.hardware().pins.len() as i32 > pin && mode == PinMode::INPUT {
                 self.hardware_mut().pins[pin as usize].value = (value >> (i & 0x07)) & 0x01;
             }
         }
@@ -256,8 +257,8 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         while i < upper {
             if buf[i] != 127u8 {
                 let pin = &mut self.hardware_mut().pins[i - 2];
-                pin.mode = PIN_MODE_ANALOG;
-                pin.supported_modes = vec![PIN_MODE_ANALOG];
+                pin.mode = PinMode::ANALOG;
+                pin.supported_modes = vec![PinMode::ANALOG];
                 pin.resolution = DEFAULT_ANALOG_RESOLUTION;
             }
             i += 1;
@@ -269,26 +270,31 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         let mut id = 0;
         let mut i = 2;
         self.hardware_mut().pins = vec![];
-        let mut supported_modes = vec![];
-        let mut resolution = None;
+
         while i < buf.len() - 1 {
-            if buf[i] == 127u8 {
-                self.hardware_mut().pins.push(Pin {
-                    id,
-                    mode: buf[i],
-                    supported_modes: vec![],
-                    resolution: buf[i + 1],
-                    value: 0,
-                });
-                id += 1;
-                i += 1;
-            } else {
-                supported_modes.push(buf[i]);
+            let mut supported_modes: Vec<PinMode> = vec![];
+            let mut resolution = None;
+
+            while buf[i] != 127u8 {
+                supported_modes.push(PinMode::from_u8(buf[i])?);
                 if resolution.is_none() {
                     resolution.replace(buf[i + 1]);
                 }
                 i += 2;
             }
+
+            if supported_modes.len() > 0 {
+                self.hardware_mut().pins.push(Pin {
+                    id,
+                    mode: *supported_modes.first().unwrap(),
+                    supported_modes,
+                    resolution: resolution.unwrap(),
+                    value: 0,
+                });
+            }
+
+            i += 1;
+            id += 1;
         }
         Ok(Message::CapabilityResponse)
     }
@@ -335,7 +341,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
             return Ok(Message::PinStateResponse);
         }
         let pin = &mut self.hardware_mut().pins[pin_index];
-        pin.supported_modes = vec![buf[3]];
+        pin.supported_modes = vec![PinMode::from_u8(buf[3])?];
         pin.value = buf[4] as i32;
         Ok(Message::PinStateResponse)
     }

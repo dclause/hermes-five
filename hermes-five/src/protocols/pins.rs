@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use crate::protocols::constants::*;
+use crate::protocols::Error;
 
 /// The current state and configuration of a pin.
 #[derive(Clone)]
@@ -9,62 +9,99 @@ pub struct Pin {
     /// The pin id: should correspond also to the position of the pin in the `Vec<Pin>`
     pub id: u8,
     /// Currently configured mode.
-    pub mode: u8,
+    pub mode: PinMode,
     /// Current resolution.
     pub resolution: u8,
     /// All pin supported modes.
-    pub supported_modes: Vec<u8>,
+    pub supported_modes: Vec<PinMode>,
     /// Pin value.
     pub value: i32,
-}
-impl Default for Pin {
-    fn default() -> Self {
-        Self {
-            id: 0,
-            mode: PIN_MODE_ANALOG,
-            supported_modes: vec![PIN_MODE_ANALOG],
-            resolution: DEFAULT_ANALOG_RESOLUTION,
-            value: 0,
-        }
-    }
 }
 
 impl Debug for Pin {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Transformer for "resolution"
         let resolution_str = format!("{} bits", self.resolution);
-
-        // Transformer for "mode"
-        let mode_owned;
-        let mode_str = match self.mode {
-            PIN_MODE_INPUT => "input mode",
-            PIN_MODE_OUTPUT => "output mode",
-            PIN_MODE_ANALOG => "analog pin",
-            PIN_MODE_PWM => "pwn",
-            PIN_MODE_SERVO => "servo",
-            PIN_MODE_SHIFT => "shift register",
-            PIN_MODE_I2C => "I2C",
-            PIN_MODE_ONEWIRE => "1-Wire",
-            PIN_MODE_STEPPER => "stepper",
-            PIN_MODE_ENCODER => "encoder",
-            PIN_MODE_SERIAL => "serial",
-            PIN_MODE_SPI => "SPI sensor",
-            PIN_MODE_SONAR => "sonar/proximity sensor",
-            PIN_MODE_TONE => "piezzo buzzer",
-            PIN_MODE_DHT => "DHT sensor",
-            PIN_MODE_IGNORE => "unsupported",
-            x => {
-                mode_owned = format!("unknown: {}", x);
-                &mode_owned
-            }
-        };
+        let mode_str = format!("{:?}", self.mode);
+        let supported_modes_str = format!("{:?}", self.supported_modes);
 
         f.debug_struct("Pin")
             .field("id", &self.id)
             .field("mode", &mode_str)
-            .field("supported modes", &self.supported_modes)
+            .field("supported modes", &supported_modes_str)
             .field("analog resolution", &resolution_str)
             .field("value", &self.value)
             .finish()
+    }
+}
+
+// ########################################
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum PinMode {
+    /// Same as INPUT defined in Arduino.
+    INPUT = 0,
+    /// Same as OUTPUT defined in Arduino.h
+    OUTPUT = 1,
+    /// Analog pin in analogInput mode
+    ANALOG = 2,
+    /// Digital pin in PWM output mode
+    PWM = 3,
+    /// Digital pin in Servo output mode
+    SERVO = 4,
+    /// shiftIn/shiftOut mode
+    SHIFT = 5,
+    /// Pin included in I2C setup
+    I2C = 6,
+    /// Pin configured for 1-wire
+    ONEWIRE = 7,
+    /// Pin configured for stepper motor
+    STEPPER = 8,
+    /// Pin configured for rotary encoders
+    ENCODER = 9,
+    /// Pin configured for serial communication
+    SERIAL = 0x0A,
+    /// Enable internal pull-up resistor for pin
+    PULLUP = 0x0B,
+    /// Pin configured for SPI
+    SPI = 0x0C,
+    /// Pin configured for proximity sensors
+    SONAR = 0x0D,
+    /// Pin configured for piezzo buzzer tone generation
+    TONE = 0x0E,
+    /// Pin configured for DHT humidity and temperature sensors
+    DHT = 0x0F,
+    /// Pin configured to be ignored by digitalWrite and capabilityResponse
+    IGNORE = 0x7F,
+}
+
+impl PinMode {
+    pub fn from_u8(value: u8) -> Result<PinMode, Error> {
+        match value {
+            0 => Ok(PinMode::INPUT),
+            1 => Ok(PinMode::OUTPUT),
+            2 => Ok(PinMode::ANALOG),
+            3 => Ok(PinMode::PWM),
+            4 => Ok(PinMode::SERVO),
+            5 => Ok(PinMode::SHIFT),
+            6 => Ok(PinMode::I2C),
+            7 => Ok(PinMode::ONEWIRE),
+            8 => Ok(PinMode::STEPPER),
+            9 => Ok(PinMode::ENCODER),
+            0x0A => Ok(PinMode::SERIAL),
+            0x0B => Ok(PinMode::PULLUP),
+            0x0C => Ok(PinMode::SPI),
+            0x0D => Ok(PinMode::SONAR),
+            0x0E => Ok(PinMode::TONE),
+            0x0F => Ok(PinMode::DHT),
+            0x7F => Ok(PinMode::IGNORE),
+            x => Err(Error::BadByte { byte: x }),
+        }
+    }
+}
+
+impl From<PinMode> for u8 {
+    fn from(mode: PinMode) -> u8 {
+        mode as u8
     }
 }
