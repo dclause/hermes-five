@@ -6,27 +6,26 @@ use std::ops::{Deref, DerefMut};
 use dyn_clone::DynClone;
 use snafu::ResultExt;
 
-use crate::protocols::constants::*;
-use crate::protocols::Error::{BadByte, MessageTooShort, UnknownSysEx};
-pub use crate::protocols::errors::Error;
-use crate::protocols::errors::Utf8Snafu;
+// Flatten export
+pub use crate::protocols::constants::*;
+pub use crate::protocols::Error::*;
+pub use crate::protocols::errors::*;
+pub use crate::protocols::flavor::*;
 pub use crate::protocols::i2c_reply::I2CReply;
-pub use crate::protocols::pins::Pin;
-use crate::protocols::pins::PinMode;
-use crate::protocols::protocol::ProtocolHardware;
-pub use crate::protocols::serial::SerialProtocol;
+pub use crate::protocols::pins::{Pin, PinMode};
+pub use crate::protocols::protocol::*;
 
 pub mod constants;
 mod errors;
+mod flavor;
 mod i2c_reply;
 mod pins;
 mod protocol;
-pub mod serial;
 
 // Makes a Box<dyn Protocol> clone (used for Board cloning).
 dyn_clone::clone_trait_object!(Protocol);
 
-/// Defines the trait all protocols must implements.
+/// Defines the trait all protocols must implement.
 #[cfg_attr(feature = "serde", typetag::serde(tag = "type"))]
 pub trait Protocol: DynClone + Send + Sync + Debug {
     // ########################################
@@ -35,21 +34,6 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     /// Retrieve the internal hardware.
     fn hardware(&self) -> &ProtocolHardware;
     fn hardware_mut(&mut self) -> &mut ProtocolHardware;
-
-    // ########################################
-    // Functions specifically bound to the protocol.
-
-    /// Open the communication using the underlying protocol.
-    fn open(&mut self) -> Result<(), Error>;
-    /// Gracefully shuts down the communication.
-    fn close(&mut self) -> Result<(), Error>;
-    /// Write to  the internal connection. For more details see [`std::io::Write::write`].
-    fn write(&mut self, buf: &[u8]) -> Result<(), Error>;
-    /// Read from the internal connection. For more details see [`std::io::Read::read_exact`].
-    fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), Error>;
-
-    // ########################################
-    // Protocol related functions
 
     /// Returns the protocol name (used for Display only)
     fn get_protocol_name(&self) -> &'static str {
@@ -60,6 +44,21 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     fn get_protocol_details(&self) -> String {
         String::from("()")
     }
+
+    // ########################################
+    // Functions specifically bound to the protocol.
+
+    /// Open the communication using the underlying protocol.
+    fn open(&mut self) -> Result<(), Error>;
+    /// Gracefully shuts down the communication.
+    fn close(&mut self) -> Result<(), Error>;
+    /// Write to the internal connection. For more details see [`std::io::Write::write`].
+    fn write(&mut self, buf: &[u8]) -> Result<(), Error>;
+    /// Read from the internal connection. For more details see [`std::io::Read::read_exact`].
+    fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), Error>;
+
+    // ########################################
+    // Protocol related functions
 
     /// Starts a conversation with the board: validate the firmware version and...
     fn handshake(&mut self) -> Result<(), Error> {
@@ -94,6 +93,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
 
     /// Write `level` to the analog `pin`.
     fn analog_write(&mut self, pin: i32, level: i32) -> Result<(), Error> {
+        self.hardware().pin_exists(pin as usize)?;
         self.hardware_mut().pins[pin as usize].value = level;
         self.write(&[
             ANALOG_MESSAGE | pin as u8,
@@ -101,12 +101,14 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
             (level >> 7) as u8 & SYSEX_REALTIME,
         ])
     }
+
     /// Write `level` to the digital `pin`.
     fn digital_write(&mut self, pin: i32, level: i32) -> Result<(), Error> {
         let port = (pin as f64 / 8f64).floor() as usize;
         let mut value = 0i32;
         let mut i = 0;
 
+        self.hardware().pin_exists(pin as usize)?;
         self.hardware_mut().pins[pin as usize].value = level;
 
         while i < 8 {
@@ -127,12 +129,15 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     fn report_analog(&mut self, pin: i32, state: i32) -> Result<(), Error> {
         self.write(&[REPORT_ANALOG | pin as u8, state as u8])
     }
+
     /// Set the digital reporting `state` of the specified `pin`.
     fn report_digital(&mut self, pin: i32, state: i32) -> Result<(), Error> {
         self.write(&[REPORT_DIGITAL | pin as u8, state as u8])
     }
+
     /// Set the `mode` of the specified `pin`.
     fn set_pin_mode(&mut self, pin: i32, mode: PinMode) -> Result<(), Error> {
+        self.hardware().pin_exists(pin as usize)?;
         self.hardware_mut().pins[pin as usize].supported_modes = vec![mode];
         self.write(&[SET_PIN_MODE, pin as u8, mode.into()])
     }
@@ -151,6 +156,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
             END_SYSEX,
         ])
     }
+
     /// Read `size` bytes from I2C device at the specified `address`.
     fn i2c_read(&mut self, address: i32, size: i32) -> Result<(), Error> {
         self.write(&[
@@ -163,13 +169,14 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
             END_SYSEX,
         ])
     }
+
     /// Write `data` to the I2C device at the specified `address`.
     fn i2c_write(&mut self, address: i32, data: &[u8]) -> Result<(), Error> {
         let mut buf = vec![START_SYSEX, I2C_REQUEST, address as u8, I2C_WRITE << 3];
 
-        for i in data.iter() {
+        for &i in data.iter() {
             buf.push(i & SYSEX_REALTIME);
-            buf.push(((*i as i32) >> 7) as u8 & SYSEX_REALTIME);
+            buf.push(((i as i32) >> 7) as u8 & SYSEX_REALTIME);
         }
 
         buf.push(END_SYSEX);
@@ -283,7 +290,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
                 i += 2;
             }
 
-            if supported_modes.len() > 0 {
+            if !supported_modes.is_empty() {
                 self.hardware_mut().pins.push(Pin {
                     id,
                     mode: *supported_modes.first().unwrap(),
@@ -303,7 +310,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         let major = *buf.get(2).ok_or(MessageTooShort)?;
         let minor = *buf.get(3).ok_or(MessageTooShort)?;
         self.hardware_mut().firmware_version = format!("{:o}.{:o}", major, minor);
-        if 4 < buf.len() - 1 {
+        if buf.len() > 4 {
             self.hardware_mut().firmware_name = std::str::from_utf8(&buf[4..buf.len() - 1])
                 .with_context(|_| Utf8Snafu)?
                 .to_string();
@@ -337,7 +344,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
 
     fn handle_pin_state_response(&mut self, buf: &[u8]) -> Result<Message, Error> {
         let pin_index = buf[2] as usize;
-        if buf[3] == END_SYSEX {
+        if buf.len() < 4 || buf[3] == END_SYSEX {
             return Ok(Message::PinStateResponse);
         }
         let pin = &mut self.hardware_mut().pins[pin_index];
@@ -372,4 +379,52 @@ impl DerefMut for dyn Protocol {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.hardware_mut()
     }
+}
+
+#[cfg(test)]
+mod tests {
+
+    // @todo Implement tests
+
+    // #[test]
+    // fn test_handshake() {
+    //     let mut protocol = MockProtocol {
+    //         hardware: ProtocolHardware::default(),
+    //     };
+    //
+    // assert_eq!(protocol.get_protocol_name(), "MockProtocol");
+    //
+    //     let handshake = protocol.handshake();
+    //     assert!(
+    //         handshake.is_ok(),
+    //         "Handshake error: {}",
+    //         handshake.unwrap_err()
+    //     );
+    //
+    //     assert_eq!(protocol.hardware.firmware_version, "2.5");
+    // }
+    //
+    // #[test]
+    // fn test_analog_write() {
+    //     let mut protocol = MockProtocol {
+    //         hardware: ProtocolHardware::default(),
+    //     };
+    //
+    //     assert!(protocol.analog_write(0, 255).is_ok());
+    //
+    //     // Add more assertions based on your specific protocol behavior
+    //     assert_eq!(protocol.hardware.pins[0].value, 255);
+    // }
+    //
+    // #[test]
+    // fn test_digital_write() {
+    //     let mut protocol = MockProtocol {
+    //         hardware: ProtocolHardware::default(),
+    //     };
+    //
+    //     assert!(protocol.digital_write(7, 1).is_ok());
+    //
+    //     // Add more assertions based on your specific protocol behavior
+    //     assert_eq!(protocol.hardware.pins[7].value, 1);
+    // }
 }

@@ -37,6 +37,7 @@ impl Debug for Pin {
 
 // ########################################
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum PinMode {
     /// Same as INPUT defined in Arduino.

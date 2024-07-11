@@ -13,7 +13,6 @@ use serialport::SerialPort;
 use snafu::prelude::*;
 
 use crate::protocols::*;
-use crate::protocols::Error::*;
 use crate::protocols::errors::{IoExceptionSnafu, SerialPortSnafu};
 use crate::protocols::protocol::ProtocolHardware;
 
@@ -76,12 +75,12 @@ impl Protocol for SerialProtocol {
         &mut self.hardware
     }
 
-    // ########################################
-    // Protocol related functions
-
     fn get_protocol_details(&self) -> String {
         format!("via port {}", self.port)
     }
+
+    // ########################################
+    // Protocol related functions
 
     /// Open the communication with the registered port.
     fn open(&mut self) -> Result<(), Error> {

@@ -1,4 +1,4 @@
-use hermes_five::entities::Board;
+use hermes_five::Board;
 
 #[hermes_macros::runtime]
 async fn main() {

@@ -4,7 +4,7 @@ use std::panic::UnwindSafe;
 use std::time::Duration;
 
 use crate::protocols::{Error, Protocol};
-use crate::protocols::serial::SerialProtocol;
+use crate::protocols::SerialProtocol;
 use crate::utils::events::{EventHandler, EventManager};
 use crate::utils::task;
 
@@ -211,5 +211,39 @@ impl Deref for Board {
 impl DerefMut for Board {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.protocol
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::protocols::MockProtocol;
+
+    use super::*;
+
+    #[test]
+    fn test_board_create() {
+        // Default board can be created.
+        let board = Board::default();
+        assert_eq!(
+            board.protocol.get_protocol_name(),
+            "SerialProtocol",
+            "Default board uses the default protocol"
+        );
+
+        // Default board can be created.
+        let board = Board::build(MockProtocol::default());
+        assert_eq!(
+            board.protocol.get_protocol_name(),
+            "MockProtocol",
+            "Board can be created with a custom protocol"
+        );
+
+        // Default board can be created.
+        let board = Board::default().with_protocol(MockProtocol::default());
+        assert_eq!(
+            board.protocol.get_protocol_name(),
+            "MockProtocol",
+            "Board can be created with a custom protocol after default"
+        );
     }
 }

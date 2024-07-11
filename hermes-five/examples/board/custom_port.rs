@@ -1,5 +1,5 @@
-use hermes_five::entities::Board;
-use hermes_five::protocols::serial::SerialProtocol;
+use hermes_five::Board;
+use hermes_five::protocols::SerialProtocol;
 
 #[hermes_macros::runtime]
 async fn main() {

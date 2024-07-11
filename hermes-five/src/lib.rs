@@ -1,7 +1,8 @@
+pub use entities::Board;
 // Expose hermes_macros::runtime to be used as `#[hermes_five::runtime]`
 pub use hermes_macros::runtime;
 
-pub mod entities;
+mod entities;
 pub mod protocols;
-pub mod storage;
+mod storage;
 pub mod utils;

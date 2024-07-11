@@ -1,4 +1,4 @@
-use crate::protocols::{I2CReply, Pin};
+use crate::protocols::{Error, I2CReply, Pin, PinOutOfBounds};
 
 /// Represents the hardware and internal data a generic protocol is supposed to handle.
 /// In an objet-oriented paradigm, that would be `Protocol` abstract class attributes we must ensure
@@ -16,4 +16,16 @@ pub struct ProtocolHardware {
     pub protocol_version: String,
     pub firmware_name: String,
     pub firmware_version: String,
+}
+
+impl ProtocolHardware {
+    pub fn pin_exists(&self, pin: usize) -> Result<(), Error> {
+        match pin >= self.pins.len() {
+            false => Ok(()),
+            true => Err(PinOutOfBounds {
+                pin: pin as u8,
+                len: self.pins.len(),
+            }),
+        }
+    }
 }
