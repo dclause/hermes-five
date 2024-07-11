@@ -16,7 +16,6 @@ pub mod constants;
 mod errors;
 mod i2c_reply;
 mod pins;
-mod protocol;
 pub mod serial;
 /// Defines the trait all protocols must implements.
 #[cfg_attr(feature = "serde", typetag::serde(tag = "type"))]
@@ -306,7 +305,7 @@ pub trait Protocol: DynClone + Send + Sync + Display {
                         }
                         let pin = &mut self.pins()[pin as usize];
                         pin.modes = vec![buf[3]];
-                        // TODO: Extended values.
+                        // @todo: Extended values.
                         pin.value = buf[4] as i32;
 
                         Ok(Message::PinStateResponse)

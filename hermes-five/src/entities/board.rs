@@ -6,10 +6,13 @@ use crate::protocols::serial::SerialProtocol;
 use crate::utils::events::{EventHandler, EventManager};
 use crate::utils::task;
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Board {
     /// The event manager for the board.
+    #[cfg_attr(feature = "serde", serde(skip))]
     events: EventManager,
     /// The communication protocol used by this board.
+    // @todo remove 'pub' and add pass through
     pub protocol: Box<dyn Protocol>,
 }
 
@@ -160,6 +163,7 @@ impl Board {
     // ########################################
     // Protocol related
 
+    // @todo here
     // /// Get the firmware name.
     // fn firmware_name(&mut self) -> &String;
     // /// Get the firmware version.
@@ -201,6 +205,7 @@ impl Board {
     }
 }
 
+// @todo display the firmware from here, hence enough dervice(Debug) on protocol.
 impl Display for Board {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Board ({})", self.protocol)

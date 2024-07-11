@@ -25,10 +25,15 @@ pub struct SerialProtocol {
     /// A Read/Write io object.
     #[cfg_attr(feature = "serde", serde(skip))]
     io: Arc<Mutex<Option<Box<dyn SerialPort>>>>,
+    #[cfg_attr(feature = "serde", serde(skip))]
     pins: Vec<Pin>,
+    #[cfg_attr(feature = "serde", serde(skip))]
     i2c_data: Vec<I2CReply>,
+    #[cfg_attr(feature = "serde", serde(skip))]
     protocol_version: String,
+    #[cfg_attr(feature = "serde", serde(skip))]
     firmware_name: String,
+    #[cfg_attr(feature = "serde", serde(skip))]
     firmware_version: String,
 }
 
