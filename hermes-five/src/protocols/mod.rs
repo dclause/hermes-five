@@ -12,7 +12,7 @@ pub use crate::protocols::Error::*;
 pub use crate::protocols::errors::*;
 pub use crate::protocols::flavor::*;
 pub use crate::protocols::i2c_reply::I2CReply;
-pub use crate::protocols::pins::{Pin, PinMode};
+pub use crate::protocols::pins::*;
 pub use crate::protocols::protocol::*;
 
 pub mod constants;
@@ -258,21 +258,24 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         }
     }
 
+    /// Handle a ANALOG_MAPPING_RESPONSE message (0x6A - reply with analog pins mapping info) as
+    /// defined in the Firmata Protocol.
     fn handle_analog_mapping_response(&mut self, buf: &[u8]) -> Result<Message, Error> {
         let mut i = 2;
-        let upper = (buf.len() - 1).min(self.hardware().pins.len() + 2);
-        while i < upper {
-            if buf[i] != 127u8 {
-                let pin = &mut self.hardware_mut().pins[i - 2];
+
+        while buf[i] != END_SYSEX {
+            if buf[i] != SYSEX_REALTIME {
+                let pin = &mut self.hardware_mut().pins[i - 4]; // skip 2 bytes at the beginning, bit 2 represents first pin at index 0.
                 pin.mode = PinMode::ANALOG;
-                pin.supported_modes = vec![PinMode::ANALOG];
-                pin.resolution = DEFAULT_ANALOG_RESOLUTION;
+                pin.channel = Some(buf[i]);
             }
             i += 1;
         }
         Ok(Message::AnalogMappingResponse)
     }
 
+    /// Handle a CAPABILITY_RESPONSE message (0x6C - reply with supported modes and resolution) as
+    /// defined in the Firmata Protocol.
     fn handle_capability_response(&mut self, buf: &[u8]) -> Result<Message, Error> {
         let mut id = 0;
         let mut i = 2;
@@ -297,6 +300,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
                     supported_modes,
                     resolution: resolution.unwrap(),
                     value: 0,
+                    channel: None,
                 });
             }
 
@@ -306,6 +310,8 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         Ok(Message::CapabilityResponse)
     }
 
+    /// Handle a REPORT_FIRMAWARE message (0x79 - report name and version of the firmware) as
+    /// defined in the Firmata Protocol.
     fn handle_report_firmware(&mut self, buf: &[u8]) -> Result<Message, Error> {
         let major = *buf.get(2).ok_or(MessageTooShort)?;
         let minor = *buf.get(3).ok_or(MessageTooShort)?;

@@ -14,6 +14,9 @@ pub struct Pin {
     pub resolution: u8,
     /// All pin supported modes.
     pub supported_modes: Vec<PinMode>,
+    /// For analog pin, this is the channel number ie "A0", "A1", etc...
+    // @todo convert this to ID accepting both u8 and &str (3 or "A3")
+    pub channel: Option<u8>,
     /// Pin value.
     pub value: i32,
 }
@@ -24,12 +27,17 @@ impl Debug for Pin {
         let resolution_str = format!("{} bits", self.resolution);
         let mode_str = format!("{:?}", self.mode);
         let supported_modes_str = format!("{:?}", self.supported_modes);
+        let channel_str = match self.channel {
+            None => String::default(),
+            Some(ch) => format!("A{}", ch),
+        };
 
         f.debug_struct("Pin")
             .field("id", &self.id)
             .field("mode", &mode_str)
             .field("supported modes", &supported_modes_str)
-            .field("analog resolution", &resolution_str)
+            .field("resolution", &resolution_str)
+            .field("channel", &channel_str)
             .field("value", &self.value)
             .finish()
     }
@@ -96,7 +104,9 @@ impl PinMode {
             0x0E => Ok(PinMode::TONE),
             0x0F => Ok(PinMode::DHT),
             0x7F => Ok(PinMode::IGNORE),
-            x => Err(Error::BadByte { byte: x }),
+            x => Err(Error::Custom {
+                info: format!("Pin mode does not exist: {}", x),
+            }),
         }
     }
 }
@@ -104,5 +114,37 @@ impl PinMode {
 impl From<PinMode> for u8 {
     fn from(mode: PinMode) -> u8 {
         mode as u8
+    }
+}
+
+// ########################################
+
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum PinValue {
+    /// LOW value for a digital pin.
+    LOW = 0,
+    /// HIGH value for a digital pin.
+    HIGH = 1,
+    /// PWM max resolution value.
+    #[allow(non_camel_case_types)]
+    MAX_PWM = 255,
+}
+
+impl PinValue {
+    pub fn from_u8(value: u8) -> Result<PinValue, Error> {
+        match value {
+            0 => Ok(PinValue::LOW),
+            1 => Ok(PinValue::HIGH),
+            x => Err(Error::Custom {
+                info: format!("Pin value does not exist: {}", x),
+            }),
+        }
+    }
+}
+
+impl From<PinValue> for u8 {
+    fn from(value: PinValue) -> u8 {
+        value as u8
     }
 }

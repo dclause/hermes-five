@@ -26,4 +26,14 @@ pub enum Error {
     Unknown { info: String },
     /// Serial port error: {source}
     SerialPort { source: serialport::Error },
+    /// {info}
+    Custom { info: String },
+
+    // ##### PIN RELATED #####
+    /// Unknown pin {pin}.
+    UnknownPin { pin: u8 },
+    /// Incompatible pin {pin}.
+    IncompatiblePin { pin: u8 },
+    /// The value ({value}) is not compatible with the current pin mode.
+    IncompatibleValue { value: u8 },
 }

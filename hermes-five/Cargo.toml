@@ -39,8 +39,8 @@ serial_test = "3.1.1"
 # BOARD examples
 
 [[example]]
-name = "board_blink"
-path = "examples/board/blink.rs"
+name = "board_ready_event"
+path = "examples/board/ready_event.rs"
 
 [[example]]
 name = "board_close_event"
@@ -53,6 +53,14 @@ path = "examples/board/custom_port.rs"
 [[example]]
 name = "board_multiple_events"
 path = "examples/board/multiple_events.rs"
+
+# #################################################
+# LED examples
+
+[[example]]
+name = "led_blink"
+path = "examples/led/blink.rs"
+
 
 # #################################################
 # SYNC examples
