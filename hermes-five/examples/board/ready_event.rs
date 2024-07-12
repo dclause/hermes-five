@@ -8,7 +8,7 @@ async fn main() {
     board
         .on("ready", |board: Board| async move {
             println!("Board connected: {}", board);
-            println!("Pins {:#?}", board.pins);
+            println!("Pins {:#?}", board.lock().unwrap().pins);
         })
         .await;
 }

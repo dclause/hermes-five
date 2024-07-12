@@ -96,11 +96,13 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     /// Send an ANALOG_MESSAGE (0xE0 - set analog value).
     /// https://github.com/firmata/protocol/blob/master/protocol.md#message-types
     fn analog_write(&mut self, pin: u16, level: u16) -> Result<(), Error> {
-        self.hardware_mut()
-            .pins
-            .get_mut(pin as usize)
-            .ok_or(UnknownPin { pin })?
-            .value = level;
+        {
+            let mut lock = self.hardware().lock().map_err(|_| MutexPoison)?;
+            lock.pins
+                .get_mut(pin as usize)
+                .ok_or(UnknownPin { pin })?
+                .value = level;
+        }
         self.write(&[
             ANALOG_MESSAGE | pin as u8,
             level as u8 & SYSEX_REALTIME,
@@ -117,21 +119,19 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         let mut value: u16 = 0;
         let mut i = 0;
 
-        // Store the value we will write to the current pin.
-        self.hardware_mut().get_pin_mut(pin)?.value = u16::from(level);
+        {
+            // Store the value we will write to the current pin.
+            let mut lock = self.hardware().lock().map_err(|_| MutexPoison)?;
+            lock.get_pin_mut(pin)?.value = u16::from(level);
 
-        // Loop through all 8 pins of the current "port" to concatenate their value.
-        // For instance 01100000 will set to 1 the pin 1 and 2 or current port.
-        while i < 8 {
-            if self
-                .hardware_mut()
-                .get_pin_mut((8 * port + i) as u16)?
-                .value
-                != 0
-            {
-                value |= 1 << i
+            // Loop through all 8 pins of the current "port" to concatenate their value.
+            // For instance 01100000 will set to 1 the pin 1 and 2 or current port.
+            while i < 8 {
+                if lock.get_pin_mut((8 * port + i) as u16)?.value != 0 {
+                    value |= 1 << i
+                }
+                i += 1;
             }
-            i += 1;
         }
 
         self.write(&[
@@ -161,9 +161,12 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     ///
     /// https://github.com/firmata/protocol/blob/master/protocol.md#data-message-expansion
     fn set_pin_mode(&mut self, pin: u16, mode: PinModeId) -> Result<(), Error> {
-        let mut _pin = self.hardware_mut().get_pin_mut(pin)?;
-        let _mode = _pin.get_mode(mode)?;
-        _pin.mode = _mode;
+        {
+            let mut lock = self.hardware().lock().map_err(|_| MutexPoison)?;
+            let mut _pin = lock.get_pin_mut(pin)?;
+            let _mode = _pin.get_mode(mode)?;
+            _pin.mode = _mode;
+        }
 
         self.write(&[SET_PIN_MODE, pin as u8, mode as u8])
     }
@@ -232,7 +235,8 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     /// Handle a REPORT_VERSION_RESPONSE message (0xF9 - return the firmware version).
     /// https://github.com/firmata/protocol/blob/master/protocol.md#message-types
     fn handle_report_version(&mut self, buf: &[u8]) -> Result<Message, Error> {
-        self.hardware_mut().protocol_version = format!("{:o}.{:o}", buf[1], buf[2]);
+        let mut lock = self.hardware().lock().map_err(|_| MutexPoison)?;
+        lock.protocol_version = format!("{:o}.{:o}", buf[1], buf[2]);
         Ok(Message::ProtocolVersion)
     }
 
@@ -289,10 +293,11 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     /// Handle an ANALOG_MAPPING_RESPONSE message (0x6A - reply with analog pins mapping info).
     /// https://github.com/firmata/protocol/blob/master/protocol.md#analog-mapping-query
     fn handle_analog_mapping_response(&mut self, buf: &[u8]) -> Result<Message, Error> {
+        let mut lock = self.hardware().lock().map_err(|_| MutexPoison)?;
         let mut i = 2;
         while buf[i] != END_SYSEX {
             if buf[i] != SYSEX_REALTIME {
-                let pin = &mut self.hardware_mut().get_pin_mut((i - 2) as u16)?;
+                let pin = &mut lock.get_pin_mut((i - 2) as u16)?;
                 pin.mode = pin.get_mode(PinModeId::ANALOG)?.clone();
                 pin.channel = Some(buf[i]);
             }
@@ -306,8 +311,8 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     fn handle_capability_response(&mut self, buf: &[u8]) -> Result<Message, Error> {
         let mut id = 0;
         let mut i = 2;
-        let hardware = self.hardware_mut();
-        hardware.pins = vec![];
+        let mut lock = self.hardware().lock().map_err(|_| MutexPoison)?;
+        lock.pins = vec![];
 
         while i < buf.len() - 1 {
             let mut supported_modes: Vec<PinMode> = vec![];
@@ -330,7 +335,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
             if !pin.supported_modes.is_empty() {
                 pin.mode = pin.supported_modes.first().unwrap().clone();
             }
-            hardware.pins.push(pin);
+            lock.pins.push(pin);
 
             i += 1;
             id += 1;
@@ -343,10 +348,10 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     fn handle_report_firmware(&mut self, buf: &[u8]) -> Result<Message, Error> {
         let major = *buf.get(2).ok_or(MessageTooShort)?;
         let minor = *buf.get(3).ok_or(MessageTooShort)?;
-        let hardware = self.hardware_mut();
-        hardware.firmware_version = format!("{:o}.{:o}", major, minor);
+        let mut lock = self.hardware().lock().map_err(|_| MutexPoison)?;
+        lock.firmware_version = format!("{:o}.{:o}", major, minor);
         if buf.len() > 4 {
-            hardware.firmware_name = std::str::from_utf8(&buf[4..buf.len() - 1])
+            lock.firmware_name = std::str::from_utf8(&buf[4..buf.len() - 1])
                 .with_context(|_| Utf8Snafu)?
                 .to_string();
         }
@@ -391,11 +396,12 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
 
 impl Display for Box<dyn Protocol> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let lock = self.hardware().lock().unwrap();
         write!(
             f,
             "firmware={}, version={}, protocol={}, connection={:?}",
-            self.firmware_name,
-            self.firmware_version,
+            lock.firmware_name,
+            lock.firmware_version,
             self.get_protocol_name(),
             self.get_protocol_details()
         )

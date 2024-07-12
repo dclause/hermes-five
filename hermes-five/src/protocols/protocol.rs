@@ -1,4 +1,8 @@
+use std::sync::{Arc, Mutex};
+
 use crate::protocols::{Error, I2CReply, Pin, UnknownPin};
+
+pub type ProtocolHardware = Arc<Mutex<Hardware>>;
 
 /// Represents the hardware and internal data a generic protocol is supposed to handle.
 /// In an objet-oriented paradigm, that would be `Protocol` abstract class attributes we must ensure
@@ -8,7 +12,7 @@ use crate::protocols::{Error, I2CReply, Pin, UnknownPin};
 /// This lets our `Protocol` trait to implement most of the protocol generically.
 #[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct ProtocolHardware {
+pub struct Hardware {
     #[cfg_attr(feature = "serde", serde(skip))]
     pub pins: Vec<Pin>,
     #[cfg_attr(feature = "serde", serde(skip))]
@@ -18,7 +22,7 @@ pub struct ProtocolHardware {
     pub firmware_version: String,
 }
 
-impl ProtocolHardware {
+impl Hardware {
     pub fn get_pin_mut(&mut self, pin: u16) -> Result<&mut Pin, Error> {
         self.pins.get_mut(pin as usize).ok_or(UnknownPin { pin })
     }

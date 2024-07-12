@@ -43,7 +43,7 @@ impl SerialProtocol {
         Self {
             port: port.to_string(),
             io: Arc::new(Mutex::new(None)),
-            hardware: ProtocolHardware::default(),
+            hardware: Arc::new(Mutex::new(Hardware::default())),
         }
     }
 }

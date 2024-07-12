@@ -82,6 +82,9 @@ impl Board {
         self.protocol = Box::new(protocol);
         self
     }
+    pub(crate) fn get_protocol(mut self) -> Box<dyn Protocol> {
+        self.protocol
+    }
 
     /// Starts a board connexion procedure (using the appropriate configured protocol) in an asynchronous way.
     /// _Note 1:    you probably might not want to call this method yourself and use [`Self::run()`] instead._

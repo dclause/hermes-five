@@ -1,10 +1,11 @@
 use crate::board::Board;
-use crate::protocols::{Error, IncompatibleMode, Pin, PinModeId, UnknownPin};
+use crate::protocols::{
+    Error, IncompatibleMode, MutexPoison, Pin, PinModeId, Protocol, UnknownPin,
+};
 use crate::utils::helpers::MapRange;
 
 pub struct Led {
-    // @todo board and pin should be in a Device trait ?
-    board: Board,
+    protocol: Box<dyn Protocol>,
     pin: u16,
 
     is_on: bool,
@@ -15,14 +16,15 @@ pub struct Led {
 }
 
 impl Led {
-    pub fn new(mut board: Board, pin: u16) -> Result<Self, Error> {
+    pub fn new(board: &Board, pin: u16) -> Result<Self, Error> {
         {
-            let board_pin: &mut Pin = board.pins.get_mut(pin as usize).ok_or(UnknownPin { pin })?;
+            let mut lock = board.lock().map_err(|_| MutexPoison)?;
+            let board_pin: &mut Pin = lock.pins.get_mut(pin as usize).ok_or(UnknownPin { pin })?;
             board_pin.mode = board_pin.get_mode(PinModeId::OUTPUT)?;
         }
 
         Ok(Self {
-            board,
+            protocol: board.clone().get_protocol(),
             pin,
             is_on: false,
             is_running: false,
@@ -40,16 +42,21 @@ impl Led {
     pub fn with_intensity(&mut self, intensity: u8) -> Result<&Self, Error> {
         // Intensity can only be between 0 and 100%
         let intensity = intensity.clamp(0, 100) as u16;
+        let mut pin_id;
+        let mut pwm_mode;
 
         // Set the pin as PWM mode if not yet done.
-        let pin = self.board.get_pin_mut(self.pin)?;
-        let pwm_mode = pin.get_mode(PinModeId::PWM)?;
-        pin.mode = pwm_mode.clone();
+        {
+            let mut lock = self.protocol.hardware().lock().map_err(|_| MutexPoison)?;
+            let pin = lock.get_pin_mut(self.pin)?;
+            let mode = pin.get_mode(PinModeId::PWM)?;
+            pin.mode = mode.clone();
+            // Now set the pin mode in the board.
+            pin_id = pin.id;
+            pwm_mode = mode.clone();
+        }
 
-        // Now set the pin mode in the board.
-        let pin_id = pin.id;
-        let pwm_mode_id = pwm_mode.id;
-        self.board.set_pin_mode(pin_id, pwm_mode_id)?;
+        self.protocol.set_pin_mode(pin_id, pwm_mode.id)?;
 
         // Compute the max intensity value (depending on resolution (255 on arduino for instance))
         self.intensity = intensity.map(0, 100, 0, 2u16.pow(pwm_mode.resolution as u32));
@@ -100,14 +107,18 @@ impl Led {
 
     /// Update the LED.
     pub fn update(&mut self) -> Result<&Self, Error> {
-        let pin = self.board.get_pin_mut(self.pin)?;
+        let mut pin;
 
-        let pin_id = pin.id;
+        {
+            let mut lock = self.protocol.hardware().lock().map_err(|_| MutexPoison)?;
+            pin = lock.get_pin_mut(self.pin)?.clone();
+        }
+
         match pin.mode.id {
             // on/off digital operation.
-            PinModeId::OUTPUT => self.board.digital_write(pin_id, self.value > 0),
+            PinModeId::OUTPUT => self.protocol.digital_write(pin.id, self.value > 0),
             // pwm (brightness) mode.
-            PinModeId::PWM => self.board.analog_write(pin_id, self.value),
+            PinModeId::PWM => self.protocol.analog_write(pin.id, self.value),
             _ => Err(IncompatibleMode {
                 mode: pin.mode.id,
                 pin: pin.id,

@@ -7,9 +7,13 @@ async fn main() {
 
     board
         .on("ready", |board: Board| async move {
-            let mut led = Led::new(board.clone(), 13).expect("Embedded led is instantiated");
-            println!("13- Pin 11 {}", board.pins.get(11).unwrap().mode.id);
-            println!("13- Pin 13 {}", board.pins.get(13).unwrap().mode.id);
+            let mut led = Led::new(&board, 13).expect("Embedded led is instantiated");
+
+            {
+                let lock = board.lock().unwrap();
+                println!("13- Pin 11 {}", lock.pins.get(11).unwrap().mode.id);
+                println!("13- Pin 13 {}", lock.pins.get(13).unwrap().mode.id);
+            }
 
             loop {
                 led.on().unwrap();
@@ -22,11 +26,17 @@ async fn main() {
 
     board
         .on("ready", |board: Board| async move {
-            let mut led = Led::new(board.clone(), 11).expect("Embedded led is instantiated");
+            let mut led = Led::new(&board, 11).expect("Embedded led is instantiated");
             led.with_intensity(50).unwrap();
 
-            println!("11- Pin 11 {}", board.pins.get(11).unwrap().mode.id);
-            println!("11- Pin 13 {}", board.pins.get(13).unwrap().mode.id);
+            println!(
+                "13- Pin 11 {}",
+                board.lock().unwrap().pins.get(11).unwrap().mode.id
+            );
+            println!(
+                "13- Pin 13 {}",
+                board.lock().unwrap().pins.get(13).unwrap().mode.id
+            );
 
             loop {
                 led.on().unwrap();
