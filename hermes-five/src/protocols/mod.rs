@@ -68,8 +68,8 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         self.read_and_decode()?;
         self.query_analog_mapping()?;
         self.read_and_decode()?;
-        self.report_digital(0, 1)?;
-        self.report_digital(1, 1)?;
+        self.report_digital(0, true)?;
+        self.report_digital(1, true)?;
         Ok(())
     }
 
@@ -92,9 +92,15 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     // Read/Write on pins
 
     /// Write `level` to the analog `pin`.
-    fn analog_write(&mut self, pin: i32, level: i32) -> Result<(), Error> {
-        self.hardware().pin_exists(pin as usize)?;
-        self.hardware_mut().pins[pin as usize].value = level;
+    ///
+    /// Send an ANALOG_MESSAGE (0xE0 - set analog value).
+    /// https://github.com/firmata/protocol/blob/master/protocol.md#message-types
+    fn analog_write(&mut self, pin: u16, level: u16) -> Result<(), Error> {
+        self.hardware_mut()
+            .pins
+            .get_mut(pin as usize)
+            .ok_or(UnknownPin { pin })?
+            .value = level;
         self.write(&[
             ANALOG_MESSAGE | pin as u8,
             level as u8 & SYSEX_REALTIME,
@@ -103,16 +109,26 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     }
 
     /// Write `level` to the digital `pin`.
-    fn digital_write(&mut self, pin: i32, level: i32) -> Result<(), Error> {
-        let port = (pin as f64 / 8f64).floor() as usize;
-        let mut value = 0i32;
+    ///
+    /// Send an DIGITAL_MESSAGE (0x90 - set analog value).   
+    /// https://github.com/firmata/protocol/blob/master/protocol.md#message-types
+    fn digital_write(&mut self, pin: u16, level: bool) -> Result<(), Error> {
+        let port = (pin / 8) as u8;
+        let mut value: u16 = 0;
         let mut i = 0;
 
-        self.hardware().pin_exists(pin as usize)?;
-        self.hardware_mut().pins[pin as usize].value = level;
+        // Store the value we will write to the current pin.
+        self.hardware_mut().get_pin_mut(pin)?.value = u16::from(level);
 
+        // Loop through all 8 pins of the current "port" to concatenate their value.
+        // For instance 01100000 will set to 1 the pin 1 and 2 or current port.
         while i < 8 {
-            if self.hardware().pins[8 * port + i].value != 0 {
+            if self
+                .hardware_mut()
+                .get_pin_mut((8 * port + i) as u16)?
+                .value
+                != 0
+            {
                 value |= 1 << i
             }
             i += 1;
@@ -126,20 +142,30 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     }
 
     /// Set the analog reporting `state` of the specified `pin`.
-    fn report_analog(&mut self, pin: i32, state: i32) -> Result<(), Error> {
-        self.write(&[REPORT_ANALOG | pin as u8, state as u8])
+    ///
+    /// This will activate the reporting of the pin (hence the pin will send us its value periodically)
+    /// https://github.com/firmata/protocol/blob/master/protocol.md
+    fn report_analog(&mut self, channel: u8, state: bool) -> Result<(), Error> {
+        self.write(&[REPORT_ANALOG | channel, u8::from(state)])
     }
 
-    /// Set the digital reporting `state` of the specified `pin`.
-    fn report_digital(&mut self, pin: i32, state: i32) -> Result<(), Error> {
-        self.write(&[REPORT_DIGITAL | pin as u8, state as u8])
+    /// Set the digital reporting `state` of all pins in specified `port`.
+    ///
+    /// This will activate the reporting of all pins in port (hence the pin will send us its value periodically)
+    /// https://github.com/firmata/protocol/blob/master/protocol.md
+    fn report_digital(&mut self, port: u8, state: bool) -> Result<(), Error> {
+        self.write(&[REPORT_DIGITAL | port, u8::from(state)])
     }
 
     /// Set the `mode` of the specified `pin`.
-    fn set_pin_mode(&mut self, pin: i32, mode: PinMode) -> Result<(), Error> {
-        self.hardware().pin_exists(pin as usize)?;
-        self.hardware_mut().pins[pin as usize].supported_modes = vec![mode];
-        self.write(&[SET_PIN_MODE, pin as u8, mode.into()])
+    ///
+    /// https://github.com/firmata/protocol/blob/master/protocol.md#data-message-expansion
+    fn set_pin_mode(&mut self, pin: u16, mode: PinModeId) -> Result<(), Error> {
+        let mut _pin = self.hardware_mut().get_pin_mut(pin)?;
+        let _mode = _pin.get_mode(mode)?;
+        _pin.mode = _mode;
+
+        self.write(&[SET_PIN_MODE, pin as u8, mode as u8])
     }
 
     // ########################################
@@ -147,7 +173,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
 
     /// Configure the `delay` in microseconds for I2C devices that require a delay between when the
     /// register is written to and the data in that register can be read.
-    fn i2c_config(&mut self, delay: i32) -> Result<(), Error> {
+    fn i2c_config(&mut self, delay: u16) -> Result<(), Error> {
         self.write(&[
             START_SYSEX,
             I2C_CONFIG,
@@ -195,7 +221,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         self.read_exact(&mut buf)?;
 
         match buf[0] {
-            REPORT_VERSION => self.handle_report_version(&buf),
+            REPORT_VERSION_RESPONSE => self.handle_report_version(&buf),
             ANALOG_MESSAGE..=ANALOG_MESSAGE_BOUND => self.handle_analog_message(&buf),
             DIGITAL_MESSAGE..=DIGITAL_MESSAGE_BOUND => self.handle_digital_message(&buf),
             START_SYSEX => self.handle_sysex_message(&mut buf),
@@ -203,37 +229,39 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         }
     }
 
+    /// Handle a REPORT_VERSION_RESPONSE message (0xF9 - return the firmware version).
+    /// https://github.com/firmata/protocol/blob/master/protocol.md#message-types
     fn handle_report_version(&mut self, buf: &[u8]) -> Result<Message, Error> {
-        self.hardware_mut().protocol_version = format!("{:o}.{:o}.{:o}", buf[1], buf[2], buf[3]);
+        self.hardware_mut().protocol_version = format!("{:o}.{:o}", buf[1], buf[2]);
         Ok(Message::ProtocolVersion)
     }
 
     fn handle_analog_message(&mut self, buf: &[u8]) -> Result<Message, Error> {
-        if buf.len() < 3 {
-            return Err(MessageTooShort);
-        }
-        let pin = ((buf[0] as i32) & 0x0F) + 14;
-        let value = (buf[1] as i32) | ((buf[2] as i32) << 7);
-        if self.hardware().pins.len() as i32 > pin {
-            self.hardware_mut().pins[pin as usize].value = value;
-        }
+        // if buf.len() < 3 {
+        //     return Err(MessageTooShort);
+        // }
+        // let pin = ((buf[0] as i32) & 0x0F) + 14;
+        // let value = (buf[1] as i32) | ((buf[2] as i32) << 7);
+        // if self.hardware().pins.len() as i32 > pin {
+        //     self.hardware_mut().pins[pin as usize].value = value;
+        // }
         Ok(Message::Analog)
     }
 
     fn handle_digital_message(&mut self, buf: &[u8]) -> Result<Message, Error> {
-        if buf.len() < 3 {
-            return Err(MessageTooShort);
-        }
-        let port = (buf[0] as i32) & 0x0F;
-        let value = (buf[1] as i32) | ((buf[2] as i32) << 7);
-
-        for i in 0..8 {
-            let pin = (8 * port) + i;
-            let mode: PinMode = self.hardware().pins[pin as usize].mode;
-            if self.hardware().pins.len() as i32 > pin && mode == PinMode::INPUT {
-                self.hardware_mut().pins[pin as usize].value = (value >> (i & 0x07)) & 0x01;
-            }
-        }
+        // if buf.len() < 3 {
+        //     return Err(MessageTooShort);
+        // }
+        // let port = (buf[0] as i32) & 0x0F;
+        // let value = (buf[1] as i32) | ((buf[2] as i32) << 7);
+        //
+        // for i in 0..8 {
+        //     let pin = (8 * port) + i;
+        //     let mode: PinModeId = self.hardware().pins[pin as usize].mode;
+        //     if self.hardware().pins.len() as i32 > pin && mode == PinModeId::INPUT {
+        //         self.hardware_mut().pins[pin as usize].value = (value >> (i & 0x07)) & 0x01;
+        //     }
+        // }
         Ok(Message::Digital)
     }
 
@@ -258,15 +286,14 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         }
     }
 
-    /// Handle a ANALOG_MAPPING_RESPONSE message (0x6A - reply with analog pins mapping info) as
-    /// defined in the Firmata Protocol.
+    /// Handle an ANALOG_MAPPING_RESPONSE message (0x6A - reply with analog pins mapping info).
+    /// https://github.com/firmata/protocol/blob/master/protocol.md#analog-mapping-query
     fn handle_analog_mapping_response(&mut self, buf: &[u8]) -> Result<Message, Error> {
         let mut i = 2;
-
         while buf[i] != END_SYSEX {
             if buf[i] != SYSEX_REALTIME {
-                let pin = &mut self.hardware_mut().pins[i - 4]; // skip 2 bytes at the beginning, bit 2 represents first pin at index 0.
-                pin.mode = PinMode::ANALOG;
+                let pin = &mut self.hardware_mut().get_pin_mut((i - 2) as u16)?;
+                pin.mode = pin.get_mode(PinModeId::ANALOG)?.clone();
                 pin.channel = Some(buf[i]);
             }
             i += 1;
@@ -274,35 +301,36 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         Ok(Message::AnalogMappingResponse)
     }
 
-    /// Handle a CAPABILITY_RESPONSE message (0x6C - reply with supported modes and resolution) as
-    /// defined in the Firmata Protocol.
+    /// Handle a CAPABILITY_RESPONSE message (0x6C - reply with supported modes and resolution)
+    /// https://github.com/firmata/protocol/blob/master/protocol.md#capability-query
     fn handle_capability_response(&mut self, buf: &[u8]) -> Result<Message, Error> {
         let mut id = 0;
         let mut i = 2;
-        self.hardware_mut().pins = vec![];
+        let hardware = self.hardware_mut();
+        hardware.pins = vec![];
 
         while i < buf.len() - 1 {
             let mut supported_modes: Vec<PinMode> = vec![];
-            let mut resolution = None;
 
             while buf[i] != 127u8 {
-                supported_modes.push(PinMode::from_u8(buf[i])?);
-                if resolution.is_none() {
-                    resolution.replace(buf[i + 1]);
-                }
+                supported_modes.push(PinMode {
+                    id: PinModeId::from_u8(buf[i])?,
+                    resolution: buf[i + 1],
+                });
                 i += 2;
             }
 
-            if !supported_modes.is_empty() {
-                self.hardware_mut().pins.push(Pin {
-                    id,
-                    mode: *supported_modes.first().unwrap(),
-                    supported_modes,
-                    resolution: resolution.unwrap(),
-                    value: 0,
-                    channel: None,
-                });
+            let mut pin = Pin {
+                id,
+                mode: PinMode::default(),
+                supported_modes,
+                value: 0,
+                channel: None,
+            };
+            if !pin.supported_modes.is_empty() {
+                pin.mode = pin.supported_modes.first().unwrap().clone();
             }
+            hardware.pins.push(pin);
 
             i += 1;
             id += 1;
@@ -310,14 +338,15 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         Ok(Message::CapabilityResponse)
     }
 
-    /// Handle a REPORT_FIRMAWARE message (0x79 - report name and version of the firmware) as
-    /// defined in the Firmata Protocol.
+    /// Handle a REPORT_FIRMWARE message (0x79 - report name and version of the firmware).
+    /// https://github.com/firmata/protocol/blob/master/protocol.md#query-firmware-name-and-version
     fn handle_report_firmware(&mut self, buf: &[u8]) -> Result<Message, Error> {
         let major = *buf.get(2).ok_or(MessageTooShort)?;
         let minor = *buf.get(3).ok_or(MessageTooShort)?;
-        self.hardware_mut().firmware_version = format!("{:o}.{:o}", major, minor);
+        let hardware = self.hardware_mut();
+        hardware.firmware_version = format!("{:o}.{:o}", major, minor);
         if buf.len() > 4 {
-            self.hardware_mut().firmware_name = std::str::from_utf8(&buf[4..buf.len() - 1])
+            hardware.firmware_name = std::str::from_utf8(&buf[4..buf.len() - 1])
                 .with_context(|_| Utf8Snafu)?
                 .to_string();
         }
@@ -325,37 +354,37 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     }
 
     fn handle_i2c_reply(&mut self, buf: &[u8]) -> Result<Message, Error> {
-        if buf.len() < 8 {
-            return Err(MessageTooShort);
-        }
-        let mut reply = I2CReply {
-            address: (buf[2] as i32) | ((buf[3] as i32) << 7),
-            register: (buf[4] as i32) | ((buf[5] as i32) << 7),
-            data: vec![buf[6] | buf[7] << 7],
-        };
-        let mut i = 8;
-        while i < buf.len() - 1 {
-            if buf[i] == 0xF7 {
-                break;
-            }
-            if i + 2 > buf.len() {
-                break;
-            }
-            reply.data.push(buf[i] | buf[i + 1] << 7);
-            i += 2;
-        }
-        self.hardware_mut().i2c_data.push(reply);
+        // if buf.len() < 8 {
+        //     return Err(MessageTooShort);
+        // }
+        // let mut reply = I2CReply {
+        //     address: (buf[2] as i32) | ((buf[3] as i32) << 7),
+        //     register: (buf[4] as i32) | ((buf[5] as i32) << 7),
+        //     data: vec![buf[6] | buf[7] << 7],
+        // };
+        // let mut i = 8;
+        // while i < buf.len() - 1 {
+        //     if buf[i] == 0xF7 {
+        //         break;
+        //     }
+        //     if i + 2 > buf.len() {
+        //         break;
+        //     }
+        //     reply.data.push(buf[i] | buf[i + 1] << 7);
+        //     i += 2;
+        // }
+        // self.hardware_mut().i2c_data.push(reply);
         Ok(Message::I2CReply)
     }
 
     fn handle_pin_state_response(&mut self, buf: &[u8]) -> Result<Message, Error> {
-        let pin_index = buf[2] as usize;
-        if buf.len() < 4 || buf[3] == END_SYSEX {
-            return Ok(Message::PinStateResponse);
-        }
-        let pin = &mut self.hardware_mut().pins[pin_index];
-        pin.supported_modes = vec![PinMode::from_u8(buf[3])?];
-        pin.value = buf[4] as i32;
+        // let pin_index = buf[2] as usize;
+        // if buf.len() < 4 || buf[3] == END_SYSEX {
+        //     return Ok(Message::PinStateResponse);
+        // }
+        // let pin = &mut self.hardware_mut().pins[pin_index];
+        // pin.supported_modes = vec![PinModeId::from_u8(buf[3])?];
+        // pin.value = buf[4] as i32;
         Ok(Message::PinStateResponse)
     }
 }

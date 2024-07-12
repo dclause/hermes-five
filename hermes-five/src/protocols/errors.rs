@@ -1,5 +1,7 @@
 use snafu::Snafu;
 
+use crate::protocols::PinModeId;
+
 /// Firmata error type.
 #[derive(Debug, Snafu)]
 #[snafu(visibility(pub))]
@@ -20,8 +22,6 @@ pub enum Error {
     Utf8Error { source: std::str::Utf8Error },
     /// Data error: Not enough bytes received, message was too short.
     MessageTooShort,
-    /// Logical error: Unknown pin {pin} (max {len}).
-    PinOutOfBounds { pin: u8, len: usize },
     /// Unknown error: {info}
     Unknown { info: String },
     /// Serial port error: {source}
@@ -31,9 +31,17 @@ pub enum Error {
 
     // ##### PIN RELATED #####
     /// Unknown pin {pin}.
-    UnknownPin { pin: u8 },
+    UnknownPin { pin: u16 },
     /// Incompatible pin {pin}.
-    IncompatiblePin { pin: u8 },
+    IncompatiblePin { pin: u16 },
     /// The value ({value}) is not compatible with the current pin mode.
-    IncompatibleValue { value: u8 },
+    IncompatibleValue { value: u16 },
+    /// Unknown mode {mode}.
+    UnknownMode { mode: PinModeId },
+    /// The mode ({mode}) is not compatible with pin {pin}: "{operation}".
+    IncompatibleMode {
+        mode: PinModeId,
+        pin: u16,
+        operation: String,
+    },
 }

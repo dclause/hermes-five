@@ -45,7 +45,7 @@ pub const SET_PIN_MODE: u8 = 0xF4;
 pub const SET_DIGITAL_PIN_VALUE: u8 = 0xF5;
 //
 /// Report protocol version
-pub const REPORT_VERSION: u8 = 0xF9;
+pub const REPORT_VERSION_RESPONSE: u8 = 0xF9;
 /// Reset from MIDI
 pub const SYSTEM_RESET: u8 = 0xFF;
 //
@@ -109,11 +109,3 @@ pub const I2C_STOP_READING: u8 = 0x18;
 pub const I2C_READ_WRITE_MODE_MASK: u8 = 0x18;
 pub const I2C_10BIT_ADDRESS_MODE_MASK: u8 = 0x20;
 pub const I2C_END_TX_MASK: u8 = 0x40;
-
-// Other values
-/// Default analog resolution value
-pub const DEFAULT_ANALOG_RESOLUTION: u8 = 10;
-/// Default PWM resolution value
-pub const DEFAULT_PWM_RESOLUTION: u8 = 10;
-/// Default PWM resolution value
-pub const DEFAULT_SERVO_RESOLUTION: u8 = 14;

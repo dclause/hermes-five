@@ -1,61 +1,79 @@
 use crate::board::Board;
-use crate::protocols::{
-    Error, IncompatiblePin, IncompatibleValue, Pin, PinMode, PinValue, UnknownPin,
-};
+use crate::protocols::{Error, IncompatibleMode, Pin, PinModeId, UnknownPin};
+use crate::utils::helpers::MapRange;
 
 pub struct Led {
     // @todo board and pin should be in a Device trait ?
     board: Board,
-    pin: Pin,
+    pin: u16,
 
     is_on: bool,
     is_running: bool,
-    value: PinValue,
-    intensity: PinValue,
+    value: u16,
+    intensity: u16,
     interval: u8,
 }
 
 impl Led {
-    pub fn new(board: Board, pin: usize) -> Result<Self, Error> {
-        let board_pin: Pin = match board.pins.iter().find(|&p| p.id == pin as u8) {
-            None => Err(UnknownPin { pin: pin as u8 }),
-            Some(p) => Ok(p.clone()),
-        }?;
+    pub fn new(mut board: Board, pin: u16) -> Result<Self, Error> {
+        {
+            let board_pin: &mut Pin = board.pins.get_mut(pin as usize).ok_or(UnknownPin { pin })?;
+            board_pin.mode = board_pin.get_mode(PinModeId::OUTPUT)?;
+        }
+
         Ok(Self {
             board,
-            pin: board_pin,
+            pin,
             is_on: false,
             is_running: false,
-            value: PinValue::LOW,
-            intensity: PinValue::MAX_PWM,
+            value: 0,
+            intensity: 0xFF,
             interval: 0,
         })
     }
 
-    /// Set the LED intensity.
+    /// Set the LED intensity in percent of the max brightness.
     /// Note: this function will bail an error if the LED pin does not support PWM.
     ///
     /// # Parameters
-    /// * `intensity`: the requested intensity
-    pub fn with_intensity(&mut self, intensity: PinValue) -> Result<&Self, Error> {
-        if !self.pin.supported_modes.contains(&PinMode::PWM) {
-            return Err(IncompatiblePin { pin: self.pin.id });
+    /// * `intensity`: the requested intensity (between 0-100%)
+    pub fn with_intensity(&mut self, intensity: u8) -> Result<&Self, Error> {
+        // Intensity can only be between 0 and 100%
+        let intensity = intensity.clamp(0, 100) as u16;
+
+        // Set the pin as PWM mode if not yet done.
+        let pin = self.board.get_pin_mut(self.pin)?;
+        let pwm_mode = pin.get_mode(PinModeId::PWM)?;
+        pin.mode = pwm_mode.clone();
+
+        // Now set the pin mode in the board.
+        let pin_id = pin.id;
+        let pwm_mode_id = pwm_mode.id;
+        self.board.set_pin_mode(pin_id, pwm_mode_id)?;
+
+        // Compute the max intensity value (depending on resolution (255 on arduino for instance))
+        self.intensity = intensity.map(0, 100, 0, 2u16.pow(pwm_mode.resolution as u32));
+
+        // If the value is higher than the intensity, we update it on the spot.
+        if self.value > intensity {
+            self.value = self.intensity;
+            self.update()?;
         }
-        self.intensity = intensity;
+
         Ok(self)
     }
 
     /// Turn the LED on.
     pub fn on(&mut self) -> Result<&Self, Error> {
         self.is_on = true;
-        self.value = PinValue::HIGH;
+        self.value = self.intensity;
         self.update()
     }
 
     /// Turn the LED off.
     pub fn off(&mut self) -> Result<&Self, Error> {
         self.is_on = false;
-        self.value = PinValue::LOW;
+        self.value = 0;
         self.update()
     }
 
@@ -80,34 +98,21 @@ impl Led {
         // @todo implement stop()
     }
 
+    /// Update the LED.
     pub fn update(&mut self) -> Result<&Self, Error> {
-        // Send the value appropriately
-        match self.value == PinValue::LOW || self.value == PinValue::HIGH {
-            // value is digital:
-            true => match self.pin.supported_modes.contains(&PinMode::OUTPUT) {
-                // Send the value as digital
-                true => self
-                    .board
-                    .digital_write(self.pin.id as i32, self.value as i32),
-                // Bail an error if the pin is OUTPUT incompatible.
-                false => Err(IncompatibleValue {
-                    value: self.value as u8,
-                }),
-            },
-            // value is analog:
-            false => match self.pin.supported_modes.contains(&PinMode::PWM) {
-                true => {
-                    let channel = self
-                        .pin
-                        .channel
-                        .ok_or(IncompatiblePin { pin: self.pin.id })?;
-                    self.board.analog_write(channel as i32, self.value as i32)
-                }
-                // Bail an error if the pin is PWM incompatible.
-                false => Err(IncompatibleValue {
-                    value: self.value as u8,
-                }),
-            },
+        let pin = self.board.get_pin_mut(self.pin)?;
+
+        let pin_id = pin.id;
+        match pin.mode.id {
+            // on/off digital operation.
+            PinModeId::OUTPUT => self.board.digital_write(pin_id, self.value > 0),
+            // pwm (brightness) mode.
+            PinModeId::PWM => self.board.analog_write(pin_id, self.value),
+            _ => Err(IncompatibleMode {
+                mode: pin.mode.id,
+                pin: pin.id,
+                operation: String::from("update LED"),
+            }),
         }?;
         Ok(self)
     }

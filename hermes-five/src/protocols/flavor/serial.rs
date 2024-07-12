@@ -137,12 +137,16 @@ impl Deref for SerialProtocol {
     type Target = ProtocolHardware;
 
     fn deref(&self) -> &Self::Target {
-        &self.hardware
+        // let lock = self.hardware.lock().unwrap();
+        // Box::leak(Box::new(lock.clone()))
+        self.hardware()
     }
 }
 
 impl DerefMut for SerialProtocol {
     fn deref_mut(&mut self) -> &mut Self::Target {
+        // let lock = self.hardware.lock().unwrap();
+        // Box::leak(Box::new(lock.clone()))
         &mut self.hardware
     }
 }

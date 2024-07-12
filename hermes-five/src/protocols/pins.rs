@@ -1,32 +1,39 @@
-use std::fmt::Debug;
+use std::fmt::{Debug, Display, Formatter};
 
-use crate::protocols::Error;
+use crate::protocols::{Error, UnknownMode};
 
 /// The current state and configuration of a pin.
-#[derive(Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Default)]
 pub struct Pin {
-    /// The pin id: should correspond also to the position of the pin in the `Vec<Pin>`
-    pub id: u8,
+    /// The pin id: should correspond also to the position of the pin in the [`ProtocolHardware::pins`]
+    pub id: u16,
     /// Currently configured mode.
     pub mode: PinMode,
-    /// Current resolution.
-    pub resolution: u8,
     /// All pin supported modes.
     pub supported_modes: Vec<PinMode>,
     /// For analog pin, this is the channel number ie "A0", "A1", etc...
-    // @todo convert this to ID accepting both u8 and &str (3 or "A3")
     pub channel: Option<u8>,
     /// Pin value.
-    pub value: i32,
+    pub value: u16,
+}
+
+impl Pin {
+    /// Retrieve the given mode among the available ones.
+    pub fn get_mode(&self, mode: PinModeId) -> Result<PinMode, Error> {
+        Ok(self
+            .supported_modes
+            .iter()
+            .find(|m| m.id == mode)
+            .ok_or(UnknownMode { mode })?
+            .clone())
+    }
 }
 
 impl Debug for Pin {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Transformer for "resolution"
-        let resolution_str = format!("{} bits", self.resolution);
-        let mode_str = format!("{:?}", self.mode);
-        let supported_modes_str = format!("{:?}", self.supported_modes);
+        let mode_str = format!("{}", self.mode);
         let channel_str = match self.channel {
             None => String::default(),
             Some(ch) => format!("A{}", ch),
@@ -35,8 +42,7 @@ impl Debug for Pin {
         f.debug_struct("Pin")
             .field("id", &self.id)
             .field("mode", &mode_str)
-            .field("supported modes", &supported_modes_str)
-            .field("resolution", &resolution_str)
+            .field("supported modes", &self.supported_modes)
             .field("channel", &channel_str)
             .field("value", &self.value)
             .finish()
@@ -46,8 +52,34 @@ impl Debug for Pin {
 // ########################################
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum PinMode {
+#[derive(Clone, Default)]
+pub struct PinMode {
+    /// Currently configured mode.
+    pub id: PinModeId,
+    /// Resolution (number of bits) this mode uses.
+    pub resolution: u8,
+}
+
+impl Display for PinMode {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.id)
+    }
+}
+
+impl Debug for PinMode {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self.id {
+            PinModeId::UNSUPPORTED => write!(f, "{}", self.id),
+            _ => write!(f, "[id: {}, resolution: {}]", self.id, self.resolution),
+        }
+    }
+}
+
+// ########################################
+
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
+pub enum PinModeId {
     /// Same as INPUT defined in Arduino.
     INPUT = 0,
     /// Same as OUTPUT defined in Arduino.h
@@ -81,29 +113,30 @@ pub enum PinMode {
     /// Pin configured for DHT humidity and temperature sensors
     DHT = 0x0F,
     /// Pin configured to be ignored by digitalWrite and capabilityResponse
-    IGNORE = 0x7F,
+    #[default]
+    UNSUPPORTED = 0x7F,
 }
 
-impl PinMode {
-    pub fn from_u8(value: u8) -> Result<PinMode, Error> {
+impl PinModeId {
+    pub fn from_u8(value: u8) -> Result<PinModeId, Error> {
         match value {
-            0 => Ok(PinMode::INPUT),
-            1 => Ok(PinMode::OUTPUT),
-            2 => Ok(PinMode::ANALOG),
-            3 => Ok(PinMode::PWM),
-            4 => Ok(PinMode::SERVO),
-            5 => Ok(PinMode::SHIFT),
-            6 => Ok(PinMode::I2C),
-            7 => Ok(PinMode::ONEWIRE),
-            8 => Ok(PinMode::STEPPER),
-            9 => Ok(PinMode::ENCODER),
-            0x0A => Ok(PinMode::SERIAL),
-            0x0B => Ok(PinMode::PULLUP),
-            0x0C => Ok(PinMode::SPI),
-            0x0D => Ok(PinMode::SONAR),
-            0x0E => Ok(PinMode::TONE),
-            0x0F => Ok(PinMode::DHT),
-            0x7F => Ok(PinMode::IGNORE),
+            0 => Ok(PinModeId::INPUT),
+            1 => Ok(PinModeId::OUTPUT),
+            2 => Ok(PinModeId::ANALOG),
+            3 => Ok(PinModeId::PWM),
+            4 => Ok(PinModeId::SERVO),
+            5 => Ok(PinModeId::SHIFT),
+            6 => Ok(PinModeId::I2C),
+            7 => Ok(PinModeId::ONEWIRE),
+            8 => Ok(PinModeId::STEPPER),
+            9 => Ok(PinModeId::ENCODER),
+            0x0A => Ok(PinModeId::SERIAL),
+            0x0B => Ok(PinModeId::PULLUP),
+            0x0C => Ok(PinModeId::SPI),
+            0x0D => Ok(PinModeId::SONAR),
+            0x0E => Ok(PinModeId::TONE),
+            0x0F => Ok(PinModeId::DHT),
+            0x7F => Ok(PinModeId::UNSUPPORTED),
             x => Err(Error::Custom {
                 info: format!("Pin mode does not exist: {}", x),
             }),
@@ -111,40 +144,14 @@ impl PinMode {
     }
 }
 
-impl From<PinMode> for u8 {
-    fn from(mode: PinMode) -> u8 {
+impl From<PinModeId> for u8 {
+    fn from(mode: PinModeId) -> u8 {
         mode as u8
     }
 }
 
-// ########################################
-
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum PinValue {
-    /// LOW value for a digital pin.
-    LOW = 0,
-    /// HIGH value for a digital pin.
-    HIGH = 1,
-    /// PWM max resolution value.
-    #[allow(non_camel_case_types)]
-    MAX_PWM = 255,
-}
-
-impl PinValue {
-    pub fn from_u8(value: u8) -> Result<PinValue, Error> {
-        match value {
-            0 => Ok(PinValue::LOW),
-            1 => Ok(PinValue::HIGH),
-            x => Err(Error::Custom {
-                info: format!("Pin value does not exist: {}", x),
-            }),
-        }
-    }
-}
-
-impl From<PinValue> for u8 {
-    fn from(value: PinValue) -> u8 {
-        value as u8
+impl Display for PinModeId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
     }
 }
