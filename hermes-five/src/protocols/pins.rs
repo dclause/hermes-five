@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Display, Formatter};
 
-use crate::protocols::{Error, UnknownMode};
+use crate::protocols::{Error, IncompatibleMode, UnknownMode};
 
 /// The current state and configuration of a pin.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -20,13 +20,25 @@ pub struct Pin {
 
 impl Pin {
     /// Retrieve the given mode among the available ones.
-    pub fn get_mode(&self, mode: PinModeId) -> Result<PinMode, Error> {
+    pub fn get_plausible_mode(&self, mode: PinModeId) -> Result<PinMode, Error> {
         Ok(self
             .supported_modes
             .iter()
             .find(|m| m.id == mode)
             .ok_or(UnknownMode { mode })?
             .clone())
+    }
+
+    /// Check if pin currently have
+    pub fn check_current_mode(&self, mode: PinModeId) -> Result<(), Error> {
+        match self.mode.id == mode {
+            true => Ok(()),
+            false => Err(IncompatibleMode {
+                mode: self.mode.id,
+                pin: self.id,
+                operation: String::from("digital_write requires OUTPUT mode"),
+            }),
+        }
     }
 }
 

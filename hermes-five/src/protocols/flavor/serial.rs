@@ -8,6 +8,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use log::trace;
+use parking_lot::RwLock;
 use serialport::{DataBits, FlowControl, Parity, StopBits};
 use serialport::SerialPort;
 use snafu::prelude::*;
@@ -43,7 +44,7 @@ impl SerialProtocol {
         Self {
             port: port.to_string(),
             io: Arc::new(Mutex::new(None)),
-            hardware: Arc::new(Mutex::new(Hardware::default())),
+            hardware: Arc::new(RwLock::new(Hardware::default())),
         }
     }
 }

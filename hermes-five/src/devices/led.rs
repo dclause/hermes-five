@@ -1,7 +1,5 @@
 use crate::board::Board;
-use crate::protocols::{
-    Error, IncompatibleMode, MutexPoison, Pin, PinModeId, Protocol, UnknownPin,
-};
+use crate::protocols::{Error, IncompatibleMode, Pin, PinModeId, Protocol, UnknownPin};
 use crate::utils::helpers::MapRange;
 
 pub struct Led {
@@ -17,14 +15,18 @@ pub struct Led {
 
 impl Led {
     pub fn new(board: &Board, pin: u16) -> Result<Self, Error> {
+        // Force pin mode to OUTPUT
         {
-            let mut lock = board.lock().map_err(|_| MutexPoison)?;
-            let board_pin: &mut Pin = lock.pins.get_mut(pin as usize).ok_or(UnknownPin { pin })?;
-            board_pin.mode = board_pin.get_mode(PinModeId::OUTPUT)?;
+            let mut hardware = board.hardware_mut();
+            let board_pin = hardware
+                .pins
+                .get_mut(pin as usize)
+                .ok_or(UnknownPin { pin })?;
+            board_pin.mode = board_pin.get_plausible_mode(PinModeId::OUTPUT)?;
         }
 
         Ok(Self {
-            protocol: board.clone().get_protocol(),
+            protocol: board.protocol(),
             pin,
             is_on: false,
             is_running: false,
@@ -39,17 +41,18 @@ impl Led {
     ///
     /// # Parameters
     /// * `intensity`: the requested intensity (between 0-100%)
-    pub fn with_intensity(&mut self, intensity: u8) -> Result<&Self, Error> {
+    pub fn with_intensity(mut self, intensity: u8) -> Result<Self, Error> {
         // Intensity can only be between 0 and 100%
         let intensity = intensity.clamp(0, 100) as u16;
-        let mut pin_id;
-        let mut pwm_mode;
+        let pin_id;
+        let pwm_mode;
 
-        // Set the pin as PWM mode if not yet done.
+        // Set the pin as PWM mode if possible (bail error otherwise).
         {
-            let mut lock = self.protocol.hardware().lock().map_err(|_| MutexPoison)?;
+            // Lock the protocol hardware for modification.
+            let mut lock = self.protocol.hardware().write();
             let pin = lock.get_pin_mut(self.pin)?;
-            let mode = pin.get_mode(PinModeId::PWM)?;
+            let mode = pin.get_plausible_mode(PinModeId::PWM)?;
             pin.mode = mode.clone();
             // Now set the pin mode in the board.
             pin_id = pin.id;
@@ -107,10 +110,10 @@ impl Led {
 
     /// Update the LED.
     pub fn update(&mut self) -> Result<&Self, Error> {
-        let mut pin;
+        let pin;
 
         {
-            let mut lock = self.protocol.hardware().lock().map_err(|_| MutexPoison)?;
+            let mut lock = self.protocol.hardware().write();
             pin = lock.get_pin_mut(self.pin)?.clone();
         }
 
@@ -126,5 +129,11 @@ impl Led {
             }),
         }?;
         Ok(self)
+    }
+
+    // @todo move this to device
+    pub fn pin(&self) -> Pin {
+        let lock = self.protocol.hardware().read();
+        lock.pins.get(self.pin as usize).unwrap().clone()
     }
 }

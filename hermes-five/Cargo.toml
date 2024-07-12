@@ -21,8 +21,9 @@ storage = ["serde"]
 hermes-macros = { path = "../hermes-macros" }
 anyhow = "1.0.86"
 dyn-clone = "1.0.17"
-log = "0.4.22"
 futures = "0.3.30"
+log = "0.4.22"
+parking_lot = "0.12.3"
 snafu = "0.8.4"
 tokio = { version = "1.38.0", features = ["macros", "rt-multi-thread", "signal", "sync", "time"] }
 typetag = "0.2.16"
@@ -39,10 +40,6 @@ serial_test = "3.1.1"
 # BOARD examples
 
 [[example]]
-name = "board_ready_event"
-path = "examples/board/ready_event.rs"
-
-[[example]]
 name = "board_close_event"
 path = "examples/board/close_event.rs"
 
@@ -51,8 +48,16 @@ name = "board_custom_port"
 path = "examples/board/custom_port.rs"
 
 [[example]]
+name = "board_hardware"
+path = "examples/board/hardware.rs"
+
+[[example]]
 name = "board_multiple_events"
 path = "examples/board/multiple_events.rs"
+
+[[example]]
+name = "board_ready_event"
+path = "examples/board/ready_event.rs"
 
 # #################################################
 # LED examples
@@ -60,7 +65,6 @@ path = "examples/board/multiple_events.rs"
 [[example]]
 name = "led_blink"
 path = "examples/led/blink.rs"
-
 
 # #################################################
 # SYNC examples

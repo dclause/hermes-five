@@ -3,7 +3,9 @@ use std::ops::{Deref, DerefMut};
 use std::panic::UnwindSafe;
 use std::time::Duration;
 
-use crate::protocols::{Error, Protocol};
+use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
+
+use crate::protocols::{Error, Hardware, Protocol};
 use crate::protocols::SerialProtocol;
 use crate::utils::events::{EventHandler, EventManager};
 use crate::utils::task;
@@ -82,8 +84,12 @@ impl Board {
         self.protocol = Box::new(protocol);
         self
     }
-    pub(crate) fn get_protocol(mut self) -> Box<dyn Protocol> {
-        self.protocol
+
+    /// Retrieve the protocol used.
+    /// This is not exposed outside since it should not be necessary thanks to Deref implementation
+    /// but to clone a protocol out of the board like done in Device initialisations
+    pub(crate) fn protocol(&self) -> Box<dyn Protocol> {
+        self.protocol.clone()
     }
 
     /// Starts a board connexion procedure (using the appropriate configured protocol) in an asynchronous way.
@@ -194,6 +200,14 @@ impl Board {
         Fut: std::future::Future<Output = ()> + Send + 'static,
     {
         self.events.on(event, callback).await
+    }
+
+    // @todo describe / verify
+    pub fn hardware(&self) -> RwLockReadGuard<Hardware> {
+        self.protocol.hardware().read()
+    }
+    pub fn hardware_mut(&self) -> RwLockWriteGuard<Hardware> {
+        self.protocol.hardware().write()
     }
 }
 

@@ -97,7 +97,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     /// https://github.com/firmata/protocol/blob/master/protocol.md#message-types
     fn analog_write(&mut self, pin: u16, level: u16) -> Result<(), Error> {
         {
-            let mut lock = self.hardware().lock().map_err(|_| MutexPoison)?;
+            let mut lock = self.hardware().write();
             lock.pins
                 .get_mut(pin as usize)
                 .ok_or(UnknownPin { pin })?
@@ -120,8 +120,13 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         let mut i = 0;
 
         {
+            let mut lock = self.hardware().write();
+            let _pin = lock.get_pin_mut(pin)?;
+
+            // Check if mode is oK.
+            _pin.check_current_mode(PinModeId::OUTPUT)?;
+
             // Store the value we will write to the current pin.
-            let mut lock = self.hardware().lock().map_err(|_| MutexPoison)?;
             lock.get_pin_mut(pin)?.value = u16::from(level);
 
             // Loop through all 8 pins of the current "port" to concatenate their value.
@@ -162,9 +167,9 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     /// https://github.com/firmata/protocol/blob/master/protocol.md#data-message-expansion
     fn set_pin_mode(&mut self, pin: u16, mode: PinModeId) -> Result<(), Error> {
         {
-            let mut lock = self.hardware().lock().map_err(|_| MutexPoison)?;
+            let mut lock = self.hardware().write();
             let mut _pin = lock.get_pin_mut(pin)?;
-            let _mode = _pin.get_mode(mode)?;
+            let _mode = _pin.get_plausible_mode(mode)?;
             _pin.mode = _mode;
         }
 
@@ -235,7 +240,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     /// Handle a REPORT_VERSION_RESPONSE message (0xF9 - return the firmware version).
     /// https://github.com/firmata/protocol/blob/master/protocol.md#message-types
     fn handle_report_version(&mut self, buf: &[u8]) -> Result<Message, Error> {
-        let mut lock = self.hardware().lock().map_err(|_| MutexPoison)?;
+        let mut lock = self.hardware().write();
         lock.protocol_version = format!("{:o}.{:o}", buf[1], buf[2]);
         Ok(Message::ProtocolVersion)
     }
@@ -293,12 +298,12 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     /// Handle an ANALOG_MAPPING_RESPONSE message (0x6A - reply with analog pins mapping info).
     /// https://github.com/firmata/protocol/blob/master/protocol.md#analog-mapping-query
     fn handle_analog_mapping_response(&mut self, buf: &[u8]) -> Result<Message, Error> {
-        let mut lock = self.hardware().lock().map_err(|_| MutexPoison)?;
+        let mut lock = self.hardware().write();
         let mut i = 2;
         while buf[i] != END_SYSEX {
             if buf[i] != SYSEX_REALTIME {
                 let pin = &mut lock.get_pin_mut((i - 2) as u16)?;
-                pin.mode = pin.get_mode(PinModeId::ANALOG)?.clone();
+                pin.mode = pin.get_plausible_mode(PinModeId::ANALOG)?.clone();
                 pin.channel = Some(buf[i]);
             }
             i += 1;
@@ -311,7 +316,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     fn handle_capability_response(&mut self, buf: &[u8]) -> Result<Message, Error> {
         let mut id = 0;
         let mut i = 2;
-        let mut lock = self.hardware().lock().map_err(|_| MutexPoison)?;
+        let mut lock = self.hardware().write();
         lock.pins = vec![];
 
         while i < buf.len() - 1 {
@@ -348,7 +353,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     fn handle_report_firmware(&mut self, buf: &[u8]) -> Result<Message, Error> {
         let major = *buf.get(2).ok_or(MessageTooShort)?;
         let minor = *buf.get(3).ok_or(MessageTooShort)?;
-        let mut lock = self.hardware().lock().map_err(|_| MutexPoison)?;
+        let mut lock = self.hardware().write();
         lock.firmware_version = format!("{:o}.{:o}", major, minor);
         if buf.len() > 4 {
             lock.firmware_name = std::str::from_utf8(&buf[4..buf.len() - 1])
@@ -396,7 +401,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
 
 impl Display for Box<dyn Protocol> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let lock = self.hardware().lock().unwrap();
+        let lock = self.hardware().read();
         write!(
             f,
             "firmware={}, version={}, protocol={}, connection={:?}",

@@ -7,13 +7,9 @@ async fn main() {
 
     board
         .on("ready", |board: Board| async move {
+            // Register a LED on pin 13 (default arduino led).
             let mut led = Led::new(&board, 13).expect("Embedded led is instantiated");
-
-            {
-                let lock = board.lock().unwrap();
-                println!("13- Pin 11 {}", lock.pins.get(11).unwrap().mode.id);
-                println!("13- Pin 13 {}", lock.pins.get(13).unwrap().mode.id);
-            }
+            println!("{:?}", led.pin());
 
             loop {
                 led.on().unwrap();
@@ -26,17 +22,13 @@ async fn main() {
 
     board
         .on("ready", |board: Board| async move {
-            let mut led = Led::new(&board, 11).expect("Embedded led is instantiated");
-            led.with_intensity(50).unwrap();
-
-            println!(
-                "13- Pin 11 {}",
-                board.lock().unwrap().pins.get(11).unwrap().mode.id
-            );
-            println!(
-                "13- Pin 13 {}",
-                board.lock().unwrap().pins.get(13).unwrap().mode.id
-            );
+            // Register a LED on pin 11.
+            let mut led = Led::new(&board, 11)
+                .expect("Embedded led is instantiated")
+                // Lower intensity: this will now impose a PWM compatible pin.
+                .with_intensity(1)
+                .unwrap();
+            println!("{:?}", led.pin());
 
             loop {
                 led.on().unwrap();

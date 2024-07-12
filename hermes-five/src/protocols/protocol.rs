@@ -1,8 +1,10 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+
+use parking_lot::RwLock;
 
 use crate::protocols::{Error, I2CReply, Pin, UnknownPin};
 
-pub type ProtocolHardware = Arc<Mutex<Hardware>>;
+pub type ProtocolHardware = Arc<RwLock<Hardware>>;
 
 /// Represents the hardware and internal data a generic protocol is supposed to handle.
 /// In an objet-oriented paradigm, that would be `Protocol` abstract class attributes we must ensure

@@ -38,7 +38,7 @@ pub enum Error {
     IncompatibleValue { value: u16 },
     /// Unknown mode {mode}.
     UnknownMode { mode: PinModeId },
-    /// The mode ({mode}) is not compatible with pin {pin}: "{operation}".
+    /// Pin ({pin}) mode ({mode}) is not compatible with: "{operation}".
     IncompatibleMode {
         mode: PinModeId,
         pin: u16,
