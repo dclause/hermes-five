@@ -412,13 +412,13 @@ impl Display for Box<dyn Protocol> {
     }
 }
 
-impl Deref for dyn Protocol {
-    type Target = ProtocolHardware;
-
-    fn deref(&self) -> &Self::Target {
-        self.hardware()
-    }
-}
+// impl Deref for dyn Protocol {
+//     type Target = ProtocolHardware;
+//
+//     fn deref(&self) -> &Self::Target {
+//         self.hardware()
+//     }
+// }
 
 #[cfg(test)]
 mod tests {

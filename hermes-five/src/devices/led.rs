@@ -17,7 +17,8 @@ impl Led {
     pub fn new(board: &Board, pin: u16) -> Result<Self, Error> {
         // Force pin mode to OUTPUT
         {
-            let mut hardware = board.hardware_mut();
+            let protocol = board.protocol();
+            let mut hardware = protocol.hardware().write();
             let board_pin = hardware
                 .pins
                 .get_mut(pin as usize)

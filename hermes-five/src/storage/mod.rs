@@ -1,3 +1,5 @@
+#![allow(unused_imports)]
+
 #[cfg(feature = "serde")]
 pub use serde;
 #[cfg(feature = "serde")]

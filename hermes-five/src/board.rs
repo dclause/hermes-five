@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 use std::panic::UnwindSafe;
 use std::time::Duration;
 
-use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
+use parking_lot::RwLockReadGuard;
 
 use crate::protocols::{Error, Hardware, Protocol};
 use crate::protocols::SerialProtocol;
@@ -205,9 +205,6 @@ impl Board {
     // @todo describe / verify
     pub fn hardware(&self) -> RwLockReadGuard<Hardware> {
         self.protocol.hardware().read()
-    }
-    pub fn hardware_mut(&self) -> RwLockWriteGuard<Hardware> {
-        self.protocol.hardware().write()
     }
 }
 

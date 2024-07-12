@@ -7,11 +7,9 @@ use crate::protocols::{Error, I2CReply, Pin, UnknownPin};
 pub type ProtocolHardware = Arc<RwLock<Hardware>>;
 
 /// Represents the hardware and internal data a generic protocol is supposed to handle.
-/// In an objet-oriented paradigm, that would be `Protocol` abstract class attributes we must ensure
-/// every protocol has, because we rely on it.
-/// In Rust, this is handle by this `ProtocolHardware` hardware structure we enforce a `Protocol`
-/// implementation to have via the getter [`Protocol::get_hardware_mut()`].
-/// This lets our `Protocol` trait to implement most of the protocol generically.
+///
+/// This is made to be hidden being an Arc<RwLock>> via the [`ProtocolHardware`] type, so the [`Protocol`]
+/// can implement of the protocol functions generically.
 #[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Hardware {

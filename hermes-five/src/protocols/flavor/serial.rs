@@ -3,7 +3,6 @@
 //! It allows communication of boards connected via a serial port to HERMES.
 use std::borrow::Cow;
 use std::fmt::Debug;
-use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -128,23 +127,5 @@ impl Protocol for SerialProtocol {
             .ok_or(NotInitialized)?
             .read_exact(buf)
             .context(IoExceptionSnafu)
-    }
-}
-
-impl Deref for SerialProtocol {
-    type Target = ProtocolHardware;
-
-    fn deref(&self) -> &Self::Target {
-        // let lock = self.hardware.lock().unwrap();
-        // Box::leak(Box::new(lock.clone()))
-        self.hardware()
-    }
-}
-
-impl DerefMut for SerialProtocol {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        // let lock = self.hardware.lock().unwrap();
-        // Box::leak(Box::new(lock.clone()))
-        &mut self.hardware
     }
 }
