@@ -27,6 +27,7 @@ pub struct SerialProtocol {
     #[cfg_attr(feature = "serde", serde(skip))]
     io: Arc<Mutex<Option<Box<dyn SerialPort>>>>,
     /// The base-protocol attributes.
+    #[cfg_attr(feature = "serde", serde(skip))]
     hardware: ProtocolHardware,
 }
 
@@ -70,10 +71,6 @@ impl Protocol for SerialProtocol {
     /// Retrieve the internal hardware.
     fn hardware(&self) -> &ProtocolHardware {
         &self.hardware
-    }
-    /// Retrieve the internal hardware.
-    fn hardware_mut(&mut self) -> &mut ProtocolHardware {
-        &mut self.hardware
     }
 
     fn get_protocol_details(&self) -> String {

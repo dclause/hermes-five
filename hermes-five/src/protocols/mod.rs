@@ -1,7 +1,7 @@
 use std::any::type_name;
 use std::fmt::{Debug, Display, Formatter};
 use std::io::{Read, Write};
-use std::ops::{Deref, DerefMut};
+use std::ops::Deref;
 
 use dyn_clone::DynClone;
 use snafu::ResultExt;
@@ -33,7 +33,6 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
 
     /// Retrieve the internal hardware.
     fn hardware(&self) -> &ProtocolHardware;
-    fn hardware_mut(&mut self) -> &mut ProtocolHardware;
 
     /// Returns the protocol name (used for Display only)
     fn get_protocol_name(&self) -> &'static str {
@@ -252,7 +251,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         // let pin = ((buf[0] as i32) & 0x0F) + 14;
         // let value = (buf[1] as i32) | ((buf[2] as i32) << 7);
         // if self.hardware().pins.len() as i32 > pin {
-        //     self.hardware_mut().pins[pin as usize].value = value;
+        //     self.hardware().pins[pin as usize].value = value;
         // }
         Ok(Message::Analog)
     }
@@ -268,7 +267,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         //     let pin = (8 * port) + i;
         //     let mode: PinModeId = self.hardware().pins[pin as usize].mode;
         //     if self.hardware().pins.len() as i32 > pin && mode == PinModeId::INPUT {
-        //         self.hardware_mut().pins[pin as usize].value = (value >> (i & 0x07)) & 0x01;
+        //         self.hardware().pins[pin as usize].value = (value >> (i & 0x07)) & 0x01;
         //     }
         // }
         Ok(Message::Digital)
@@ -383,7 +382,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         //     reply.data.push(buf[i] | buf[i + 1] << 7);
         //     i += 2;
         // }
-        // self.hardware_mut().i2c_data.push(reply);
+        // self.hardware().i2c_data.push(reply);
         Ok(Message::I2CReply)
     }
 
@@ -392,7 +391,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         // if buf.len() < 4 || buf[3] == END_SYSEX {
         //     return Ok(Message::PinStateResponse);
         // }
-        // let pin = &mut self.hardware_mut().pins[pin_index];
+        // let pin = &mut self.hardware().pins[pin_index];
         // pin.supported_modes = vec![PinModeId::from_u8(buf[3])?];
         // pin.value = buf[4] as i32;
         Ok(Message::PinStateResponse)
@@ -418,12 +417,6 @@ impl Deref for dyn Protocol {
 
     fn deref(&self) -> &Self::Target {
         self.hardware()
-    }
-}
-
-impl DerefMut for dyn Protocol {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.hardware_mut()
     }
 }
 

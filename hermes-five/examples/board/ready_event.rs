@@ -1,5 +1,4 @@
 use hermes_five::Board;
-use hermes_five::protocols::PinModeId;
 
 #[hermes_macros::runtime]
 async fn main() {
@@ -7,7 +6,7 @@ async fn main() {
     let board = Board::run().await;
 
     board
-        .on("ready", |mut board: Board| async move {
+        .on("ready", |board: Board| async move {
             println!("Board connected: {}", board);
             println!("Pins {:#?}", board.hardware().pins);
         })

@@ -3,17 +3,15 @@ use crate::protocols::{Error, Protocol, ProtocolHardware};
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug, Default)]
 pub struct MockProtocol {
-    pub hardware: ProtocolHardware,
+    /// The base-protocol attributes.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    hardware: ProtocolHardware,
 }
 
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl Protocol for MockProtocol {
     fn hardware(&self) -> &ProtocolHardware {
         &self.hardware
-    }
-
-    fn hardware_mut(&mut self) -> &mut ProtocolHardware {
-        &mut self.hardware
     }
 
     fn open(&mut self) -> Result<(), Error> {

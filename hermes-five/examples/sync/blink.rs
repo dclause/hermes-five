@@ -8,6 +8,6 @@ use hermes_five::Board;
 fn main() -> Result<()> {
     let board = Board::default().blocking_open()?;
     println!("Board connected: {}", board);
-    println!("Pins {:#?}", board.pins);
+    println!("Pins {:#?}", board.hardware().pins);
     Ok(())
 }
