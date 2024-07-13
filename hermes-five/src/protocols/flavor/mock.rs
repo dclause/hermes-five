@@ -22,12 +22,12 @@ impl Protocol for MockProtocol {
         Ok(())
     }
 
-    fn write(&mut self, buf: &[u8]) -> Result<(), Error> {
+    fn write(&mut self, _buf: &[u8]) -> Result<(), Error> {
         // Simulate write operation (for testing purposes)
         Ok(())
     }
 
-    fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), Error> {
+    fn read_exact(&mut self, _buf: &mut [u8]) -> Result<(), Error> {
         // Simulate read operation (for testing purposes)
         Ok(())
     }

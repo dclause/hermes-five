@@ -135,6 +135,6 @@ impl Led {
     // @todo move this to device
     pub fn pin(&self) -> Pin {
         let lock = self.protocol.hardware().read();
-        lock.pins.get(self.pin as usize).unwrap().clone()
+        lock.get_pin(self.pin).unwrap().clone()
     }
 }

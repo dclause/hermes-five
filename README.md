@@ -8,7 +8,7 @@
 [![codecov](https://codecov.io/gh/dclause/hermes-five/graph/badge.svg?token=KF8EFDUQ7A)](https://codecov.io/gh/dclause/hermes-five)
 
 **_Hermes-Five_ is an Open Source, [Firmata Protocol](https://github.com/firmata/protocol)-based, IoT and Robotics
-programming framework.**
+programming framework - written in Rust.**
 
 _The ultimate goal of this project is to mimic the functionalities of [Johnny-Five](https://johnny-five.io/) framework
 where it finds its inspiration. That being said, the project is done in [my spare time](https://github.com/dclause) and
