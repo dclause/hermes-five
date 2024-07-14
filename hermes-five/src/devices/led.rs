@@ -9,9 +9,9 @@ pub struct Led {
     pin: u16,
 
     /// Indicates the LED current status.
-    is_on: bool,
+    is_on: bool, // @todo remove?
     /// Indicates if the LED is running an animation.
-    is_running: bool,
+    is_running: bool, // @todo remove?
     /// Indicates the current LED value (to be set to the pin)
     value: u16,
     /// Indicates the current LED intensity when ON.

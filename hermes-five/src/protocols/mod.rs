@@ -5,6 +5,7 @@ use std::io::{Read, Write};
 use dyn_clone::DynClone;
 use snafu::ResultExt;
 
+use crate::misc::Range;
 // Flatten export
 pub use crate::protocols::constants::*;
 pub use crate::protocols::Error::*;
@@ -214,6 +215,23 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         buf.push(END_SYSEX);
 
         self.write(&buf)
+    }
+
+    // ########################################
+    // SERVO
+
+    /// Sends a SERVO_CONFIG command (0x70 - configure servo)
+    fn servo_config(&mut self, pin: u16, pwn_range: Range) -> Result<(), Error> {
+        self.write(&[
+            START_SYSEX,
+            SERVO_CONFIG,
+            pin as u8,
+            (pwn_range.min & 0xFF) as u8,
+            (pwn_range.min >> 8 & 0xFF) as u8,
+            (pwn_range.max & 0xFF) as u8,
+            (pwn_range.max >> 8 & 0xFF) as u8,
+            END_SYSEX,
+        ])
     }
 
     // ########################################

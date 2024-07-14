@@ -208,7 +208,7 @@ mod tests {
         );
 
         // The flag should have been incremented after the 100ms elapsed.
-        pause!(50);
+        pause!(100);
         assert_eq!(
             flag.load(Ordering::SeqCst),
             1,

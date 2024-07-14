@@ -1,5 +1,3 @@
-use std::ops::{Add, Div, Mul, Sub};
-
 /// Trait for mapping a value from one range to another.
 pub trait MapRange<T> {
     /// Maps a value from one range to another.
@@ -16,14 +14,14 @@ pub trait MapRange<T> {
     fn map(self, from_low: T, from_high: T, to_low: T, to_high: T) -> T;
 }
 
-impl<T> MapRange<T> for T
-where
-    T: Copy + Sub<Output = T> + Mul<Output = T> + Div<Output = T> + Add<Output = T>,
-{
-    fn map(self, from_low: T, from_high: T, to_low: T, to_high: T) -> T {
-        (self - from_low) * (to_high - to_low) / (from_high - from_low) + to_low
+impl MapRange<u16> for u16 {
+    fn map(self, from_low: u16, from_high: u16, to_low: u16, to_high: u16) -> u16 {
+        ((self as f64 - from_low as f64) * (to_high as f64 - to_low as f64)
+            / (from_high as f64 - from_low as f64)
+            + to_low as f64) as u16
     }
 }
+
 //
 // impl<T: Into<u8>> MapRange<T> for PinValue {
 //     fn map(self, from_low: T, from_high: T, to_low: T, to_high: T) -> T {

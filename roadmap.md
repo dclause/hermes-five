@@ -25,3 +25,4 @@ Current technical task list:
 - [ ] Investigate wrap task into spawn to avoid .await on task::run()
 - [ ] Replace all Mutex/RwLock locking with parking_lot
 - [ ] Explore if all async work can be switchable using create feature
+- [ ] Add tracing/log for all method
