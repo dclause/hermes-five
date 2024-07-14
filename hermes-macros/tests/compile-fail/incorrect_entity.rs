@@ -1,4 +1,4 @@
-#![cfg(feature = "serde")]
+#![cfg(feature = "storage")]
 
 extern crate hermes_macros;
 

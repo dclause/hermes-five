@@ -1,4 +1,5 @@
-#![cfg(feature = "serde")]
+#![cfg(feature = "storage")]
+#![cfg(tests)]
 
 extern crate hermes_macros;
 
@@ -18,7 +19,7 @@ mod tests {
     #[test]
     fn test_compile_failures() {
         let t = TestCases::new();
-        t.compile_fail("tests/compile_fail/incorrect_entity.rs");
+        t.compile_fail("tests/compile-fail/incorrect_entity.rs");
     }
 
     #[test]

@@ -46,19 +46,24 @@ pub fn runtime_macro(item: TokenStream, test: bool) -> TokenStream {
     // Check if the function has an explicit return type
     let has_return_type = match &sig.output {
         ReturnType::Default => false,
-        ReturnType::Type(_, _) => true,
+        ReturnType::Type(_, ty) => match &**ty {
+            syn::Type::Tuple(tuple) if tuple.elems.is_empty() => false,
+            _ => true,
+        },
     };
 
     // Extract the last statement if it's an expression (potential return value)
-    let return_expr = match stmts.last() {
-        Some(Stmt::Expr(_expr, ..)) => {
-            if let Some(last) = stmts.pop() {
-                Some(last)
-            } else {
+    let return_expr = if has_return_type {
+        match stmts.pop() {
+            Some(Stmt::Expr(expr, ..)) => Some(expr),
+            Some(stmt) => {
+                stmts.push(stmt);
                 None
             }
+            None => None,
         }
-        _ => None,
+    } else {
+        None
     };
 
     // Define the #[tokio::main] / #[tokio::test] tokio macro attribute.
@@ -74,7 +79,16 @@ pub fn runtime_macro(item: TokenStream, test: bool) -> TokenStream {
     }];
 
     // Insert the original function body statements
-    body.extend(stmts.into_iter().map(|stmt| quote! { #stmt }));
+    // Check all "line-by-line" content within the body
+    body.extend(stmts.into_iter().map(|stmt| match stmt {
+        // In the case of an expression, we want to remove a null return "()" from the body
+        // since it will be added later as a return_expr.
+        Stmt::Expr(ref exp, _) => match exp {
+            syn::Expr::Tuple(tuple) if tuple.elems.is_empty() => quote!(),
+            _ => quote! { #stmt },
+        },
+        _ => quote! { #stmt },
+    }));
 
     // Insert custom code after the original function body
     body.push(quote! {
@@ -101,9 +115,6 @@ pub fn runtime_macro(item: TokenStream, test: bool) -> TokenStream {
     // Add the return expression if there is one
     if let Some(return_stmt) = return_expr {
         body.push(quote! { #return_stmt });
-    } else if !has_return_type {
-        // Add an empty tuple return if needed
-        body.push(quote! { () });
     }
 
     // Generate the expanded function
@@ -134,16 +145,33 @@ mod tests {
             .unwrap();
 
         let file = std::fs::File::open("tests/runtime_macro.rs").unwrap();
-        emulate_attributelike_macro_expansion(file, &[("test", test_macro_internal)]).unwrap();
+        emulate_attributelike_macro_expansion(file, &[("test", test_macro_internal)]).unwrap()
     }
 
     #[test]
     fn syntax_error() {
         // This code makes sure that the given file doesn't compile.
-        let file = std::fs::File::open("tests/compile_fail/incorrect_runtime.rs").unwrap();
+        let file = std::fs::File::open("tests/compile-fail/incorrect_runtime.rs").unwrap();
         emulate_attributelike_macro_expansion(file, &[("runtime", runtime_macro_internal)])
             .unwrap();
-        let file = std::fs::File::open("tests/compile_fail/incorrect_runtime.rs").unwrap();
-        emulate_attributelike_macro_expansion(file, &[("test", test_macro_internal)]).unwrap();
+
+        let file = std::fs::File::open("tests/compile-fail/incorrect_runtime.rs").unwrap();
+        emulate_attributelike_macro_expansion(file, &[("test", test_macro_internal)]).unwrap()
     }
+}
+
+#[cfg(doctest)]
+mod doctests {
+    //! Rust doesn't provide a standard way to test for failure to compile, but Rustdoc does. So tests like
+    //! that can be put here.
+    //!
+    //! ```
+    //! // Confirm that the file exists.
+    //! include_bytes!("../tests/compile-fail/incorrect_runtime.rs");
+    //! ```
+    //! ```compile_fail
+    //! // Including the file as code is enough to cause a compilation failure.
+    //! include!("../tests/compile-fail/incorrect_runtime.rs");
+    //! fn main() {}
+    //! ```
 }

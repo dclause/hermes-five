@@ -1,11 +1,11 @@
 error[E0601]: `main` function not found in crate `$CRATE`
- --> tests/compile_fail/incorrect_entity.rs:9:2
+ --> tests/compile-fail/incorrect_entity.rs:9:2
   |
 9 | }
-  |  ^ consider adding a `main` function to `$DIR/tests/compile_fail/incorrect_entity.rs`
+  |  ^ consider adding a `main` function to `$DIR/tests/compile-fail/incorrect_entity.rs`
 
 error[E0124]: field `id` is already declared
- --> tests/compile_fail/incorrect_entity.rs:5:1
+ --> tests/compile-fail/incorrect_entity.rs:5:1
   |
 5 | #[Entity]
   | ^^^^^^^^^ field already declared
@@ -16,7 +16,7 @@ error[E0124]: field `id` is already declared
   = note: this error originates in the attribute macro `Entity` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0308]: mismatched types
- --> tests/compile_fail/incorrect_entity.rs:5:1
+ --> tests/compile-fail/incorrect_entity.rs:5:1
   |
 5 | #[Entity]
   | ^^^^^^^^^ expected `usize`, found `u8`
@@ -24,7 +24,7 @@ error[E0308]: mismatched types
   = note: this error originates in the derive macro `hermes_five::storage::serde::Deserialize` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0062]: field `id` specified more than once
- --> tests/compile_fail/incorrect_entity.rs:5:1
+ --> tests/compile-fail/incorrect_entity.rs:5:1
   |
 5 | #[Entity]
   | ^^^^^^^^^
@@ -35,7 +35,7 @@ error[E0062]: field `id` specified more than once
   = note: this error originates in the attribute macro `Entity` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0308]: mismatched types
- --> tests/compile_fail/incorrect_entity.rs:5:1
+ --> tests/compile-fail/incorrect_entity.rs:5:1
   |
 5 | #[Entity]
   | ^^^^^^^^^
@@ -50,7 +50,7 @@ help: you can convert a `u8` to a `usize`
   |          +++++++
 
 error[E0308]: mismatched types
- --> tests/compile_fail/incorrect_entity.rs:5:1
+ --> tests/compile-fail/incorrect_entity.rs:5:1
   |
 5 | #[Entity]
   | ^^^^^^^^^

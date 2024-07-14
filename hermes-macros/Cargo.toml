@@ -10,7 +10,9 @@ license.workspace = true
 
 [lib]
 proc-macro = true
-doctest = false
+
+[features]
+storage = []
 
 [dependencies]
 proc-macro2 = "1.0.86"
@@ -19,7 +21,7 @@ syn = { version = "2.0.68", features = ["full"] }
 
 [dev-dependencies]
 trybuild = "1.0.96"
-hermes-five = { path = "../hermes-five" }
+hermes-five = { path = "../hermes-five", features = ["serde", "storage"] }
 runtime-macros = "1.1.0"
 serde = { version = "1.0.203", features = ["derive"] }
 serde_json = "1.0.120"

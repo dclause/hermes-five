@@ -69,7 +69,23 @@ mod tests {
     #[test]
     fn syntax_error() {
         // This code makes sure that the given file doesn't compile.
-        let file = std::fs::File::open("tests/entity_macro.rs").unwrap();
+        let file = std::fs::File::open("tests/compile-fail/incorrect_entity.rs").unwrap();
         emulate_attributelike_macro_expansion(file, &[("runtime", entity_macro_internal)]).unwrap();
     }
+}
+
+#[cfg(doctest)]
+mod doctests {
+    //! Rust doesn't provide a standard way to test for failure to compile, but Rustdoc does. So tests like
+    //! that can be put here.
+    //!
+    //! ```
+    //! // Confirm that the file exists.
+    //! include_bytes!("../tests/compile-fail/incorrect_entity.rs");
+    //! ```
+    //! ```compile_fail
+    //! // Including the file as code is enough to cause a compilation failure.
+    //! include!("../tests/compile-fail/incorrect_entity.rs");
+    //! fn main() {}
+    //! ```
 }

@@ -4,6 +4,7 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 
+#[cfg(feature = "storage")]
 use crate::entity_macro::entity_macro_internal;
 use crate::runtime_macro::{runtime_macro_internal, test_macro_internal};
 
@@ -18,14 +19,6 @@ mod runtime_macro;
 ///
 /// _Executes the entire function in a blocking thread and provides synchronization for waiting on all
 /// subsequently and dynamically created threads (using `task::run`)._
-///
-/// # Example
-/// ```
-/// #[hermes_macros::runtime]
-/// async fn main() {
-///     // whatever
-/// }
-/// ```
 #[proc_macro_attribute]
 pub fn runtime(args: TokenStream, item: TokenStream) -> TokenStream {
     runtime_macro_internal(args.into(), item.into()).into()
@@ -39,6 +32,7 @@ pub fn test(args: TokenStream, item: TokenStream) -> TokenStream {
 
 // #################################################################################
 
+#[cfg(feature = "storage")]
 #[proc_macro_attribute]
 #[allow(non_snake_case)]
 pub fn Entity(args: TokenStream, input: TokenStream) -> TokenStream {
