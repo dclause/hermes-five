@@ -32,6 +32,7 @@ serialport = { version = "4.4.0", default-features = false }
 # Feature dependent
 serde = { version = "1.0.203", optional = true }
 serde_json = { version = "1.0.120", optional = true }
+once_cell = "1.19.0"
 
 [dev-dependencies]
 serial_test = "3.1.1"

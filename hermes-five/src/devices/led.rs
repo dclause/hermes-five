@@ -1,8 +1,8 @@
-use tokio::task::JoinHandle;
-
 use crate::board::Board;
 use crate::protocols::{Error, IncompatibleMode, Pin, PinModeId, Protocol, UnknownPin};
 use crate::utils::helpers::MapRange;
+use crate::utils::task;
+use crate::utils::task::TaskHandler;
 
 pub struct Led {
     protocol: Box<dyn Protocol>,
@@ -12,7 +12,7 @@ pub struct Led {
     is_running: bool,
     value: u16,
     intensity: u16,
-    interval: Option<JoinHandle<Result<(), Error>>>,
+    interval: Option<TaskHandler>,
 }
 
 impl Led {
@@ -118,18 +118,23 @@ impl Led {
 
     /// Blink the LED on/off in phases of ms (milliseconds) duration.
     /// This is an interval operation and can be stopped by calling [`Led::stop()`].
-    pub fn blink(&mut self, ms: u64) {
+    pub async fn blink(&mut self, ms: u64) {
         let mut self_clone = self.clone();
-        self.interval = Some(tokio::spawn(async move {
-            loop {
-                self_clone.on()?;
-                tokio::time::sleep(std::time::Duration::from_millis(ms)).await;
-                self_clone.off()?;
-                tokio::time::sleep(std::time::Duration::from_millis(ms)).await;
-            }
-            #[allow(unreachable_code)]
-            Ok(())
-        }));
+
+        self.interval = Some(
+            task::run(async move {
+                loop {
+                    self_clone.on()?;
+                    tokio::time::sleep(std::time::Duration::from_millis(ms)).await;
+                    self_clone.off()?;
+                    tokio::time::sleep(std::time::Duration::from_millis(ms)).await;
+                }
+                #[allow(unreachable_code)]
+                Ok(())
+            })
+            .await
+            .unwrap(),
+        );
     }
 
     /// Stops the current animation. This does not necessarily turn off the LED;

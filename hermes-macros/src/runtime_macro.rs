@@ -2,7 +2,7 @@ use proc_macro::TokenStream;
 
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
-use syn::{ItemFn, parse_macro_input};
+use syn::{ItemFn, parse_macro_input, ReturnType, Stmt};
 
 use crate::helpers::hermes_five_crate_path;
 
@@ -29,8 +29,10 @@ pub fn test_macro_internal(_: TokenStream2, item: TokenStream2) -> TokenStream2 
 /// See `#[hermes_macros::runtime]` for details.
 pub fn runtime_macro(item: TokenStream, test: bool) -> TokenStream {
     let hermes_five = hermes_five_crate_path();
-
+    // Parse the input tokens into a syntax tree
     let input = parse_macro_input!(item as ItemFn);
+
+    // Destructure the input ItemFn
     let ItemFn {
         attrs,
         vis,
@@ -38,73 +40,83 @@ pub fn runtime_macro(item: TokenStream, test: bool) -> TokenStream {
         block,
     } = input;
 
-    // Define the #[tokio::main] / #[tokio::test] tokio macro attribute.
-    let tokio_main_attr = match test {
-        true => quote! {
-            #[#hermes_five::utils::tokio::test]
-        },
-        _ => quote! {
-            #[#hermes_five::utils::tokio::main]
-        },
+    // Extract the block's statements
+    let mut stmts = block.stmts;
+
+    // Check if the function has an explicit return type
+    let has_return_type = match &sig.output {
+        ReturnType::Default => false,
+        ReturnType::Type(_, _) => true,
     };
 
-    let modified_block = quote! {
-        {
-            let mut lock = #hermes_five::utils::task::RECEIVER
-                .get_or_init(|| async {
-                    // If we need to init a receiver, that also mean we need to init a sender.
-                    let (sender, mut receiver) =
-                        #hermes_five::utils::tokio::sync::mpsc::channel::<tokio::task::JoinHandle<#hermes_five::utils::task::TaskResult>>(100);
+    // Extract the last statement if it's an expression (potential return value)
+    let return_expr = match stmts.last() {
+        Some(Stmt::Expr(_expr, ..)) => {
+            if let Some(last) = stmts.pop() {
+                Some(last)
+            } else {
+                None
+            }
+        }
+        _ => None,
+    };
 
-                    if (#hermes_five::utils::task::SENDER.initialized()) {
-                        panic!("A sender exists while a receiver don't");
-                    }
+    // Define the #[tokio::main] / #[tokio::test] tokio macro attribute.
+    let tokio_main_attr = match test {
+        true => quote! {#[#hermes_five::utils::tokio::test]},
+        _ => quote! {#[#hermes_five::utils::tokio::main]},
+    };
 
-                    let _ =  #hermes_five::utils::task::SENDER
-                        .get_or_init(|| async {
-                            #hermes_five::utils::tokio::sync::RwLock::new(Some(sender.clone()))
-                        })
-                        .await;
-                    #hermes_five::utils::tokio::sync::RwLock::new(Some(receiver))
-                })
-                .await
-                .write()
-                .await;
-            let receiver = lock.as_mut().unwrap();
+    // Generate the function body
+    let mut body = vec![quote! {
+        // Insert custom code before the original function body
+        #hermes_five::utils::task::init_task_channel().await;
+    }];
 
-            #block
+    // Insert the original function body statements
+    body.extend(stmts.into_iter().map(|stmt| quote! { #stmt }));
 
-            // Wait for all dynamically spawned tasks to complete.
-            while receiver.len() > 0 {
-                if let Some(handle) = receiver.recv().await {
-                    match handle.await {
-                        Ok(#hermes_five::utils::task::TaskResult::Ok) => {},
-                        Ok(#hermes_five::utils::task::TaskResult::Err(e)) => {
-                            eprintln!("Task failed: {:?}", e.to_string());
-                        },
-                        Err(e) => {
-                            if e.is_panic() {
-                                eprintln!("Task failed: {:?}", e.to_string());
-                            } else {
-                                eprintln!("Task failed: {:?}", e.to_string());
-                            }
-                        }
+    // Insert custom code after the original function body
+    body.push(quote! {
+        let cell = #hermes_five::utils::task::RUNTIME_RX.get().ok_or(#hermes_five::protocols::RuntimeError).unwrap();
+        let mut lock = cell.lock().await;
+        let receiver = lock.as_mut().ok_or(#hermes_five::protocols::RuntimeError).unwrap();
+
+        // Wait for all dynamically spawned tasks to complete.
+        while receiver.len() > 0 {
+            // We receive the task specific receiver.
+            if let Some(mut task_receiver) = receiver.recv().await {
+
+                // We receive the task result through that new receiver.
+                if let Some(task_result) = task_receiver.recv().await {
+                    match task_result {
+                        #hermes_five::utils::task::TaskResult::Ok => {},
+                        #hermes_five::utils::task::TaskResult::Err(err) => eprintln!("Task failed: {:?}", err.to_string()),
                     }
                 }
             }
         }
-    };
+    });
 
-    // Reconstruct the function with the modified block
-    let output = quote! {
+    // Add the return expression if there is one
+    if let Some(return_stmt) = return_expr {
+        body.push(quote! { #return_stmt });
+    } else if !has_return_type {
+        // Add an empty tuple return if needed
+        body.push(quote! { () });
+    }
+
+    // Generate the expanded function
+    let expanded = quote! {
         #tokio_main_attr
         #(#attrs)*
-        #vis #sig
-        #modified_block
+        #vis #sig {
+            #(#body)*
+        }
     };
 
-    // Return the modified function as a TokenStream
-    output.into()
+    // Return the generated TokenStream
+    TokenStream::from(expanded)
 }
 
 #[cfg(test)]

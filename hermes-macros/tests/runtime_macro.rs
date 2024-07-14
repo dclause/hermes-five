@@ -1,5 +1,6 @@
 extern crate hermes_macros;
 
+#[allow(unused_imports)]
 use hermes_five::utils::tokio;
 
 #[hermes_macros::runtime]

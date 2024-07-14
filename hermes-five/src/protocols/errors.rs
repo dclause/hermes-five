@@ -24,6 +24,8 @@ pub enum Error {
     MessageTooShort,
     /// Unknown error: {info}
     Unknown { info: String },
+    /// Runtime has not been initialized. Are you sure your code runs inside #[hermes_five::runtime] ?
+    RuntimeError,
     /// Serial port error: {source}
     SerialPort { source: serialport::Error },
     /// {info}

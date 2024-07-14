@@ -145,7 +145,7 @@ impl EventManager {
             for wrapper in callbacks.iter_mut() {
                 let payload_clone = payload_any.clone();
                 let future = (wrapper.callback)(payload_clone);
-                task::run(future).await;
+                let _ = task::run(future).await;
             }
         }
     }

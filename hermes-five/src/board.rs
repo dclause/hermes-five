@@ -117,7 +117,7 @@ impl Board {
     pub async fn open(self) -> Self {
         let events = self.events.clone();
         let mut callback_board = self.clone();
-        task::run(async move {
+        let _ = task::run(async move {
             callback_board.protocol.open()?;
             // give it some time: some arduino (like nano) may be slow.
             tokio::time::sleep(Duration::from_millis(200)).await;
@@ -163,7 +163,7 @@ impl Board {
         let events = self.events.clone();
         let mut protocol = self.protocol.clone();
         let callback_board = self.clone();
-        task::run(async move {
+        let _ = task::run(async move {
             protocol.close()?;
             events.emit("close", callback_board).await;
             Ok(())
