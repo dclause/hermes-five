@@ -1,6 +1,6 @@
 use hermes_five::Board;
 
-#[hermes_macros::runtime]
+#[hermes_five::runtime]
 async fn main() {
     let board = Board::run().await;
 

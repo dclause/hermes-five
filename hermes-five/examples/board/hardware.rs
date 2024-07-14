@@ -1,7 +1,7 @@
 use hermes_five::Board;
 use hermes_five::protocols::PinModeId;
 
-#[hermes_macros::runtime]
+#[hermes_five::runtime]
 async fn main() {
     // Default board: uses SerialProtocol communication via the first available port.
     let board = Board::run().await;

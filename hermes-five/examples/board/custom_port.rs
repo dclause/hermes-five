@@ -1,7 +1,7 @@
 use hermes_five::Board;
 use hermes_five::protocols::SerialProtocol;
 
-#[hermes_macros::runtime]
+#[hermes_five::runtime]
 async fn main() {
     // Notice how you have to explicitly `open()` the board connection when using the builder.
     let board = Board::build(SerialProtocol::new("COM4")).open().await;

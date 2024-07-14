@@ -14,8 +14,9 @@ doctest = false
 [features]
 default = []
 libudev = ["serialport/libudev"]
-serde = ["dep:serde", "dep:serde_json"]
+serde = ["dep:serde", "dep:serde_json", "hermes-macros/storage"]
 storage = ["serde"]
+full = ["serde", "storage", "libudev"]
 
 [dependencies]
 hermes-macros = { path = "../hermes-macros" }

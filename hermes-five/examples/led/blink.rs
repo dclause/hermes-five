@@ -1,7 +1,7 @@
 use hermes_five::{Board, pause};
 use hermes_five::devices::Led;
 
-#[hermes_macros::runtime]
+#[hermes_five::runtime]
 async fn main() {
     let board = Board::run().await;
 
