@@ -68,6 +68,17 @@ path = "examples/board/ready_event.rs"
 name = "led_blink"
 path = "examples/led/blink.rs"
 
+[[example]]
+name = "led_intensity"
+path = "examples/led/intensity.rs"
+
+# #################################################
+# SERVO examples
+
+[[example]]
+name = "servo_servo"
+path = "examples/servo/servo.rs"
+
 # #################################################
 # SYNC examples
 

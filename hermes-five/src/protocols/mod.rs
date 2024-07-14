@@ -167,7 +167,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         {
             let mut lock = self.hardware().write();
             let mut _pin = lock.get_pin_mut(pin)?;
-            let _mode = _pin.get_plausible_mode(mode)?;
+            let _mode = _pin.get_mode(mode).ok_or(UnknownMode { mode })?;
             _pin.mode = _mode;
         }
 
@@ -307,7 +307,9 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         while buf[i] != END_SYSEX {
             if buf[i] != SYSEX_REALTIME {
                 let pin = &mut lock.get_pin_mut((i - 2) as u16)?;
-                pin.mode = pin.get_plausible_mode(PinModeId::ANALOG)?.clone();
+                pin.mode = pin.get_mode(PinModeId::ANALOG).ok_or(UnknownMode {
+                    mode: PinModeId::ANALOG,
+                })?;
                 pin.channel = Some(buf[i]);
             }
             i += 1;
@@ -398,7 +400,8 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         let mut lock = self.hardware().write();
         let pin = lock.get_pin_mut(pin)?;
         // Check if the state announce by the protocol is plausible and fetch it.
-        let current_state = pin.get_plausible_mode(PinModeId::from_u8(buf[3])?)?;
+        let mode = PinModeId::from_u8(buf[3])?;
+        let current_state = pin.get_mode(mode).unwrap();
         pin.mode = current_state;
 
         let mut i = 4;
