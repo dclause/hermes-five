@@ -172,7 +172,7 @@ impl Device for Servo {}
 impl Actuator for Servo {
     /// Update the Servo position.
     fn update(&mut self, target: State) -> Result<&Self, Error> {
-        let target: u16 = target.as_integer().unwrap() as u16;
+        let target: u16 = target.as_integer() as u16;
 
         // Map value from degree_range to pwm_range scale.
         let microseconds = target.map(

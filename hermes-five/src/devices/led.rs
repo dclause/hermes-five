@@ -166,7 +166,7 @@ impl Device for Led {}
 impl Actuator for Led {
     /// Update the LED to the target state.
     fn update(&mut self, target: State) -> Result<&Self, Error> {
-        let state = target.as_integer().unwrap() as u16;
+        let state = target.as_integer() as u16;
 
         match self.pin()?.mode.id {
             // on/off digital operation.

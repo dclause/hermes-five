@@ -16,8 +16,6 @@ pub enum State {
 // **********************************************
 // Serde
 // **********************************************
-#[cfg(feature = "serde")]
-impl State {}
 
 #[cfg(feature = "serde")]
 impl serde::Serialize for State {
@@ -44,8 +42,7 @@ impl<'de> ::serde::Deserialize<'de> for State {
     where
         D: serde::de::Deserializer<'de>,
     {
-        let state = serde_json::Value::deserialize(de)?;
-        Ok(State::from(state))
+        Ok(State::from(serde_json::Value::deserialize(de)?))
     }
 }
 
@@ -60,10 +57,8 @@ impl From<serde_json::Value> for State {
                     State::Integer(u)
                 } else if let Some(i) = n.as_i64() {
                     State::Signed(i)
-                } else if let Some(f) = n.as_f64() {
-                    State::Float(f)
                 } else {
-                    State::Integer(0)
+                    State::Float(n.as_f64().unwrap())
                 }
             }
             serde_json::Value::String(s) => State::String(s),
@@ -88,57 +83,83 @@ impl State {
     }
 
     /// Extracts the boolean value if it is a boolean.
-    pub fn as_boolean(&self) -> Option<bool> {
-        match *self {
-            State::Null => Some(false),
-            State::Boolean(b) => Some(b),
-            _ => None,
+    pub fn as_boolean(&self) -> bool {
+        match self {
+            State::Null => false,
+            State::Boolean(b) => *b,
+            State::Integer(u) => *u > 0,
+            State::Signed(i) => *i > 0,
+            State::Float(f) => *f > 0.0,
+            State::String(s) => !s.is_empty(),
+            State::Array(a) => !a.is_empty(),
+            State::Object(o) => !o.is_empty(),
         }
     }
+
     /// Extracts the integer value if it is an integer.
-    pub fn as_integer(&self) -> Option<u64> {
+    pub fn as_integer(&self) -> u64 {
         match *self {
-            State::Integer(i) => Some(i),
-            State::Signed(i) => Some(i as u64),
-            _ => None,
+            State::Boolean(b) => u64::from(b),
+            State::Integer(u) => u,
+            State::Signed(i) => match i > 0 {
+                true => i as u64,
+                false => 0,
+            },
+            State::Float(f) => f as u64,
+            _ => 0,
         }
     }
     /// Extracts the signed integer value if it is an integer.
-    pub fn as_signed_integer(&self) -> Option<i64> {
+    pub fn as_signed_integer(&self) -> i64 {
         match *self {
-            State::Signed(i) => Some(i),
-            State::Integer(i) => Some(i as i64),
-            _ => None,
+            State::Boolean(b) => i64::from(b),
+            State::Integer(i) => i as i64,
+            State::Signed(i) => i,
+            State::Float(f) => f as i64,
+            _ => 0,
         }
     }
     /// Extracts the float value if it is a float.
-    pub fn as_float(&self) -> Option<f64> {
+    pub fn as_float(&self) -> f64 {
         match *self {
-            State::Float(f) => Some(f),
-            State::Signed(i) => Some(i as f64),
-            State::Integer(i) => Some(i as f64),
-            _ => None,
+            State::Boolean(b) => f64::from(b),
+            State::Integer(u) => u as f64,
+            State::Signed(i) => i as f64,
+            State::Float(f) => f,
+            _ => 0.0,
         }
     }
+
     /// Extracts the string of this value if it is a string.
-    pub fn as_str(&self) -> Option<&str> {
-        match *self {
-            State::String(ref s) => Some(&**s),
-            _ => None,
+    pub fn as_string(&self) -> String {
+        match self {
+            State::Integer(u) => format!("{}", u),
+            State::Signed(i) => format!("{}", i),
+            State::Float(f) => format!("{}", f),
+            State::String(s) => s.clone(),
+            _ => String::default(),
+        }
+    }
+
+    /// Extracts the &str of this value if it is a string.
+    pub fn as_str(&self) -> &str {
+        match self {
+            State::String(ref s) => s,
+            _ => "",
         }
     }
     /// Extracts the array value if it is an array.
-    pub fn as_array(&self) -> Option<&Vec<State>> {
+    pub fn as_array(&self) -> Vec<State> {
         match *self {
-            State::Array(ref s) => Some(s),
-            _ => None,
+            State::Array(ref a) => a.clone(),
+            _ => vec![],
         }
     }
     /// Extracts the hashmap value if it is an hashmap.
-    pub fn as_object(&self) -> Option<&HashMap<String, State>> {
+    pub fn as_object(&self) -> HashMap<String, State> {
         match self {
-            State::Object(map) => Some(map),
-            _ => None,
+            State::Object(map) => map.clone(),
+            _ => HashMap::<String, State>::default(),
         }
     }
 }
@@ -202,70 +223,362 @@ mod tests {
 
     #[test]
     fn test_as_boolean() {
-        let state = State::Boolean(true);
-        assert_eq!(state.as_boolean(), Some(true));
+        assert_eq!(State::Null.as_boolean(), false);
 
-        let state = State::Integer(42);
-        assert_eq!(state.as_boolean(), None);
+        assert_eq!(State::Boolean(false).as_boolean(), false);
+        assert_eq!(State::Boolean(true).as_boolean(), true);
+
+        assert_eq!(State::Integer(0).as_boolean(), false);
+        assert_eq!(State::Integer(10).as_boolean(), true);
+
+        assert_eq!(State::Signed(-10).as_boolean(), false);
+        assert_eq!(State::Signed(0).as_boolean(), false);
+        assert_eq!(State::Signed(10).as_boolean(), true);
+
+        assert_eq!(State::Float(-0.5).as_boolean(), false);
+        assert_eq!(State::Float(0.0).as_boolean(), false);
+        assert_eq!(State::Float(10.5).as_boolean(), true);
+
+        assert_eq!(State::String(String::from("")).as_boolean(), false);
+        assert_eq!(State::String(" ".into()).as_boolean(), true);
+
+        assert_eq!(State::Array(vec!()).as_boolean(), false);
+        assert_eq!(State::Array(vec![1.into()]).as_boolean(), true);
+
+        let mut map = HashMap::new();
+        assert_eq!(State::Object(map.clone()).as_boolean(), false);
+        map.insert("key".to_string(), State::Integer(42));
+        assert_eq!(State::Object(map).as_boolean(), true);
     }
 
     #[test]
     fn test_as_integer() {
-        let state = State::Integer(42);
-        assert_eq!(state.as_integer(), Some(42));
-
-        let state = State::Boolean(true);
-        assert_eq!(state.as_integer(), None);
+        assert_eq!(State::Null.as_integer(), 0);
+        assert_eq!(State::Boolean(false).as_integer(), 0);
+        assert_eq!(State::Boolean(true).as_integer(), 1);
+        assert_eq!(State::Integer(42).as_integer(), 42);
+        assert_eq!(State::Signed(-12).as_integer(), 0);
+        assert_eq!(State::Signed(12).as_integer(), 12);
+        assert_eq!(State::Float(69.5).as_integer(), 69);
+        assert_eq!(State::Float(-69.5).as_integer(), 0);
+        assert_eq!(State::String(String::from("test")).as_integer(), 0);
+        assert_eq!(State::Array(vec![1.into()]).as_integer(), 0);
+        assert_eq!(State::Object(HashMap::new()).as_integer(), 0);
     }
 
     #[test]
     fn test_as_signed_integer() {
-        let state = State::Signed(-42);
-        assert_eq!(state.as_signed_integer(), Some(-42));
-
-        let state = State::Boolean(true);
-        assert_eq!(state.as_signed_integer(), None);
+        assert_eq!(State::Null.as_signed_integer(), 0);
+        assert_eq!(State::Boolean(false).as_signed_integer(), 0);
+        assert_eq!(State::Boolean(true).as_signed_integer(), 1);
+        assert_eq!(State::Integer(42).as_signed_integer(), 42);
+        assert_eq!(State::Signed(-12).as_signed_integer(), -12);
+        assert_eq!(State::Signed(12).as_signed_integer(), 12);
+        assert_eq!(State::Float(69.5).as_signed_integer(), 69);
+        assert_eq!(State::Float(-69.5).as_signed_integer(), -69);
+        assert_eq!(State::String(String::from("test")).as_signed_integer(), 0);
+        assert_eq!(State::Array(vec![1.into()]).as_signed_integer(), 0);
+        assert_eq!(State::Object(HashMap::new()).as_signed_integer(), 0);
     }
 
     #[test]
     fn test_as_float() {
-        let state = State::Float(3.14);
-        assert_eq!(state.as_float(), Some(3.14));
+        assert_eq!(State::Null.as_float(), 0.0);
+        assert_eq!(State::Boolean(false).as_float(), 0.0);
+        assert_eq!(State::Boolean(true).as_float(), 1.0);
+        assert_eq!(State::Integer(42).as_float(), 42.0);
+        assert_eq!(State::Signed(-12).as_float(), -12.0);
+        assert_eq!(State::Signed(12).as_float(), 12.0);
+        assert_eq!(State::Float(69.5).as_float(), 69.5);
+        assert_eq!(State::Float(-69.5).as_float(), -69.5);
+        assert_eq!(State::String(String::from("test")).as_float(), 0.0);
+        assert_eq!(State::Array(vec![1.into()]).as_float(), 0.0);
+        assert_eq!(State::Object(HashMap::new()).as_float(), 0.0);
+    }
 
-        let state = State::Boolean(true);
-        assert_eq!(state.as_float(), None);
+    #[test]
+    fn test_as_string() {
+        assert_eq!(State::Null.as_string(), String::from(""));
+        assert_eq!(State::Boolean(false).as_string(), String::from(""));
+        assert_eq!(State::Boolean(true).as_string(), String::from(""));
+        assert_eq!(State::Integer(42).as_string(), String::from("42"));
+        assert_eq!(State::Signed(-12).as_string(), String::from("-12"));
+        assert_eq!(State::Signed(12).as_string(), String::from("12"));
+        assert_eq!(State::Float(69.5).as_string(), String::from("69.5"));
+        assert_eq!(
+            State::String(String::from("test")).as_string(),
+            String::from("test")
+        );
+        assert_eq!(State::Array(vec![1.into()]).as_string(), String::from(""));
+        assert_eq!(State::Object(HashMap::new()).as_string(), String::from(""));
     }
 
     #[test]
     fn test_as_str() {
-        let state = State::String("test".into());
-        assert_eq!(state.as_str(), Some("test"));
-
-        let state = State::Boolean(true);
-        assert_eq!(state.as_str(), None);
+        assert_eq!(State::Null.as_str(), "");
+        assert_eq!(State::Boolean(false).as_str(), "");
+        assert_eq!(State::Boolean(true).as_str(), "");
+        assert_eq!(State::Integer(42).as_str(), "");
+        assert_eq!(State::Signed(-12).as_str(), "");
+        assert_eq!(State::Signed(12).as_str(), "");
+        assert_eq!(State::Float(69.5).as_str(), "");
+        assert_eq!(State::String(String::from("test")).as_str(), "test");
+        assert_eq!(State::Array(vec![1.into()]).as_str(), "");
+        assert_eq!(State::Object(HashMap::new()).as_str(), "");
     }
 
     #[test]
     fn test_as_array() {
-        let state = State::Array(vec![State::Integer(1), State::Integer(2)]);
+        assert_eq!(State::Null.as_array(), vec![]);
+        assert_eq!(State::Boolean(false).as_array(), vec![]);
+        assert_eq!(State::Boolean(true).as_array(), vec![]);
+        assert_eq!(State::Integer(42).as_array(), vec![]);
+        assert_eq!(State::Signed(-12).as_array(), vec![]);
+        assert_eq!(State::Signed(12).as_array(), vec![]);
+        assert_eq!(State::Float(69.5).as_array(), vec![]);
+        assert_eq!(State::String(String::from("test")).as_array(), vec![]);
         assert_eq!(
-            state.as_array(),
-            Some(&vec![State::Integer(1), State::Integer(2)])
+            State::Array(vec![1u8.into(), 2u8.into()]).as_array(),
+            vec![State::Integer(1), State::Integer(2)]
         );
-
-        let state = State::Boolean(true);
-        assert_eq!(state.as_array(), None);
+        assert_eq!(State::Object(HashMap::new()).as_array(), vec![]);
     }
 
     #[test]
     fn test_as_object() {
+        let empty = HashMap::new();
+        assert_eq!(State::Null.as_object(), empty);
+        assert_eq!(State::Boolean(false).as_object(), empty);
+        assert_eq!(State::Boolean(true).as_object(), empty);
+        assert_eq!(State::Integer(42).as_object(), empty);
+        assert_eq!(State::Signed(-12).as_object(), empty);
+        assert_eq!(State::Signed(12).as_object(), empty);
+        assert_eq!(State::Float(69.5).as_object(), empty);
+        assert_eq!(State::String(String::from("test")).as_object(), empty);
+        assert_eq!(State::Array(vec![1.into()]).as_object(), empty);
+
         let mut map = HashMap::new();
         map.insert("key".to_string(), State::Integer(42));
 
         let state = State::Object(map.clone());
-        assert_eq!(state.as_object(), Some(&map));
+        assert_eq!(state.as_object(), map);
+    }
 
-        let state = State::Boolean(true);
-        assert_eq!(state.as_object(), None);
+    #[test]
+    fn test_is_null() {
+        assert_eq!(State::Null.is_null(), true);
+        assert_eq!(State::Boolean(false).is_null(), false);
+        assert_eq!(State::Boolean(true).is_null(), false);
+        assert_eq!(State::Integer(42).is_null(), false);
+        assert_eq!(State::Signed(-12).is_null(), false);
+        assert_eq!(State::Signed(12).is_null(), false);
+        assert_eq!(State::Float(69.5).is_null(), false);
+        assert_eq!(State::String(String::from("test")).is_null(), false);
+        assert_eq!(State::Array(vec![1.into()]).is_null(), false);
+        assert_eq!(State::Object(HashMap::new()).is_null(), false);
+    }
+
+    #[test]
+    fn test_from_conversions() {
+        let state: State = "test".to_string().into();
+        assert_eq!(state, State::String("test".into()));
+
+        let state: State = 42u8.into();
+        assert_eq!(state, State::Integer(42));
+
+        let state: State = 42u16.into();
+        assert_eq!(state, State::Integer(42));
+
+        let state: State = 42u32.into();
+        assert_eq!(state, State::Integer(42));
+
+        let state: State = 42u64.into();
+        assert_eq!(state, State::Integer(42));
+
+        let state: State = (-42i8).into();
+        assert_eq!(state, State::Signed(-42));
+
+        let state: State = (-42i16).into();
+        assert_eq!(state, State::Signed(-42));
+
+        let state: State = (-42i32).into();
+        assert_eq!(state, State::Signed(-42));
+
+        let state: State = (-42i64).into();
+        assert_eq!(state, State::Signed(-42));
+
+        let state: State = 3.140f32.into();
+        assert!(matches!(state, State::Float(f) if (f - 3.14).abs() < 0.00001),);
+
+        let state: State = 3.14f64.into();
+        assert_eq!(state, State::Float(3.14));
+
+        let state: State = true.into();
+        assert_eq!(state, State::Boolean(true));
+
+        let vec_state: State = vec![1u8, 2u8, 3u8].into();
+        assert_eq!(
+            vec_state,
+            State::Array(vec![
+                State::Integer(1),
+                State::Integer(2),
+                State::Integer(3)
+            ])
+        );
+
+        let state: State = [1, 2].as_slice().into();
+        assert_eq!(
+            state,
+            State::Array(vec![State::Signed(1), State::Signed(2)])
+        );
+
+        let state: State = vec![1, 2].into_iter().collect();
+        assert_eq!(
+            state,
+            State::Array(vec![State::Signed(1), State::Signed(2)])
+        );
+    }
+
+    #[cfg(feature = "serde")]
+    mod serde_tests {
+        use serde_json;
+
+        use super::*;
+
+        #[test]
+        fn test_serialize_null() {
+            let state = State::Null;
+            let json = serde_json::to_string(&state).unwrap();
+            assert_eq!(json, "null");
+        }
+
+        #[test]
+        fn test_serialize_boolean() {
+            let state = State::Boolean(true);
+            let json = serde_json::to_string(&state).unwrap();
+            assert_eq!(json, "true");
+        }
+
+        #[test]
+        fn test_serialize_integer() {
+            let state = State::Integer(42);
+            let json = serde_json::to_string(&state).unwrap();
+            assert_eq!(json, "42");
+        }
+
+        #[test]
+        fn test_serialize_signed() {
+            let state = State::Signed(-42);
+            let json = serde_json::to_string(&state).unwrap();
+            assert_eq!(json, "-42");
+        }
+
+        #[test]
+        fn test_serialize_float() {
+            let state = State::Float(3.14);
+            let json = serde_json::to_string(&state).unwrap();
+            assert_eq!(json, "3.14");
+        }
+
+        #[test]
+        fn test_serialize_string() {
+            let state = State::String("test".into());
+            let json = serde_json::to_string(&state).unwrap();
+            assert_eq!(json, r#""test""#);
+        }
+
+        #[test]
+        fn test_serialize_array() {
+            let state = State::Array(vec![State::Integer(1), State::Integer(2)]);
+            let json = serde_json::to_string(&state).unwrap();
+            assert_eq!(json, "[1,2]");
+        }
+
+        #[test]
+        fn test_serialize_object() {
+            let mut map = HashMap::new();
+            map.insert("key".to_string(), State::Integer(42));
+            let state = State::Object(map);
+            let json = serde_json::to_string(&state).unwrap();
+            assert_eq!(json, r#"{"key":42}"#);
+        }
+
+        #[test]
+        fn test_deserialize_null() {
+            let json = "null";
+            let state: State = serde_json::from_str(json).unwrap();
+            assert_eq!(state, State::Null);
+        }
+
+        #[test]
+        fn test_deserialize_boolean() {
+            let json = "true";
+            let state: State = serde_json::from_str(json).unwrap();
+            assert_eq!(state, State::Boolean(true));
+        }
+
+        #[test]
+        fn test_deserialize_integer() {
+            let json = "42";
+            let state: State = serde_json::from_str(json).unwrap();
+            assert_eq!(state, State::Integer(42));
+        }
+
+        #[test]
+        fn test_deserialize_signed() {
+            let json = "-42";
+            let state: State = serde_json::from_str(json).unwrap();
+            assert_eq!(state, State::Signed(-42));
+        }
+
+        #[test]
+        fn test_deserialize_float() {
+            let json = "3.14";
+            let state: State = serde_json::from_str(json).unwrap();
+            assert_eq!(state, State::Float(3.14));
+        }
+
+        #[test]
+        fn test_deserialize_nan() {
+            let json = serde_json::to_string(&(f64::NAN)).unwrap();
+            let state: State = serde_json::from_str(json.as_str()).unwrap();
+            assert_eq!(state, State::Null);
+        }
+
+        #[test]
+        fn test_deserialize_string() {
+            let json = r#""test""#;
+            let state: State = serde_json::from_str(json).unwrap();
+            assert_eq!(state, State::String("test".into()));
+        }
+
+        #[test]
+        fn test_deserialize_array() {
+            let json = "[1,2]";
+            let state: State = serde_json::from_str(json).unwrap();
+            assert_eq!(
+                state,
+                State::Array(vec![State::Integer(1), State::Integer(2)])
+            );
+        }
+
+        #[test]
+        fn test_deserialize_object() {
+            let json = r#"{"key":42}"#;
+            let state: State = serde_json::from_str(json).unwrap();
+            let mut map = HashMap::new();
+            map.insert("key".to_string(), State::Integer(42));
+            assert_eq!(state, State::Object(map));
+        }
+
+        #[test]
+        fn test_deserialize_complex() {
+            let json = r#"{"key":42, "state": {"key": 42}}"#;
+            let state: State = serde_json::from_str(json).unwrap();
+            let mut map = HashMap::new();
+            map.insert("key".to_string(), State::Integer(42));
+            map.insert("state".to_string(), State::Object(map.clone()));
+            assert_eq!(state, State::Object(map));
+        }
     }
 }
