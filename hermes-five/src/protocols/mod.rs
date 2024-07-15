@@ -5,12 +5,12 @@ use dyn_clone::DynClone;
 use snafu::ResultExt;
 
 use crate::errors::*;
-use crate::misc::Range;
 pub use crate::protocols::constants::*;
 pub use crate::protocols::flavor::*;
 pub use crate::protocols::i2c_reply::I2CReply;
 pub use crate::protocols::pins::*;
 pub use crate::protocols::protocol::*;
+use crate::utils::Range;
 
 pub mod constants;
 mod flavor;

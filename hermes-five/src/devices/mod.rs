@@ -3,7 +3,7 @@ use std::time::Duration;
 pub use crate::devices::led::Led;
 pub use crate::devices::servo::Servo;
 use crate::errors::Error;
-use crate::misc::{Easing, State};
+use crate::utils::{Easing, State};
 
 mod led;
 mod servo;

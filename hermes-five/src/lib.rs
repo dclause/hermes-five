@@ -6,7 +6,6 @@ pub use hermes_macros::runtime;
 mod board;
 pub mod devices;
 pub mod errors;
-pub mod misc;
 pub mod protocols;
 mod storage;
 pub mod utils;

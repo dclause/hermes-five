@@ -3,8 +3,8 @@ use std::time::Duration;
 use crate::board::Board;
 use crate::devices::{Actuator, Device};
 use crate::errors::Error;
-use crate::misc::{Easing, Range, State};
 use crate::protocols::{Pin, PinModeId, Protocol};
+use crate::utils::{Easing, Range, State};
 use crate::utils::helpers::MapRange;
 use crate::utils::task::TaskHandler;
 
