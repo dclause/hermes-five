@@ -1,6 +1,10 @@
+use std::time::Duration;
+
 use crate::board::Board;
-use crate::misc::Range;
-use crate::protocols::{Error, Pin, PinModeId, Protocol};
+use crate::devices::{Actuator, Device};
+use crate::errors::Error;
+use crate::misc::{Easing, Range, State};
+use crate::protocols::{Pin, PinModeId, Protocol};
 use crate::utils::helpers::MapRange;
 use crate::utils::task::TaskHandler;
 
@@ -30,13 +34,14 @@ pub struct Servo {
     servo_type: ServoType,
     /// The servo default position to it initialize (default: 90)
     default: u16,
-
-    /// Current position
-    position: u16,
     /// Last move done by the servo.
     last_move: Option<Move>,
     /// Indicates of the servo is currently moving.
     is_moving: bool, // @todo remove?
+
+    // Because we are an actuator:
+    /// Current position
+    position: u16,
     /// Inner handler to the task running the animation.
     interval: Option<TaskHandler>,
 }
@@ -138,11 +143,37 @@ impl Servo {
             return Ok(self);
         }
 
-        self.update(target)
+        // Stops any animation running.
+        self.stop();
+
+        self.update(State::from(target))
     }
 
+    /// Stops the servo.
+    /// Any animation running will be stopped after the current running step is executed.
+    /// Any simple move running will be stopped at end position.
+    pub fn stop(&self) {
+        match &self.interval {
+            None => {}
+            Some(handler) => handler.abort(),
+        }
+    }
+
+    // @todo move this to device
+    pub fn pin(&self) -> Result<Pin, Error> {
+        let lock = self.protocol.hardware().read();
+        Ok(lock.get_pin(self.pin)?.clone())
+    }
+}
+
+// @todo make this a derive macro
+impl Device for Servo {}
+
+impl Actuator for Servo {
     /// Update the Servo position.
-    pub fn update(&mut self, target: u16) -> Result<&Self, Error> {
+    fn update(&mut self, target: State) -> Result<&Self, Error> {
+        let target: u16 = target.as_integer().unwrap() as u16;
+
         // Map value from degree_range to pwm_range scale.
         let microseconds = target.map(
             self.degree_range.min,
@@ -160,10 +191,13 @@ impl Servo {
         Ok(self)
     }
 
-    // @todo move this to device
-    pub fn pin(&self) -> Result<Pin, Error> {
-        let lock = self.protocol.hardware().read();
-        Ok(lock.get_pin(self.pin)?.clone())
+    fn animate(
+        &mut self,
+        target: State,
+        duration: Duration,
+        easing: Easing,
+    ) -> Result<&Self, Error> {
+        todo!()
     }
 }
 

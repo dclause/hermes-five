@@ -1,22 +1,18 @@
 use std::any::type_name;
 use std::fmt::{Debug, Display, Formatter};
-use std::io::{Read, Write};
 
 use dyn_clone::DynClone;
 use snafu::ResultExt;
 
+use crate::errors::*;
 use crate::misc::Range;
-// Flatten export
 pub use crate::protocols::constants::*;
-pub use crate::protocols::Error::*;
-pub use crate::protocols::errors::*;
 pub use crate::protocols::flavor::*;
 pub use crate::protocols::i2c_reply::I2CReply;
 pub use crate::protocols::pins::*;
 pub use crate::protocols::protocol::*;
 
 pub mod constants;
-mod errors;
 mod flavor;
 mod i2c_reply;
 mod pins;

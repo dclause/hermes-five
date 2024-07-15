@@ -25,6 +25,7 @@ dyn-clone = "1.0.17"
 futures = "0.3.30"
 log = "0.4.22"
 parking_lot = "0.12.3"
+simple-easing = "1.0.1"
 snafu = "0.8.4"
 tokio = { version = "1.38.0", features = ["macros", "rt-multi-thread", "signal", "sync", "time"] }
 typetag = "0.2.16"

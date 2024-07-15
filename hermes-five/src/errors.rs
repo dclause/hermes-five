@@ -1,11 +1,19 @@
 use snafu::Snafu;
 
+pub use crate::errors::Error::*;
 use crate::protocols::PinModeId;
 
 /// Firmata error type.
 #[derive(Debug, Snafu)]
 #[snafu(visibility(pub))]
 pub enum Error {
+    // ##### GENERAL RELATED #####
+    /// Unknown error: {info}
+    Unknown { info: String },
+    /// Runtime has not been initialized. Are you sure your code runs inside #[hermes_five::runtime] ?
+    RuntimeError,
+
+    // ##### PROTOCOL RELATED #####
     /// Communication error: Unknown SysEx code: {code}.
     UnknownSysEx { code: u8 },
     /// Received a bad byte: {byte}.
@@ -22,14 +30,8 @@ pub enum Error {
     Utf8Error { source: std::str::Utf8Error },
     /// Data error: Not enough bytes received, message was too short.
     MessageTooShort,
-    /// Unknown error: {info}
-    Unknown { info: String },
-    /// Runtime has not been initialized. Are you sure your code runs inside #[hermes_five::runtime] ?
-    RuntimeError,
-    /// Serial port error: {source}
+    /// Protocol error: {source}
     SerialPort { source: serialport::Error },
-    /// {info}
-    Custom { info: String },
 
     // ##### PIN RELATED #####
     /// Unknown pin {pin}.

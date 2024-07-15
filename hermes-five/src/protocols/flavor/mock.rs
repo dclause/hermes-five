@@ -1,4 +1,5 @@
-use crate::protocols::{Error, Protocol, ProtocolHardware};
+use crate::errors::Error;
+use crate::protocols::{Protocol, ProtocolHardware};
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug, Default)]

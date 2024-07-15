@@ -5,7 +5,8 @@ use std::time::Duration;
 
 use parking_lot::RwLockReadGuard;
 
-use crate::protocols::{Error, Hardware, Protocol};
+use crate::errors::Error;
+use crate::protocols::{Hardware, Protocol};
 use crate::protocols::SerialProtocol;
 use crate::utils::events::{EventHandler, EventManager};
 use crate::utils::task;

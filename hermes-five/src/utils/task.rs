@@ -8,7 +8,7 @@ use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::task;
 use tokio::task::JoinHandle;
 
-use crate::protocols::{Error, RuntimeError, Unknown};
+use crate::errors::{Error, RuntimeError, Unknown};
 
 /// Represents the result of a TaskResult.
 /// A task may return either () or Result<(), Error> for flexibility which
@@ -131,7 +131,7 @@ mod tests {
 
     use anyhow::bail;
 
-    use crate::protocols::Error;
+    use crate::errors::Error;
     use crate::utils::task;
 
     #[hermes_macros::runtime]

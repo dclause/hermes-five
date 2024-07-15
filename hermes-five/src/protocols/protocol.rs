@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 
-use crate::protocols::{Error, I2CReply, Pin, UnknownPin};
+use crate::errors::{Error, UnknownPin};
+use crate::protocols::{I2CReply, Pin};
 
 pub type ProtocolHardware = Arc<RwLock<Hardware>>;
 

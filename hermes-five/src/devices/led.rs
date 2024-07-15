@@ -1,5 +1,10 @@
+use std::time::Duration;
+
 use crate::board::Board;
-use crate::protocols::{Error, IncompatibleMode, Pin, PinMode, PinModeId, Protocol};
+use crate::devices::{Actuator, Device};
+use crate::errors::{Error, IncompatibleMode};
+use crate::misc::{Easing, State};
+use crate::protocols::{Pin, PinMode, PinModeId, Protocol};
 use crate::utils::helpers::MapRange;
 use crate::utils::task;
 use crate::utils::task::TaskHandler;
@@ -12,14 +17,16 @@ pub struct Led {
     is_on: bool, // @todo remove?
     /// Indicates if the LED is running an animation.
     is_running: bool, // @todo remove?
-    /// Indicates the current LED value (to be set to the pin)
-    value: u16,
     /// Indicates the current LED intensity when ON.
     intensity: u16,
-    /// Inner handler to the task running the animation.
-    interval: Option<TaskHandler>,
     /// If the pin can do PWM, we store that mode here.
     pwm_mode: Option<PinMode>,
+
+    // # Actuator
+    /// Indicates the current LED state
+    state: u16,
+    /// Inner handler to the task running the animation.
+    interval: Option<TaskHandler>,
 }
 
 impl Led {
@@ -42,7 +49,7 @@ impl Led {
             pin,
             is_on: false,
             is_running: false,
-            value: 0,
+            state: 0,
             intensity: 0xFF,
             interval: None,
             pwm_mode,
@@ -84,9 +91,9 @@ impl Led {
                 );
 
                 // If the value is higher than the intensity, we update it on the spot.
-                if self.value > intensity {
-                    self.value = self.intensity;
-                    self.update()?;
+                if self.state > intensity {
+                    self.state = self.intensity;
+                    self.update(self.state.into())?;
                 }
 
                 Ok(self)
@@ -97,15 +104,15 @@ impl Led {
     /// Turn the LED on.
     pub fn on(&mut self) -> Result<&Self, Error> {
         self.is_on = true;
-        self.value = self.intensity;
-        self.update()
+        self.state = self.intensity;
+        self.update(self.state.into())
     }
 
     /// Turn the LED off.
     pub fn off(&mut self) -> Result<&Self, Error> {
         self.is_on = false;
-        self.value = 0;
-        self.update()
+        self.state = 0;
+        self.update(self.state.into())
     }
 
     /// Toggle the current state, if on then turn off, if off then turn on.
@@ -146,13 +153,26 @@ impl Led {
         }
     }
 
-    /// Update the LED.
-    pub fn update(&mut self) -> Result<&Self, Error> {
+    // @todo move this to device ?
+    pub fn pin(&self) -> Result<Pin, Error> {
+        let lock = self.protocol.hardware().read();
+        Ok(lock.get_pin(self.pin)?.clone())
+    }
+}
+
+// @todo make derive
+impl Device for Led {}
+
+impl Actuator for Led {
+    /// Update the LED to the target state.
+    fn update(&mut self, target: State) -> Result<&Self, Error> {
+        let state = target.as_integer().unwrap() as u16;
+
         match self.pin()?.mode.id {
             // on/off digital operation.
-            PinModeId::OUTPUT => self.protocol.digital_write(self.pin, self.value > 0),
+            PinModeId::OUTPUT => self.protocol.digital_write(self.pin, state > 0),
             // pwm (brightness) mode.
-            PinModeId::PWM => self.protocol.analog_write(self.pin, self.value),
+            PinModeId::PWM => self.protocol.analog_write(self.pin, state),
             id => Err(IncompatibleMode {
                 mode: id,
                 pin: self.pin,
@@ -162,10 +182,13 @@ impl Led {
         Ok(self)
     }
 
-    // @todo move this to device
-    pub fn pin(&self) -> Result<Pin, Error> {
-        let lock = self.protocol.hardware().read();
-        Ok(lock.get_pin(self.pin)?.clone())
+    fn animate(
+        &mut self,
+        target: State,
+        duration: Duration,
+        easing: Easing,
+    ) -> Result<&Self, Error> {
+        todo!()
     }
 }
 
@@ -176,7 +199,7 @@ impl Clone for Led {
             pin: self.pin,
             is_on: self.is_on,
             is_running: self.is_running,
-            value: self.value,
+            state: self.state,
             intensity: self.intensity,
             interval: None,
             pwm_mode: self.pwm_mode.clone(),

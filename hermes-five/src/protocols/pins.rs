@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Display, Formatter};
 
-use crate::protocols::{Error, IncompatibleMode};
+use crate::errors::{Error, IncompatibleMode};
 
 /// The current state and configuration of a pin.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -147,9 +147,7 @@ impl PinModeId {
             0x0E => Ok(PinModeId::TONE),
             0x0F => Ok(PinModeId::DHT),
             0x7F => Ok(PinModeId::UNSUPPORTED),
-            x => Err(Error::Custom {
-                info: format!("Pin mode does not exist: {}", x),
-            }),
+            x => Err(Error::UnknownPin { pin: x as u16 }),
         }
     }
 }

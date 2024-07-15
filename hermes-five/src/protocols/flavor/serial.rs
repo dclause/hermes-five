@@ -12,8 +12,8 @@ use serialport::{DataBits, FlowControl, Parity, StopBits};
 use serialport::SerialPort;
 use snafu::prelude::*;
 
-use crate::protocols::*;
-use crate::protocols::errors::{IoExceptionSnafu, SerialPortSnafu};
+use crate::errors::*;
+use crate::protocols::{Hardware, Protocol};
 use crate::protocols::protocol::ProtocolHardware;
 
 /// The `SerialProtocol` is made to communicate with a remote board using the serial protocol.

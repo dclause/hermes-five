@@ -11,7 +11,8 @@
 programming framework - written in Rust.**
 
 _The ultimate goal of this project is to mimic the functionalities of [Johnny-Five](https://johnny-five.io/) framework
-where it finds its inspiration. That being said, the project is done in [my spare time](https://github.com/dclause) and
+where it finds its inspiration (hence the name). That being said, the project is done
+in [my spare time](https://github.com/dclause) and
 does not intend
 to compete with any other solutions you might want to try,_
 

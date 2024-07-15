@@ -1,6 +1,6 @@
 extern crate hermes_macros;
 
-use hermes_five::protocols::Error;
+use hermes_five::errors::Error;
 #[allow(unused_imports)]
 use hermes_five::utils::tokio;
 
