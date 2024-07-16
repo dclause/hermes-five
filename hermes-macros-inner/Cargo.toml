@@ -1,0 +1,17 @@
+[package]
+name = "hermes-macros-inner"
+description = "Inner (private) macros definitions for hermes-five - this crate is used for test coverage purposes only."
+publish = false
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+readme.workspace = true
+license.workspace = true
+
+[lib]
+
+[dependencies]
+proc-macro2 = "1.0.86"
+quote = "1.0.36"
+syn = { version = "2.0.71", features = ["full"] }

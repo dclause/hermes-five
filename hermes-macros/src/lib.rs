@@ -4,39 +4,22 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 
-#[cfg(feature = "storage")]
-use crate::entity_macro::entity_macro_internal;
-use crate::runtime_macro::{runtime_macro_internal, test_macro_internal};
-
-mod entity_macro;
-mod helpers;
-mod runtime_macro;
+use hermes_macros_inner::{runtime_macro, TokioMode};
 
 /// Macro definition for Hermes-Five Runtime.
 ///
-/// This macro should be used once only in a project.
-/// This macro requires `tokio` as a dependency.
+/// This macro should probably be used once only in a project above your main.
+/// It replaces the original tokio [`#[tokio::main]`] which it depends on.
 ///
 /// _Executes the entire function in a blocking thread and provides synchronization for waiting on all
-/// subsequently and dynamically created threads (using `task::run`)._
+/// subsequently and dynamically created tasks (using `task::run`)._
 #[proc_macro_attribute]
-pub fn runtime(args: TokenStream, item: TokenStream) -> TokenStream {
-    runtime_macro_internal(args.into(), item.into()).into()
+pub fn runtime(_: TokenStream, item: TokenStream) -> TokenStream {
+    runtime_macro(item.into(), TokioMode::Main).into()
 }
 
 /// Defines `#[hermes_macros::runtime]` test macro.
 #[proc_macro_attribute]
-pub fn test(args: TokenStream, item: TokenStream) -> TokenStream {
-    test_macro_internal(args.into(), item.into()).into()
+pub fn test(_: TokenStream, item: TokenStream) -> TokenStream {
+    runtime_macro(item.into(), TokioMode::Test).into()
 }
-
-// #################################################################################
-
-#[cfg(feature = "storage")]
-#[proc_macro_attribute]
-#[allow(non_snake_case)]
-pub fn Entity(args: TokenStream, input: TokenStream) -> TokenStream {
-    entity_macro_internal(args.into(), input.into()).into()
-}
-
-// #################################################################################

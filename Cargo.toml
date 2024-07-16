@@ -2,6 +2,7 @@
 members = [
     "hermes-five",
     "hermes-macros",
+    "hermes-macros-inner",
 ]
 resolver = "2"
 
