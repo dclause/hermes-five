@@ -3,11 +3,11 @@
 //! It allows communication of boards connected via a serial port to HERMES.
 use std::borrow::Cow;
 use std::fmt::Debug;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Duration;
 
 use log::trace;
-use parking_lot::RwLock;
+use parking_lot::{Mutex, RwLock};
 use serialport::{DataBits, FlowControl, Parity, StopBits};
 use serialport::SerialPort;
 use snafu::prelude::*;
@@ -99,13 +99,13 @@ impl Protocol for SerialProtocol {
     /// Gracefully shuts down the serial port communication.
     fn close(&mut self) -> Result<(), Error> {
         trace!("Close serial protocol on port: {}", self.port);
-        *self.io.lock().map_err(|_| MutexPoison)? = None;
+        *self.io.lock() = None;
         Ok(())
     }
 
     /// Write to  the internal connection. For more details see [`std::io::Write::write`].
     fn write(&mut self, buf: &[u8]) -> Result<(), Error> {
-        let mut lock = self.io.lock().map_err(|_| MutexPoison)?;
+        let mut lock = self.io.lock();
         let bytes_written = lock
             .as_mut()
             .ok_or(NotInitialized)?
@@ -122,7 +122,7 @@ impl Protocol for SerialProtocol {
 
     /// Read from the internal connection. For more details see [`std::io::Read::read_exact`].
     fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), Error> {
-        let mut lock = self.io.lock().map_err(|_| MutexPoison)?;
+        let mut lock = self.io.lock();
         lock.as_mut()
             .ok_or(NotInitialized)?
             .read_exact(buf)

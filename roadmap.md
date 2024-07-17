@@ -9,20 +9,23 @@ The currently anticipated Roadmap is the following:
 
 - [X] ~~Simple board connection using Firmata protocol.~~
 - [X] ~~Simple led control (on/off) and asynchronous task (blink)~~
-- [ ] Simple servo control (move to position)
+- [X] ~~Simple servo control (move to position)~~
+- [ ] Demonstrate the ability to create simple Animation
 - [ ] Demonstrate the ability to use Hermes-Five for HermesStudio requirements
 
 ### Phase 2: Led / Servo / Animation
 
 - [ ] Implement most features / controls for Led
 - [ ] Implement most features / controls for Servo
-- [ ] Demonstrate the ability to create simple Animation
+- [ ] Implement most features for creating Animation
 
-Current technical task list:
+### Current technical task list:
 
 - [X] ~~Investigate for an "abortable" task runner~~
-- [ ] Make event return TaskResult rather than force ()
-- [ ] Investigate wrap task into spawn to avoid .await on task::run()
-- [ ] Replace all Mutex/RwLock locking with parking_lot
+- [X] ~~Make event return TaskResult rather than force ()~~
+- [ ] (in progress, can't find a way) Investigate wrap task into spawn to avoid .await on task::run()
+- [X] ~~Replace all Mutex/RwLock locking with parking_lot~~
 - [ ] Explore if all async work can be switchable using create feature
 - [ ] Add tracing/log for all method
+- [ ] Add https://github.com/colin-kiegel/rust-derive-builder
+- [ ] Explore REPL (using: https://rust-script.org/ ?)
