@@ -19,3 +19,4 @@ Cargo.lock
 # generated test files
 **/tests/**/generated
 /**/wip
+/cobertura.xml

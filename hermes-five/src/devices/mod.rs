@@ -1,18 +1,22 @@
-use std::time::Duration;
+use async_trait::async_trait;
+use dyn_clone::DynClone;
 
 pub use crate::devices::led::Led;
 pub use crate::devices::servo::Servo;
 use crate::errors::Error;
-use crate::utils::{Easing, State};
+use crate::utils::Easing;
 
 mod led;
 mod servo;
 
-pub trait Device: Clone {}
+pub trait Device: DynClone + Send + Sync {}
+dyn_clone::clone_trait_object!(Device);
 
+/// Represents a device that is able to act on the world.
+#[async_trait]
 pub trait Actuator: Device {
-    /// Set the actuator to the target step.
-    fn update(&mut self, target: State) -> Result<&Self, Error>;
+    /// Update the actuator according to current internal state.
+    fn update(&mut self) -> Result<(), Error>;
 
     /// Animate the actuator to the target step.
     ///
@@ -20,11 +24,8 @@ pub trait Actuator: Device {
     /// - `target`: the target state to reach.
     /// - `duration`: the duration taken to reach it.
     /// - `easing`: an easing method to be applied over the target.
-    fn animate(
-        &mut self,
-        target: State,
-        duration: Duration,
-        easing: Easing,
-    ) -> Result<&Self, Error>;
+    async fn animate(&mut self, target: u16, duration: u32, easing: Easing);
 }
+dyn_clone::clone_trait_object!(Actuator);
+
 pub trait Sensor: Device {}

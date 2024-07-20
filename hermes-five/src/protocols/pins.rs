@@ -62,7 +62,7 @@ impl Debug for Pin {
 // ########################################
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Copy)]
 pub struct PinMode {
     /// Currently configured mode.
     pub id: PinModeId,

@@ -187,6 +187,8 @@ impl EventManager {
 mod tests {
     use std::sync::atomic::{AtomicBool, AtomicU8};
 
+    use crate::pause;
+
     use super::*;
 
     #[hermes_macros::test]
@@ -202,7 +204,7 @@ mod tests {
 
         events.emit("register", payload.clone()).await;
 
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        pause!(100);
         assert!(
             payload.load(Ordering::SeqCst),
             "The flag have been set by the triggered event."
@@ -223,7 +225,7 @@ mod tests {
         events.unregister(handler).await;
         events.emit("unregister", flag.clone()).await;
 
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        pause!(100);
         assert!(
             !flag.load(Ordering::SeqCst),
             "The event was unregistered: the flag have not been set."
@@ -261,7 +263,7 @@ mod tests {
 
         events.emit("multiple", flag.clone()).await;
 
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        pause!(100);
         assert_eq!(
             flag.load(Ordering::SeqCst),
             2,
@@ -284,7 +286,7 @@ mod tests {
             .await;
         events.emit("payload", (42u8, 69u8, flag.clone())).await;
 
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        pause!(100);
         assert_eq!(
             flag.load(Ordering::SeqCst),
             111,

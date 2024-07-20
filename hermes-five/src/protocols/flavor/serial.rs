@@ -1,7 +1,6 @@
 //! This file contains the `SerialProtocol
 //! ` code.
 //! It allows communication of boards connected via a serial port to HERMES.
-use std::borrow::Cow;
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::Duration;
@@ -38,11 +37,9 @@ impl SerialProtocol {
     /// let protocol = SerialProtocol::new("/dev/ttyACM0");
     /// let board = Board::default().with_protocol(protocol).open().await;
     /// ```
-    pub fn new<'a, P: Into<Cow<'a, str>>>(port: P) -> Self {
-        let port_cow = port.into();
-        let port = port_cow.as_ref();
+    pub fn new<P: Into<String>>(port: P) -> Self {
         Self {
-            port: port.to_string(),
+            port: port.into(),
             io: Arc::new(Mutex::new(None)),
             hardware: Arc::new(RwLock::new(Hardware::default())),
         }

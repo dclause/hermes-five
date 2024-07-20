@@ -119,7 +119,7 @@ where
 #[macro_export]
 macro_rules! pause {
     ($ms:expr) => {
-        tokio::time::sleep(tokio::time::Duration::from_millis($ms)).await
+        tokio::time::sleep(tokio::time::Duration::from_millis($ms as u64)).await
     };
 }
 

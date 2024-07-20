@@ -1,18 +1,23 @@
-use std::time::Duration;
+use std::panic::UnwindSafe;
+use std::time::SystemTime;
+
+use async_trait::async_trait;
 
 use crate::board::Board;
 use crate::devices::{Actuator, Device};
 use crate::errors::Error;
+use crate::pause;
 use crate::protocols::{Pin, PinModeId, Protocol};
-use crate::utils::{Easing, Range, State};
-use crate::utils::helpers::MapRange;
+use crate::utils::{Easing, Range, task};
+use crate::utils::events::{EventHandler, EventManager};
+use crate::utils::scale::Scalable;
 use crate::utils::task::TaskHandler;
 
 #[derive(Default, Clone, Copy)]
 pub enum ServoType {
     #[default]
     Standard,
-    Continuous,
+    // Continuous,
 }
 
 #[derive(Clone, Copy)]
@@ -41,9 +46,14 @@ pub struct Servo {
 
     // Because we are an actuator:
     /// Current position
-    position: u16,
+    state: u16,
     /// Inner handler to the task running the animation.
     interval: Option<TaskHandler>,
+
+    // Because we are an emitter:
+    /// The event manager for the board.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    events: EventManager,
 }
 
 impl Servo {
@@ -64,7 +74,8 @@ impl Servo {
             is_moving: false,
             last_move: None,
             interval: None,
-            position: 90,
+            events: EventManager::default(),
+            state: 90,
         })
     }
 
@@ -136,17 +147,18 @@ impl Servo {
     /// Move the servo to the requested position at max speed.
     pub fn to(&mut self, to: u16) -> Result<&Self, Error> {
         // Clamp the request within the Servo range.
-        let target = to.clamp(self.range.min, self.range.max);
+        self.state = to.clamp(self.range.min, self.range.max);
 
         // No need to move if last move was already that one.
-        if self.last_move.is_some() && self.last_move.unwrap().position == target {
+        if self.last_move.is_some() && self.last_move.unwrap().position == self.state {
             return Ok(self);
         }
 
         // Stops any animation running.
         self.stop();
 
-        self.update(State::from(target))
+        self.update()?;
+        Ok(self)
     }
 
     /// Stops the servo.
@@ -159,23 +171,92 @@ impl Servo {
         }
     }
 
+    pub fn sweep() {
+        // // Swipe the servo.
+        // loop {
+        //     servo.to(0).unwrap();
+        //     pause!(1000);
+        //     servo.to(180).unwrap();
+        //     pause!(1000);
+        // }
+    }
+
     // @todo move this to device
     pub fn pin(&self) -> Result<Pin, Error> {
         let lock = self.protocol.hardware().read();
         Ok(lock.get_pin(self.pin)?.clone())
+    }
+
+    pub fn animate_sync(&mut self, target: u16, duration: u32, easing: Easing) {
+        let animation_start_value = self.state;
+        let animation_end_value = target;
+
+        let fps = 40f32;
+        let tick_ms = (1000f32 / fps) as u32;
+        let mut t_ms = 0u32;
+
+        while t_ms < duration {
+            // Current time between (0 - 1).
+            let normalized_t = (t_ms as f32) / (duration as f32);
+            // Current value between (0 - 1)
+            self.state = easing.call(normalized_t).scale(
+                0f32,
+                1f32,
+                animation_start_value as f32,
+                animation_end_value as f32,
+            ) as u16;
+
+            // Update servo position
+            self.update().unwrap();
+
+            // Wait for the next tick
+            std::thread::sleep(std::time::Duration::from_millis(tick_ms as u64));
+            // pause!(tick_ms);
+
+            t_ms += tick_ms;
+        }
+    }
+
+    // ########################################
+    // Event related functions
+
+    /// Registers a callback to be executed on a given event on the board.
+    ///
+    /// Available events for a board are:
+    /// * `ready`: Triggered when the board is connected and ready to run. To use it, register though the [`Self::on()`] method.
+    /// * `exit`: Triggered when the board is disconnected. To use it, register though the [`Self::on()`] method.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// #[hermes_five::runtime]
+    /// async fn main() {
+    ///     let board1 = Board::run().await;
+    ///     board.on("ready", || async move {
+    ///         // Here, you know the board to be connected and ready to receive data.
+    ///     }).await;
+    /// }
+    /// ```
+    pub async fn on<S, F, T, Fut>(&self, event: S, callback: F) -> EventHandler
+    where
+        S: Into<String>,
+        T: 'static + Send + Sync + Clone,
+        F: FnMut(T) -> Fut + Send + 'static + UnwindSafe,
+        Fut: std::future::Future<Output = ()> + Send + 'static,
+    {
+        self.events.on(event, callback).await
     }
 }
 
 // @todo make this a derive macro
 impl Device for Servo {}
 
+#[async_trait]
 impl Actuator for Servo {
     /// Update the Servo position.
-    fn update(&mut self, target: State) -> Result<&Self, Error> {
-        let target: u16 = target.as_integer() as u16;
-
+    fn update(&mut self) -> Result<(), Error> {
         // Map value from degree_range to pwm_range scale.
-        let microseconds = target.map(
+        let microseconds = self.state.scale(
             self.degree_range.min,
             self.degree_range.max,
             self.pwm_range.min,
@@ -183,21 +264,60 @@ impl Actuator for Servo {
         );
 
         self.protocol.analog_write(self.pin, microseconds)?;
-        self.position = target;
         self.last_move = Some(Move {
-            position: self.position,
+            position: self.state,
         });
 
-        Ok(self)
+        Ok(())
     }
 
-    fn animate(
-        &mut self,
-        target: State,
-        duration: Duration,
-        easing: Easing,
-    ) -> Result<&Self, Error> {
-        todo!()
+    async fn animate(&mut self, target: u16, duration: u32, easing: Easing) {
+        let mut self_clone = self.clone();
+
+        self.stop();
+
+        self.interval = Some(
+            task::run(async move {
+                let start = SystemTime::now();
+
+                let animation_start_value = self_clone.state;
+                let animation_end_value = target;
+
+                let fps = 40f32;
+                let tick_ms = (1000f32 / fps) as u32;
+                let mut t_ms = 0u32;
+
+                while t_ms < duration {
+                    // Current time between (0 - 1).
+                    let normalized_t = (t_ms as f32) / (duration as f32);
+                    // Current value between (0 - 1)
+                    self_clone.state = easing.call(normalized_t).scale(
+                        0f32,
+                        1f32,
+                        animation_start_value as f32,
+                        animation_end_value as f32,
+                    ) as u16;
+
+                    // Update servo position
+                    self_clone.update()?;
+
+                    // Wait for the next tick
+                    pause!(tick_ms);
+
+                    t_ms += tick_ms;
+                }
+
+                let end = SystemTime::now();
+                let elapsed = end.duration_since(start).unwrap().as_millis();
+                println!("Animate duration: {}", elapsed);
+
+                let callback_clone = self_clone.clone();
+                self_clone.events.emit("complete", callback_clone).await;
+                Ok(())
+            })
+            .await
+            .unwrap(),
+        );
     }
 }
 
@@ -211,10 +331,12 @@ impl Clone for Servo {
             degree_range: self.degree_range,
             servo_type: self.servo_type,
             default: self.default,
-            position: self.position,
+            state: self.state,
             last_move: self.last_move,
-            is_moving: false,
+            is_moving: self.is_moving,
+            // do not clone
             interval: None,
+            events: EventManager::default(),
         }
     }
 }

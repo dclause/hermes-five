@@ -1,11 +1,12 @@
-use std::time::Duration;
+use async_trait::async_trait;
 
 use crate::board::Board;
 use crate::devices::{Actuator, Device};
 use crate::errors::{Error, IncompatibleMode};
+use crate::pause;
 use crate::protocols::{Pin, PinMode, PinModeId, Protocol};
-use crate::utils::{Easing, State};
-use crate::utils::helpers::MapRange;
+use crate::utils::Easing;
+use crate::utils::scale::Scalable;
 use crate::utils::task;
 use crate::utils::task::TaskHandler;
 
@@ -63,7 +64,7 @@ impl Led {
     /// * `intensity`: the requested intensity (between 0-100%)
     pub fn with_intensity(mut self, intensity: u8) -> Result<Self, Error> {
         // Intensity can only be between 0 and 100%
-        let intensity = intensity.clamp(0, 100) as u16;
+        let mut intensity = intensity.clamp(0, 100) as u16;
 
         // If the requested intensity is 100%, let's get back to OUTPUT mode.
         if intensity >= 100 {
@@ -83,7 +84,7 @@ impl Led {
                 self.protocol.set_pin_mode(self.pin, PinModeId::PWM)?;
 
                 // Compute the intensity value (depending on resolution (255 on arduino for instance))
-                self.intensity = intensity.map(
+                intensity = intensity.scale(
                     0,
                     100,
                     0,
@@ -92,8 +93,8 @@ impl Led {
 
                 // If the value is higher than the intensity, we update it on the spot.
                 if self.state > intensity {
-                    self.state = self.intensity;
-                    self.update(self.state.into())?;
+                    self.state = intensity;
+                    self.update()?;
                 }
 
                 Ok(self)
@@ -105,14 +106,16 @@ impl Led {
     pub fn on(&mut self) -> Result<&Self, Error> {
         self.is_on = true;
         self.state = self.intensity;
-        self.update(self.state.into())
+        self.update()?;
+        Ok(self)
     }
 
     /// Turn the LED off.
     pub fn off(&mut self) -> Result<&Self, Error> {
         self.is_on = false;
         self.state = 0;
-        self.update(self.state.into())
+        self.update()?;
+        Ok(self)
     }
 
     /// Toggle the current state, if on then turn off, if off then turn on.
@@ -125,16 +128,16 @@ impl Led {
 
     /// Blink the LED on/off in phases of ms (milliseconds) duration.
     /// This is an interval operation and can be stopped by calling [`Led::stop()`].
-    pub async fn blink(&mut self, ms: u64) {
+    pub async fn blink(&mut self, ms: u64) -> &Self {
         let mut self_clone = self.clone();
 
         self.interval = Some(
             task::run(async move {
                 loop {
                     self_clone.on()?;
-                    tokio::time::sleep(std::time::Duration::from_millis(ms)).await;
+                    pause!(ms);
                     self_clone.off()?;
-                    tokio::time::sleep(std::time::Duration::from_millis(ms)).await;
+                    pause!(ms);
                 }
                 #[allow(unreachable_code)]
                 Ok(())
@@ -142,15 +145,20 @@ impl Led {
             .await
             .unwrap(),
         );
+
+        self
     }
+
+    // pub async fn pulse(&mut self, ms: u64) -> &Self {}
 
     /// Stops the current animation. This does not necessarily turn off the LED;
     /// it will remain in its current state when stopped.
-    pub fn stop(&self) {
+    pub fn stop(&self) -> &Self {
         match &self.interval {
             None => {}
             Some(handler) => handler.abort(),
         }
+        self
     }
 
     // @todo move this to device ?
@@ -163,33 +171,63 @@ impl Led {
 // @todo make derive
 impl Device for Led {}
 
+#[async_trait]
 impl Actuator for Led {
     /// Update the LED to the target state.
-    fn update(&mut self, target: State) -> Result<&Self, Error> {
-        let state = target.as_integer() as u16;
-
+    fn update(&mut self) -> Result<(), Error> {
         match self.pin()?.mode.id {
             // on/off digital operation.
-            PinModeId::OUTPUT => self.protocol.digital_write(self.pin, state > 0),
+            PinModeId::OUTPUT => self.protocol.digital_write(self.pin, self.state > 0),
             // pwm (brightness) mode.
-            PinModeId::PWM => self.protocol.analog_write(self.pin, state),
+            PinModeId::PWM => self.protocol.analog_write(self.pin, self.state),
             id => Err(IncompatibleMode {
                 mode: id,
                 pin: self.pin,
                 operation: String::from("update LED"),
             }),
         }?;
-        Ok(self)
+        Ok(())
     }
 
-    fn animate(
-        &mut self,
-        target: State,
-        duration: Duration,
-        easing: Easing,
-    ) -> Result<&Self, Error> {
-        todo!()
+    async fn animate(&mut self, target: u16, duration: u32, easing: Easing) {
+        let mut self_clone = self.clone();
+        let animation_start_value = self_clone.state;
+        let animation_end_value = target;
+
+        self.interval = Some(
+            task::run(async move {
+                let fps = 40f32;
+                let tick_ms = (1000f32 / fps) as u32;
+                let mut t_ms = 0u32;
+
+                while t_ms < duration {
+                    // Current time between (0 - 1).
+                    let normalized_t = (t_ms as f32).scale(0f32, duration as f32, 0f32, 1f32);
+                    // Current value between (0 - 1)
+                    self_clone.state = easing.call(normalized_t).scale(
+                        0f32,
+                        1f32,
+                        animation_start_value as f32,
+                        animation_end_value as f32,
+                    ) as u16;
+                    self_clone.update()?;
+                    t_ms = t_ms + tick_ms;
+                    pause!(tick_ms);
+                }
+
+                Ok(())
+            })
+            .await
+            .unwrap(),
+        );
     }
+
+    // fn denormalize(&mut self, value: f32) {
+    //     self.state = match self.pwm_mode {
+    //         None => u16::from(value >= 0.5),
+    //         Some(mode) => (value * mode.resolution as f32) as u16,
+    //     };
+    // }
 }
 
 impl Clone for Led {
