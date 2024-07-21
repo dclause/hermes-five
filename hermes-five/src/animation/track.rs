@@ -3,9 +3,10 @@ use std::fmt::{Display, Formatter};
 use crate::animation::Keyframe;
 use crate::devices::Actuator;
 use crate::errors::Error;
-use crate::pause;
+use crate::utils::Range;
+use crate::utils::scale::Scalable;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Track {
     // @todo keep?
     name: String,
@@ -16,14 +17,21 @@ pub struct Track {
 
     /// The [`Keyframe`]s belonging to this track.
     keyframes: Vec<Keyframe>,
+
+    /// Inner: keyframe history.
+    previous: u16,
+    current: u16,
 }
 
 impl Track {
     pub fn new<T: Actuator + 'static>(device: T) -> Self {
+        let history = device.get_state();
         Self {
             name: String::from("New track"),
             device: Box::new(device),
             keyframes: vec![],
+            previous: history,
+            current: history,
         }
     }
 
@@ -45,31 +53,47 @@ impl Track {
     }
 
     /// Inner function: play all keyframes between the given timestamps.
-    pub(crate) fn play_between(&mut self, start: u64, end: u64) -> Result<(), Error> {
-        // Get all keyframes to be played before the next frame.
-        let keyframes: Vec<Keyframe> = self
-            .keyframes
+    pub(crate) fn play_frame<F: Into<Range<u64>>>(&mut self, frame: F) -> Result<(), Error> {
+        let frame = frame.into();
+        // Get the keyframe to be played: the last one that
+        let keyframe = self.get_best_keyframe(frame);
+
+        match keyframe {
+            None => Ok(()),
+            Some(keyframe) => {
+                self.update_history(&keyframe);
+
+                // println!(" - Track: {:?}", frame.end - keyframe.get_start());
+
+                let progress = keyframe.get_progress(frame.end);
+                let value: f64 = progress.scale(0.0, 1.0, self.previous, keyframe.get_target());
+                // println!("      - position: {}", value);
+                self.device.set_state(value)
+            }
+        }
+    }
+
+    /// Inner function: returns the most appropriate keyframe corresponding to the given frame.
+    fn get_best_keyframe<'a, R: Into<Range<u64>>>(&mut self, frame: R) -> Option<Keyframe> {
+        let frame = frame.into();
+        // Get the keyframe to be played: the last one that
+        self.keyframes
             .iter()
-            .filter(|kf| kf.get_start() >= start && kf.get_start() < end)
+            .filter(|kf| {
+                kf.get_start() >= frame.start && kf.get_start() < frame.end ||  // case keyframe starts during the interval
+                    kf.get_end() >= frame.start && kf.get_end() < frame.end || // case keyframe ends during the interval
+                    kf.get_start() <= frame.start && kf.get_end() > frame.end // case keyframe is running during the interval
+            })
+            .max_by(|a, b| a.get_end().cmp(&b.get_end()))
             .cloned()
-            .collect();
+    }
 
-        println!(
-            " - Track [{}] play between {} - {}: {} keyframes",
-            self,
-            start,
-            end,
-            keyframes.len()
-        );
-
-        pause!(100);
-
-        // for keyframe in keyframes {
-        //     self.device.set_state(keyframe.get_target()).update()
-        // }
-
-        // Play the keyframes.
-        Ok(())
+    /// Push the keyframe in history if we changed.
+    fn update_history(&mut self, next_keyframe: &Keyframe) {
+        if self.current != next_keyframe.get_target() {
+            self.previous = self.current;
+            self.current = next_keyframe.get_target();
+        }
     }
 }
 

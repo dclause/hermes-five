@@ -1,6 +1,7 @@
 use crate::utils::Easing;
+use crate::utils::scale::Scalable;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Keyframe {
     /// The target device state.
     target: u16,
@@ -8,21 +9,36 @@ pub struct Keyframe {
     start: u64,
     /// The time (in ms) this keyframe ends (auto-calculated).
     end: u64,
-    /// The duration (in ms) taken to reach the target.
-    duration: u32,
     /// An easing function applied the value while moving toward the target (default: Linear).
     transition: Easing,
 }
 
 impl Keyframe {
-    pub fn new(target: u16, start: u64, duration: u32) -> Keyframe {
+    pub fn new(target: u16, start: u64, end: u64) -> Keyframe {
         Keyframe {
             target,
             start,
-            duration,
-            end: start + duration as u64,
+            end,
             transition: Easing::default(),
         }
+    }
+
+    pub fn get_duration(&self) -> u64 {
+        self.end - self.start
+    }
+
+    pub(crate) fn get_progress(&self, time: u64) -> f32 {
+        let time = time.clamp(self.start, self.end) as f32;
+        let progress = time.scale(self.start as f32, self.end as f32, 0.0, 1.0);
+        let progress = self.transition.call(progress);
+        // println!("      - progress: {}%", progress * 100f32);
+        progress
+    }
+}
+
+impl PartialEq<Keyframe> for Keyframe {
+    fn eq(&self, other: &Keyframe) -> bool {
+        self.start != other.start && self.end != other.end
     }
 }
 
@@ -36,9 +52,6 @@ impl Keyframe {
     pub fn get_start(&self) -> u64 {
         self.start
     }
-    pub fn get_duration(&self) -> u32 {
-        self.duration
-    }
     pub fn get_end(&self) -> u64 {
         self.end
     }
@@ -46,20 +59,6 @@ impl Keyframe {
         self.transition
     }
 
-    pub fn set_target(mut self, target: u16) -> Self {
-        self.target = target;
-        self
-    }
-    pub fn set_start(mut self, start: u64) -> Self {
-        self.start = start;
-        self.end = start + self.duration as u64;
-        self
-    }
-    pub fn set_duration(mut self, duration: u32) -> Self {
-        self.duration = duration;
-        self.end = self.start + duration as u64;
-        self
-    }
     pub fn set_transition(mut self, transition: Easing) -> Self {
         self.transition = transition;
         self

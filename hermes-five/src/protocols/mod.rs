@@ -180,8 +180,8 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         self.write(&[
             START_SYSEX,
             I2C_CONFIG,
-            (delay & 0xFF) as u8,
-            (delay >> 8 & 0xFF) as u8,
+            (delay as u8) & SYSEX_REALTIME,
+            (delay >> 7) as u8 & SYSEX_REALTIME,
             END_SYSEX,
         ])
     }
@@ -217,15 +217,15 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     // SERVO
 
     /// Sends a SERVO_CONFIG command (0x70 - configure servo)
-    fn servo_config(&mut self, pin: u16, pwn_range: Range) -> Result<(), Error> {
+    fn servo_config(&mut self, pin: u16, pwn_range: Range<u16>) -> Result<(), Error> {
         self.write(&[
             START_SYSEX,
             SERVO_CONFIG,
             pin as u8,
-            (pwn_range.min & 0xFF) as u8,
-            (pwn_range.min >> 8 & 0xFF) as u8,
-            (pwn_range.max & 0xFF) as u8,
-            (pwn_range.max >> 8 & 0xFF) as u8,
+            pwn_range.start as u8 & SYSEX_REALTIME,
+            (pwn_range.start >> 7) as u8 & SYSEX_REALTIME,
+            pwn_range.end as u8 & SYSEX_REALTIME,
+            (pwn_range.end >> 7) as u8 & SYSEX_REALTIME,
             END_SYSEX,
         ])
     }

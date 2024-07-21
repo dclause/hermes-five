@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 
 use crate::board::Board;
@@ -5,16 +7,15 @@ use crate::devices::{Actuator, Device};
 use crate::errors::{Error, IncompatibleMode};
 use crate::pause;
 use crate::protocols::{Pin, PinMode, PinModeId, Protocol};
-use crate::utils::Easing;
 use crate::utils::scale::Scalable;
 use crate::utils::task;
 use crate::utils::task::TaskHandler;
 
+#[derive(Clone, Debug)]
 pub struct Led {
     protocol: Box<dyn Protocol>,
     pin: u16,
 
-    /// Indicates the LED current status.
     is_on: bool, // @todo remove?
     /// Indicates if the LED is running an animation.
     is_running: bool, // @todo remove?
@@ -27,7 +28,7 @@ pub struct Led {
     /// Indicates the current LED state
     state: u16,
     /// Inner handler to the task running the animation.
-    interval: Option<TaskHandler>,
+    interval: Arc<Option<TaskHandler>>,
 }
 
 impl Led {
@@ -52,7 +53,7 @@ impl Led {
             is_running: false,
             state: 0,
             intensity: 0xFF,
-            interval: None,
+            interval: Arc::new(None),
             pwm_mode,
         })
     }
@@ -97,7 +98,7 @@ impl Led {
 
                 // If the value is higher than the intensity, we update it on the spot.
                 if self.state > intensity {
-                    self.set_state(intensity)?;
+                    self.set_state(intensity as f64)?;
                 }
 
                 Ok(self)
@@ -108,14 +109,14 @@ impl Led {
     /// Turn the LED on.
     pub fn on(&mut self) -> Result<&Self, Error> {
         self.is_on = true;
-        self.set_state(self.intensity)?;
+        self.set_state(self.intensity as f64)?;
         Ok(self)
     }
 
     /// Turn the LED off.
     pub fn off(&mut self) -> Result<&Self, Error> {
         self.is_on = false;
-        self.set_state(0)?;
+        self.set_state(0f64)?;
         Ok(self)
     }
 
@@ -132,7 +133,7 @@ impl Led {
     pub async fn blink(&mut self, ms: u64) -> &Self {
         let mut self_clone = self.clone();
 
-        self.interval = Some(
+        self.interval = Arc::new(Some(
             task::run(async move {
                 loop {
                     self_clone.on()?;
@@ -145,7 +146,7 @@ impl Led {
             })
             .await
             .unwrap(),
-        );
+        ));
 
         self
     }
@@ -155,7 +156,7 @@ impl Led {
     /// Stops the current animation. This does not necessarily turn off the LED;
     /// it will remain in its current state when stopped.
     pub fn stop(&self) -> &Self {
-        match &self.interval {
+        match &self.interval.as_ref() {
             None => {}
             Some(handler) => handler.abort(),
         }
@@ -169,15 +170,24 @@ impl Led {
     }
 }
 
-// @todo make derive
+impl Led {
+    /// Indicates the LED current ON/OFF status.
+    pub fn is_on(&self) -> bool {
+        self.state > 0
+    }
+    pub fn get_intensity(&self) -> u16 {
+        self.intensity
+    }
+}
+
 impl Device for Led {}
 
 #[async_trait]
 impl Actuator for Led {
-    /// Update the LED to the target state.
+    /// Internal only: Update the LED to the target state.
     /// /!\ No checks are made on the state validity.
-    fn set_state(&mut self, state: u16) -> Result<(), Error> {
-        self.state = state;
+    fn set_state(&mut self, state: f64) -> Result<(), Error> {
+        self.state = state as u16;
         match self.pin()?.mode.id {
             // on/off digital operation.
             PinModeId::OUTPUT => self.protocol.digital_write(self.pin, self.state > 0),
@@ -192,57 +202,8 @@ impl Actuator for Led {
         Ok(())
     }
 
-    async fn animate(&mut self, target: u16, duration: u32, easing: Easing) {
-        let mut self_clone = self.clone();
-        let animation_start_value = self_clone.state;
-        let animation_end_value = target;
-
-        self.interval = Some(
-            task::run(async move {
-                let fps = 40f32;
-                let tick_ms = (1000f32 / fps) as u32;
-                let mut t_ms = 0u32;
-
-                while t_ms < duration {
-                    // Current time between (0 - 1).
-                    let normalized_t = (t_ms as f32).scale(0f32, duration as f32, 0f32, 1f32);
-                    // Current value between (0 - 1)
-                    self_clone.set_state(easing.call(normalized_t).scale(
-                        0f32,
-                        1f32,
-                        animation_start_value as f32,
-                        animation_end_value as f32,
-                    ) as u16)?;
-                    t_ms = t_ms + tick_ms;
-                    pause!(tick_ms);
-                }
-
-                Ok(())
-            })
-            .await
-            .unwrap(),
-        );
-    }
-
-    // fn denormalize(&mut self, value: f32) {
-    //     self.state = match self.pwm_mode {
-    //         None => u16::from(value >= 0.5),
-    //         Some(mode) => (value * mode.resolution as f32) as u16,
-    //     };
-    // }
-}
-
-impl Clone for Led {
-    fn clone(&self) -> Self {
-        Self {
-            protocol: self.protocol.clone(),
-            pin: self.pin,
-            is_on: self.is_on,
-            is_running: self.is_running,
-            state: self.state,
-            intensity: self.intensity,
-            interval: None,
-            pwm_mode: self.pwm_mode.clone(),
-        }
+    /// Internal only (used by [`Animation`]).
+    fn get_state(&self) -> u16 {
+        self.state
     }
 }

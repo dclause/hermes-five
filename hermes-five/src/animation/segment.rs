@@ -3,8 +3,9 @@ use std::time::SystemTime;
 
 use crate::animation::Track;
 use crate::errors::Error;
+use crate::pause_sync;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Segment {
     // @todo keep?
     name: String,
@@ -20,7 +21,11 @@ pub struct Segment {
     /// - 50% means time moves twice as slow, so 1000ms lasts 2000ms in real time.
     /// - 200% means time moves twice as fast, so 1000ms lasts 500ms in real time
     speed: u8,
-
+    /// The number of frames per second (fps) for running the animation (default: 40fps).
+    /// - Higher fps results in smoother animations.
+    /// - Desired `fps` is not guaranteed to be reached (specially high fps values).
+    /// - The `fps` can be overridden for each [`Segment`] in the animation.
+    fps: u8,
     /// The tracks for this segment.
     tracks: Vec<Track>,
 
@@ -35,13 +40,26 @@ impl From<Track> for Segment {
 }
 
 impl Segment {
+    /// Inner function: play the segment.
+    pub(crate) fn play(&mut self) -> Result<(), Error> {
+        match self.is_repeat() {
+            true => loop {
+                self.play_once()?;
+                self.current_time = 0;
+            },
+            false => self.play_once()?,
+        };
+        self.current_time = 0;
+        Ok(())
+    }
+
     /// Inner function: play all tracks once.
-    pub(crate) fn play_once(&mut self, fps: u8) -> Result<(), Error> {
-        println!("Play segment: [{}] at {} fps", self, fps);
+    pub(crate) fn play_once(&mut self) -> Result<(), Error> {
+        // println!("Play segment: [{}] at {} fps", self, self.fps);
 
         let total_duration = self.get_duration();
         // The theoretical time a frame should take.
-        let theoretical_frame_duration = 1000u64 / fps as u64;
+        let theoretical_frame_duration = 1000u64 / self.fps as u64;
         // The realtime a frame took.
         let mut realtime_frame_duration = 0u64;
 
@@ -53,7 +71,7 @@ impl Segment {
                 self.current_time + theoretical_frame_duration.max(realtime_frame_duration);
 
             for track in &mut self.tracks {
-                track.play_between(self.current_time, next_frame_time)?;
+                track.play_frame([self.current_time, next_frame_time])?;
             }
 
             let realtime_end = SystemTime::now();
@@ -61,6 +79,16 @@ impl Segment {
                 .duration_since(realtime_start)
                 .unwrap()
                 .as_millis() as u64;
+
+            let remaining_track_time = total_duration - self.current_time;
+            let remaining_frame_time = theoretical_frame_duration - realtime_frame_duration;
+            // println!(
+            //     "=> current time is: {} - pause for {} until {}",
+            //     self.current_time,
+            //     remaining_frame_time.min(remaining_track_time),
+            //     next_frame_time
+            // );
+            pause_sync!(remaining_frame_time.min(remaining_track_time));
             self.current_time = next_frame_time;
         }
 
@@ -84,6 +112,8 @@ impl Segment {
             }
         }
     }
+
+    pub fn set_time_between_frame(time: u32) {}
 }
 
 impl Display for Segment {
@@ -113,6 +143,9 @@ impl Segment {
     pub fn get_speed(&self) -> u8 {
         self.speed
     }
+    pub fn get_fps(&self) -> u8 {
+        self.fps
+    }
     pub fn get_tracks(&self) -> Vec<Track> {
         self.tracks.clone()
     }
@@ -133,6 +166,10 @@ impl Segment {
         self.speed = speed;
         self
     }
+    pub fn set_fps(mut self, fps: u8) -> Self {
+        self.fps = fps;
+        self
+    }
     pub fn set_tracks(mut self, tracks: Vec<Track>) -> Self {
         self.tracks = tracks;
         self
@@ -151,6 +188,7 @@ impl Default for Segment {
             repeat: false,
             loopback: 0,
             speed: 100,
+            fps: 100,
             tracks: vec![],
             current_time: 0,
         }

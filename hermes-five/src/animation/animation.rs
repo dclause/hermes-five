@@ -2,10 +2,11 @@ use std::sync::Arc;
 
 use crate::animation::{Segment, Track};
 use crate::errors::Error;
+use crate::pause;
 use crate::utils::task;
 use crate::utils::task::TaskHandler;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Animation {
     // @todo keep?
     // name: String,
@@ -16,12 +17,6 @@ pub struct Animation {
 
     /// Determines whether the segment should replay in a loop (starting from the [`Segment::loopback`] time).
     repeat: bool,
-
-    /// The number of frames per second (fps) for running the animation (default: 40fps).
-    /// - Higher fps results in smoother animations.
-    /// - Desired `fps` is not guaranteed to be reached (specially high fps values).
-    /// - The `fps` can be overridden for each [`Segment`] in the animation.
-    fps: u8,
 
     /// Inner handler to the task running the animation.
     interval: Arc<Option<TaskHandler>>,
@@ -43,13 +38,14 @@ impl From<Track> for Animation {
 
 impl Animation {
     /// Play the animation.
-    pub async fn play(&mut self) {
+    pub async fn play(&mut self) -> &Self {
         let mut self_clone = self.clone();
         self.interval = Arc::new(Some(
             task::run(async move {
                 match self_clone.is_repeat() {
                     true => loop {
                         self_clone.play_once()?;
+                        pause!(1);
                     },
                     false => self_clone.play_once()?,
                 }
@@ -58,6 +54,8 @@ impl Animation {
             .await
             .unwrap(),
         ));
+
+        self
     }
 
     /// Pauses the animation.
@@ -82,26 +80,14 @@ impl Animation {
         self
     }
 
-    /// Inner function: plays the current segment.
-    fn play_current_segment(&mut self) -> Result<(), Error> {
-        let segment_playing = self.segments.get_mut(self.current).unwrap();
-        match segment_playing.is_repeat() {
-            true => loop {
-                segment_playing.play_once(self.fps)?;
-            },
-            false => {
-                segment_playing.play_once(self.fps)?;
-            }
-        }
-        Ok(())
-    }
-
     /// Inner function: play all segment once.
     fn play_once(&mut self) -> Result<(), Error> {
         let starting_segment = self.current;
         for current in starting_segment..self.segments.len() {
             self.current = current;
-            self.play_current_segment()?;
+
+            let segment_playing = self.segments.get_mut(self.current).unwrap();
+            segment_playing.play()?;
         }
         self.current = 0; // reset
         Ok(())
@@ -118,19 +104,12 @@ impl Animation {
     pub fn get_current(&self) -> usize {
         self.current
     }
-    pub fn get_fps(&self) -> u8 {
-        self.fps
-    }
     pub fn is_repeat(&self) -> bool {
         self.repeat
     }
 
     pub fn set_segments(mut self, segments: Vec<Segment>) -> Self {
         self.segments = segments;
-        self
-    }
-    pub fn set_fps(mut self, fps: u8) -> Self {
-        self.fps = fps;
         self
     }
     pub fn set_repeat(mut self, repeat: bool) -> Self {
@@ -150,7 +129,6 @@ impl Default for Animation {
             segments: vec![],
             current: 0,
             repeat: false,
-            fps: 40,
             interval: Arc::new(None),
         }
     }

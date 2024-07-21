@@ -119,7 +119,14 @@ where
 #[macro_export]
 macro_rules! pause {
     ($ms:expr) => {
-        std::thread::sleep(tokio::time::Duration::from_millis($ms as u64))
+        tokio::time::sleep(tokio::time::Duration::from_millis($ms as u64)).await
+    };
+}
+
+#[macro_export]
+macro_rules! pause_sync {
+    ($ms:expr) => {
+        std::thread::sleep(std::time::Duration::from_millis($ms as u64))
     };
 }
 

@@ -2,6 +2,7 @@
 
 use std::any::Any;
 use std::collections::HashMap;
+use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -180,6 +181,12 @@ impl EventManager {
             .await
             .values_mut()
             .for_each(|v| v.retain(|cb| cb.id != handler));
+    }
+}
+
+impl Debug for EventManager {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("skipped").finish()
     }
 }
 
