@@ -60,10 +60,40 @@ impl Animation {
         ));
     }
 
+    /// Pauses the animation.
+    pub fn pause(&self) -> &Self {
+        match &self.interval.as_ref() {
+            None => {}
+            Some(handler) => handler.abort(),
+        }
+        self
+    }
+
+    /// Stops the animation and reset it.
+    pub fn stop(&mut self) -> &Self {
+        match &self.interval.as_ref() {
+            None => {}
+            Some(handler) => {
+                self.segments.get_mut(self.current).unwrap().reset();
+                self.current = 0;
+                handler.abort();
+            }
+        }
+        self
+    }
+
     /// Inner function: plays the current segment.
-    fn play_current(&self) -> Result<(), Error> {
-        let segment_playing = self.segments.get(self.current).unwrap();
-        segment_playing.play()
+    fn play_current_segment(&mut self) -> Result<(), Error> {
+        let segment_playing = self.segments.get_mut(self.current).unwrap();
+        match segment_playing.is_repeat() {
+            true => loop {
+                segment_playing.play_once(self.fps)?;
+            },
+            false => {
+                segment_playing.play_once(self.fps)?;
+            }
+        }
+        Ok(())
     }
 
     /// Inner function: play all segment once.
@@ -71,19 +101,11 @@ impl Animation {
         let starting_segment = self.current;
         for current in starting_segment..self.segments.len() {
             self.current = current;
-            self.play_current()?;
+            self.play_current_segment()?;
         }
         self.current = 0; // reset
         Ok(())
     }
-
-    // /// Pause the animation.
-    // async fn pause(&mut self) -> &Self {
-    //     if let Some(interval) = self.interval.as_ref() {
-    //         interval.p
-    //     };
-    //     self
-    // }
 }
 
 // ########################################

@@ -147,17 +147,17 @@ impl Servo {
     /// Move the servo to the requested position at max speed.
     pub fn to(&mut self, to: u16) -> Result<&Self, Error> {
         // Clamp the request within the Servo range.
-        self.state = to.clamp(self.range.min, self.range.max);
+        let state = to.clamp(self.range.min, self.range.max);
 
         // No need to move if last move was already that one.
-        if self.last_move.is_some() && self.last_move.unwrap().position == self.state {
+        if self.last_move.is_some() && self.last_move.unwrap().position == state {
             return Ok(self);
         }
 
         // Stops any animation running.
         self.stop();
 
-        self.update()?;
+        self.set_state(state)?;
         Ok(self)
     }
 
@@ -187,7 +187,12 @@ impl Servo {
         Ok(lock.get_pin(self.pin)?.clone())
     }
 
-    pub fn animate_sync(&mut self, target: u16, duration: u32, easing: Easing) {
+    pub fn animate_sync(
+        &mut self,
+        target: u16,
+        duration: u32,
+        easing: Easing,
+    ) -> Result<(), Error> {
         let animation_start_value = self.state;
         let animation_end_value = target;
 
@@ -198,23 +203,21 @@ impl Servo {
         while t_ms < duration {
             // Current time between (0 - 1).
             let normalized_t = (t_ms as f32) / (duration as f32);
-            // Current value between (0 - 1)
-            self.state = easing.call(normalized_t).scale(
+
+            // Update servo position
+            self.set_state(easing.call(normalized_t).scale(
                 0f32,
                 1f32,
                 animation_start_value as f32,
                 animation_end_value as f32,
-            ) as u16;
-
-            // Update servo position
-            self.update().unwrap();
+            ) as u16)?;
 
             // Wait for the next tick
-            std::thread::sleep(std::time::Duration::from_millis(tick_ms as u64));
-            // pause!(tick_ms);
+            pause!(tick_ms as u64);
 
             t_ms += tick_ms;
         }
+        Ok(())
     }
 
     // ########################################
@@ -254,7 +257,9 @@ impl Device for Servo {}
 #[async_trait]
 impl Actuator for Servo {
     /// Update the Servo position.
-    fn update(&mut self) -> Result<(), Error> {
+    fn set_state(&mut self, state: u16) -> Result<(), Error> {
+        self.state = state;
+
         // Map value from degree_range to pwm_range scale.
         let microseconds = self.state.scale(
             self.degree_range.min,
@@ -290,16 +295,14 @@ impl Actuator for Servo {
                 while t_ms < duration {
                     // Current time between (0 - 1).
                     let normalized_t = (t_ms as f32) / (duration as f32);
-                    // Current value between (0 - 1)
-                    self_clone.state = easing.call(normalized_t).scale(
+
+                    // Update servo position
+                    self_clone.set_state(easing.call(normalized_t).scale(
                         0f32,
                         1f32,
                         animation_start_value as f32,
                         animation_end_value as f32,
-                    ) as u16;
-
-                    // Update servo position
-                    self_clone.update()?;
+                    ) as u16)?;
 
                     // Wait for the next tick
                     pause!(tick_ms);

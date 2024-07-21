@@ -1,3 +1,6 @@
+use std::fmt::{Display, Formatter};
+use std::time::SystemTime;
+
 use crate::animation::Track;
 use crate::errors::Error;
 
@@ -20,6 +23,9 @@ pub struct Segment {
 
     /// The tracks for this segment.
     tracks: Vec<Track>,
+
+    /// The current time (in ms) the segment is currently at.
+    current_time: u64,
 }
 
 impl From<Track> for Segment {
@@ -29,10 +35,65 @@ impl From<Track> for Segment {
 }
 
 impl Segment {
-    pub(crate) fn play(&self) -> Result<(), Error> {
-        println!("start playing segment");
-        std::thread::sleep(std::time::Duration::from_millis(1000));
+    /// Inner function: play all tracks once.
+    pub(crate) fn play_once(&mut self, fps: u8) -> Result<(), Error> {
+        println!("Play segment: [{}] at {} fps", self, fps);
+
+        let total_duration = self.get_duration();
+        // The theoretical time a frame should take.
+        let theoretical_frame_duration = 1000u64 / fps as u64;
+        // The realtime a frame took.
+        let mut realtime_frame_duration = 0u64;
+
+        while self.current_time < total_duration {
+            let realtime_start = SystemTime::now();
+
+            // The next frame time is
+            let next_frame_time =
+                self.current_time + theoretical_frame_duration.max(realtime_frame_duration);
+
+            for track in &mut self.tracks {
+                track.play_between(self.current_time, next_frame_time)?;
+            }
+
+            let realtime_end = SystemTime::now();
+            realtime_frame_duration = realtime_end
+                .duration_since(realtime_start)
+                .unwrap()
+                .as_millis() as u64;
+            self.current_time = next_frame_time;
+        }
+
         Ok(())
+    }
+
+    pub(crate) fn reset(&mut self) {
+        self.current_time = 0;
+    }
+
+    pub fn get_duration(&self) -> u64 {
+        match self.tracks.len() > 0 {
+            false => 0,
+            true => {
+                let longest_track = self
+                    .tracks
+                    .iter()
+                    .max_by(|x, y| x.get_duration().cmp(&y.get_duration()))
+                    .unwrap();
+                longest_track.get_duration()
+            }
+        }
+    }
+}
+
+impl Display for Segment {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "tracks: {}, duration: {}ms",
+            self.tracks.len(),
+            self.get_duration()
+        )
     }
 }
 
@@ -91,6 +152,7 @@ impl Default for Segment {
             loopback: 0,
             speed: 100,
             tracks: vec![],
+            current_time: 0,
         }
     }
 }

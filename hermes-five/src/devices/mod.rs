@@ -14,9 +14,9 @@ dyn_clone::clone_trait_object!(Device);
 
 /// Represents a device that is able to act on the world.
 #[async_trait]
-pub trait Actuator: Device {
-    /// Update the actuator according to current internal state.
-    fn update(&mut self) -> Result<(), Error>;
+pub(crate) trait Actuator: Device {
+    /// Set the actuator internal state and update it.
+    fn set_state(&mut self, state: u16) -> Result<(), Error>;
 
     /// Animate the actuator to the target step.
     ///
