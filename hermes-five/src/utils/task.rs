@@ -3,8 +3,9 @@ use std::future::Future;
 
 use anyhow::Result;
 use futures::TryFutureExt;
-use tokio::sync::{Mutex, OnceCell};
-use tokio::sync::mpsc::{Receiver, Sender};
+use parking_lot::Mutex;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::sync::OnceCell;
 use tokio::task;
 use tokio::task::JoinHandle;
 
@@ -22,9 +23,9 @@ pub enum TaskResult {
 pub type TaskHandler = JoinHandle<Result<(), Error>>;
 
 /// Globally accessible runtime transmitter(TX)/receiver(RX) (not initialised yet)
-pub static RUNTIME_TX: OnceCell<Mutex<Option<Sender<Receiver<TaskResult>>>>> =
+pub static RUNTIME_TX: OnceCell<Mutex<Option<UnboundedSender<UnboundedReceiver<TaskResult>>>>> =
     OnceCell::const_new();
-pub static RUNTIME_RX: OnceCell<Mutex<Option<Receiver<Receiver<TaskResult>>>>> =
+pub static RUNTIME_RX: OnceCell<Mutex<Option<UnboundedReceiver<UnboundedReceiver<TaskResult>>>>> =
     OnceCell::const_new();
 
 impl From<Result<()>> for TaskResult {
@@ -47,7 +48,7 @@ pub async fn init_task_channel() {
     RUNTIME_RX
         .get_or_init(|| async {
             // Arbitrary limit to 100 simultaneous tasks.
-            let (tx, rx) = tokio::sync::mpsc::channel::<Receiver<TaskResult>>(100);
+            let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<UnboundedReceiver<TaskResult>>();
 
             // Set the runtime sender.
             RUNTIME_TX
@@ -80,20 +81,20 @@ pub async fn init_task_channel() {
 ///     }).await;
 /// }
 /// ```
-pub async fn run<F, T>(future: F) -> Result<TaskHandler, Error>
+pub fn run<F, T>(future: F) -> Result<TaskHandler, Error>
 where
     F: Future<Output = T> + Send + 'static,
     T: Into<TaskResult> + Send + 'static,
 {
     // Create a transmitter(tx)/receiver(rx) unique to this task.
-    let (task_tx, task_rx) = tokio::sync::mpsc::channel(1);
+    let (task_tx, task_rx) = tokio::sync::mpsc::unbounded_channel();
 
     // --
     // Create a task to run our future: note how we capture the tx...
     let handler = task::spawn(async move {
         // ...to send the result of the future through that channel.
         let result = future.await.into();
-        task_tx.send(result).await.map_err(|err| Unknown {
+        task_tx.send(result).map_err(|err| Unknown {
             info: err.to_string(),
         })?;
         Ok(())
@@ -103,15 +104,12 @@ where
     // Send the receiver(rx) side of the task-channel to the runtime.
 
     let cell = RUNTIME_TX.get().ok_or(RuntimeError)?;
-    let mut lock = cell.lock().await;
+    let mut lock = cell.lock();
     let runtime_tx = lock.as_mut().ok_or(RuntimeError)?;
 
-    runtime_tx
-        .send(task_rx)
-        .map_err(|err| Unknown {
-            info: err.to_string(),
-        })
-        .await?;
+    runtime_tx.send(task_rx).map_err(|err| Unknown {
+        info: err.to_string(),
+    })?;
 
     Ok(handler)
 }
@@ -149,24 +147,19 @@ mod tests {
                 tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
                 task::run(async move {
                     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-                })
-                .await?;
+                })?;
                 Ok(())
-            })
-            .await?;
+            })?;
             Ok(())
-        })
-        .await?;
+        })?;
 
         task::run(async move {
             tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-        })
-        .await?;
+        })?;
 
         task::run(async move {
             tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-        })
-        .await?;
+        })?;
 
         Ok(())
     }
@@ -203,7 +196,6 @@ mod tests {
             pause!(100);
             flag_clone.fetch_add(1, Ordering::SeqCst);
         })
-        .await
         .expect("Should not panic");
 
         // The flag should not have been incremented before the 100ms elapsed.
@@ -231,7 +223,6 @@ mod tests {
             pause!(100);
             flag_clone.fetch_add(1, Ordering::SeqCst);
         })
-        .await
         .expect("Should not panic");
 
         // The flag should not have been incremented before the 100ms elapsed.
@@ -258,18 +249,12 @@ mod tests {
     async fn test_task_with_result() {
         let task = task::run(async move { Ok(()) });
 
-        assert!(
-            task.await.is_ok(),
-            "An Ok(()) task do not panic the runtime"
-        );
+        assert!(task.is_ok(), "An Ok(()) task do not panic the runtime");
 
         let task = task::run(async move {
             bail!("Wow panic!");
         });
 
-        assert!(
-            task.await.is_ok(),
-            "A panicking task do not panic the runtime"
-        );
+        assert!(task.is_ok(), "A panicking task do not panic the runtime");
     }
 }

@@ -112,8 +112,6 @@ impl Segment {
             }
         }
     }
-
-    pub fn set_time_between_frame(time: u32) {}
 }
 
 impl Display for Segment {

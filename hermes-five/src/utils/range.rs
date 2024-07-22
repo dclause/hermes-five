@@ -60,7 +60,7 @@ mod tests {
     fn test_range_debug() {
         let range = Range { start: 4, end: 10 };
         let debug_str = format!("{:?}", range);
-        assert_eq!(debug_str, "Range { min: 4, max: 10 }");
+        assert_eq!(debug_str, "Range { start: 4, end: 10 }");
     }
 
     #[cfg(feature = "serde")]
@@ -73,13 +73,13 @@ mod tests {
         fn test_range_serialize() {
             let range = Range { start: 6, end: 12 };
             let json = serde_json::to_string(&range).unwrap();
-            assert_eq!(json, r#"{"min":6,"max":12}"#);
+            assert_eq!(json, r#"{"start":6,"end":12}"#);
         }
 
         #[test]
         fn test_range_deserialize() {
-            let json = r#"{"min":7,"max":14}"#;
-            let range: Range = serde_json::from_str(json).unwrap();
+            let json = r#"{"start":7,"end":14}"#;
+            let range: Range<u8> = serde_json::from_str(json).unwrap();
             assert_eq!(range.start, 7);
             assert_eq!(range.end, 14);
         }

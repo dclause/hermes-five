@@ -4,7 +4,7 @@ use hermes_five::protocols::PinModeId;
 #[hermes_five::runtime]
 async fn main() {
     // Default board: uses SerialProtocol communication via the first available port.
-    let board = Board::run().await;
+    let board = Board::run();
 
     board
         .on("ready", |mut board: Board| async move {

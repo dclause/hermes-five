@@ -3,7 +3,7 @@ use hermes_five::devices::Led;
 
 #[hermes_five::runtime]
 async fn main() {
-    let board = Board::run().await;
+    let board = Board::run();
 
     board
         .on("ready", |board: Board| async move {

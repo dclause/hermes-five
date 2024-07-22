@@ -51,7 +51,6 @@ impl Animation {
                 }
                 Ok(())
             })
-            .await
             .unwrap(),
         ));
 

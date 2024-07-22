@@ -45,8 +45,6 @@ pub struct Servo {
     interval: Option<TaskHandler>,
 
     // Because we are an emitter:
-    /// The event manager for the board.
-    #[cfg_attr(feature = "serde", serde(skip))]
     events: EventManager,
 }
 
@@ -208,7 +206,7 @@ impl Servo {
     /// ```
     /// #[hermes_five::runtime]
     /// async fn main() {
-    ///     let board1 = Board::run().await;
+    ///     let board1 = Board::run();
     ///     board.on("ready", || async move {
     ///         // Here, you know the board to be connected and ready to receive data.
     ///     }).await;

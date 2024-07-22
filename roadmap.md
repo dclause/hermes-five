@@ -23,7 +23,7 @@ The currently anticipated Roadmap is the following:
 
 - [X] ~~Investigate for an "abortable" task runner~~
 - [X] ~~Make event return TaskResult rather than force ()~~
-- [ ] (in progress, can't find a way) Investigate wrap task into spawn to avoid .await on task::run()
+- [X] ~~Investigate wrap task into spawn to avoid .await on task::run()~~
 - [ ] Events callback should be able to return either () or Ok(()) (like task)
 - [X] ~~Replace all Mutex/RwLock locking with parking_lot~~
 - [ ] Explore if all async work can be switchable using create feature

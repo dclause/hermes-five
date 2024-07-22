@@ -85,7 +85,7 @@ pub fn runtime_macro(item: TokenStream, tokio: TokioMode) -> TokenStream {
         // ---
 
         let cell = #hermes_five::utils::task::RUNTIME_RX.get().ok_or(#hermes_five::errors::RuntimeError).unwrap();
-        let mut lock = cell.lock().await;
+        let mut lock = cell.lock();
         let receiver = lock.as_mut().ok_or(#hermes_five::errors::RuntimeError).unwrap();
 
         // Wait for all dynamically spawned tasks to complete.
@@ -132,7 +132,7 @@ mod tests {
     fn after() -> TokenStream {
         quote! {
             let cell = hermes_five::utils::task::RUNTIME_RX.get().ok_or(hermes_five::errors::RuntimeError).unwrap();
-            let mut lock = cell.lock().await;
+            let mut lock = cell.lock();
             let receiver = lock.as_mut().ok_or(hermes_five::errors::RuntimeError).unwrap();
 
             // Wait for all dynamically spawned tasks to complete.

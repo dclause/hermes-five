@@ -35,7 +35,7 @@ impl SerialProtocol {
     /// # Example
     /// ```
     /// let protocol = SerialProtocol::new("/dev/ttyACM0");
-    /// let board = Board::default().with_protocol(protocol).open().await;
+    /// let board = Board::default().with_protocol(protocol).open();
     /// ```
     pub fn new<P: Into<String>>(port: P) -> Self {
         Self {

@@ -144,7 +144,6 @@ impl Led {
                 #[allow(unreachable_code)]
                 Ok(())
             })
-            .await
             .unwrap(),
         ));
 

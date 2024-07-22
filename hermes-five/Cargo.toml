@@ -93,9 +93,10 @@ path = "examples/led/intensity.rs"
 name = "servo_servo"
 path = "examples/servo/servo.rs"
 
-[[example]]
-name = "servo_animate"
-path = "examples/servo/animate.rs"
+# @todo restore this example with animate helper.
+#[[example]]
+#name = "servo_animate"
+#path = "examples/servo/animate.rs"
 
 # ########################################
 # SYNC examples

@@ -3,7 +3,7 @@ use hermes_five::devices::Led;
 
 #[hermes_five::runtime]
 async fn main() {
-    let board = Board::run().await;
+    let board = Board::run();
 
     board
         .on("ready", |board: Board| async move {
@@ -12,14 +12,16 @@ async fn main() {
             println!("{:?}", led.pin());
 
             // Pulse the LED every 500ms.
-            led.pulse(100).await;
+            // @todo create pulse helper
+            // led.pulse(100).await;
 
             // Wait for 10 seconds.
             pause!(10000);
 
             // stop() stops the animation.
             // off() shuts the led off.
-            led.stop().off();
+            led.stop();
+            led.off();
         })
         .await;
 }
