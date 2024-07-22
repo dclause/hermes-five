@@ -42,12 +42,9 @@ impl Track {
                 let last_keyframe = self
                     .keyframes
                     .iter()
-                    .max_by(|x, y| {
-                        (x.get_start() + x.get_duration() as u64)
-                            .cmp(&(y.get_start() + y.get_duration() as u64))
-                    })
+                    .max_by(|x, y| x.get_end().cmp(&(y.get_end() as u64)))
                     .unwrap();
-                last_keyframe.get_start() + last_keyframe.get_duration() as u64
+                last_keyframe.get_end()
             }
         }
     }

@@ -1,8 +1,8 @@
 use std::sync::Arc;
+use std::time::SystemTime;
 
 use crate::animation::{Segment, Track};
 use crate::errors::Error;
-use crate::pause;
 use crate::utils::task;
 use crate::utils::task::TaskHandler;
 
@@ -44,10 +44,13 @@ impl Animation {
             task::run(async move {
                 match self_clone.is_repeat() {
                     true => loop {
-                        self_clone.play_once()?;
-                        pause!(1);
+                        let start = SystemTime::now();
+                        self_clone.play_once().await?;
+                        let end = SystemTime::now();
+                        let elapsed = end.duration_since(start).unwrap().as_millis();
+                        println!("played once in {}", elapsed);
                     },
-                    false => self_clone.play_once()?,
+                    false => self_clone.play_once().await?,
                 }
                 Ok(())
             })
@@ -71,22 +74,22 @@ impl Animation {
         match &self.interval.as_ref() {
             None => {}
             Some(handler) => {
+                handler.abort();
                 self.segments.get_mut(self.current).unwrap().reset();
                 self.current = 0;
-                handler.abort();
             }
         }
         self
     }
 
     /// Inner function: play all segment once.
-    fn play_once(&mut self) -> Result<(), Error> {
+    async fn play_once(&mut self) -> Result<(), Error> {
         let starting_segment = self.current;
         for current in starting_segment..self.segments.len() {
             self.current = current;
 
             let segment_playing = self.segments.get_mut(self.current).unwrap();
-            segment_playing.play()?;
+            segment_playing.play().await?;
         }
         self.current = 0; // reset
         Ok(())

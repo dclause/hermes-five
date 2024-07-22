@@ -3,7 +3,7 @@ use std::time::SystemTime;
 
 use crate::animation::Track;
 use crate::errors::Error;
-use crate::pause_sync;
+use crate::pause;
 
 #[derive(Clone, Debug)]
 pub struct Segment {
@@ -41,20 +41,24 @@ impl From<Track> for Segment {
 
 impl Segment {
     /// Inner function: play the segment.
-    pub(crate) fn play(&mut self) -> Result<(), Error> {
+    pub async fn play(&mut self) -> Result<(), Error> {
         match self.is_repeat() {
             true => loop {
-                self.play_once()?;
+                let start = SystemTime::now();
+                self.play_once().await?;
+                let end = SystemTime::now();
+                let elapsed = end.duration_since(start).unwrap().as_millis();
+                println!("played once in {}", elapsed);
                 self.current_time = 0;
             },
-            false => self.play_once()?,
+            false => self.play_once().await?,
         };
         self.current_time = 0;
         Ok(())
     }
 
     /// Inner function: play all tracks once.
-    pub(crate) fn play_once(&mut self) -> Result<(), Error> {
+    pub async fn play_once(&mut self) -> Result<(), Error> {
         // println!("Play segment: [{}] at {} fps", self, self.fps);
 
         let total_duration = self.get_duration();
@@ -88,7 +92,7 @@ impl Segment {
             //     remaining_frame_time.min(remaining_track_time),
             //     next_frame_time
             // );
-            pause_sync!(remaining_frame_time.min(remaining_track_time));
+            pause!(remaining_frame_time.min(remaining_track_time));
             self.current_time = next_frame_time;
         }
 

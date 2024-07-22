@@ -2,7 +2,6 @@
 use std::future::Future;
 
 use anyhow::Result;
-use futures::TryFutureExt;
 use parking_lot::Mutex;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::OnceCell;

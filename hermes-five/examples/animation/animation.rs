@@ -1,3 +1,5 @@
+use std::time::SystemTime;
+
 use hermes_five::{Board, pause};
 use hermes_five::animation::{Animation, Keyframe, Segment, Track};
 use hermes_five::devices::Servo;
@@ -37,23 +39,21 @@ async fn main() {
             let mut animation = Animation::from(
                 Segment::from(
                     Track::new(servo)
-                        .with_keyframe(
-                            Keyframe::new(180, 0, 1000).set_transition(Easing::SineInOut),
-                        )
+                        .with_keyframe(Keyframe::new(180, 0, 500).set_transition(Easing::SineInOut))
                         .with_keyframe(
                             Keyframe::new(0, 1000, 2000).set_transition(Easing::SineInOut),
                         ),
                 )
-                .set_fps(60)
+                .set_fps(100)
                 .set_repeat(true),
             );
 
             animation.play().await;
-            println!("This will print immediately");
-            pause!(500);
-            println!("This will print 3 seconds later");
+            // println!("This will print immediately");
+            // pause!(2500);
+            // println!("This will print 3 seconds later");
 
-            animation.stop();
+            // animation.stop();
         })
         .await;
 }

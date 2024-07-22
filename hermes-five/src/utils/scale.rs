@@ -1,8 +1,8 @@
-pub(crate) trait ToF64 {
+pub trait ToF64 {
     fn to_f64(self) -> f64;
 }
 
-pub(crate) trait FromF64 {
+pub trait FromF64 {
     fn from_f64(value: f64) -> Self;
 }
 
