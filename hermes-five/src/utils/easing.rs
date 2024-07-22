@@ -7,7 +7,7 @@ use simple_easing::*;
 ///
 /// See https://easings.net for a representation of easing methods.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Debug, PartialEq)]
 pub enum Easing {
     /// https://easings.net/#easeInBack
     BackIn,

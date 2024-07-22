@@ -1,71 +1,83 @@
-use std::time::Duration;
+use std::panic::UnwindSafe;
+
+use async_trait::async_trait;
 
 use crate::board::Board;
 use crate::devices::{Actuator, Device};
-use crate::errors::Error;
+use crate::errors::{Error, UnknownMode};
 use crate::protocols::{Pin, PinModeId, Protocol};
-use crate::utils::{Easing, Range, State};
-use crate::utils::helpers::MapRange;
+use crate::utils::events::{EventHandler, EventManager};
+use crate::utils::Range;
+use crate::utils::scale::Scalable;
 use crate::utils::task::TaskHandler;
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Debug)]
 pub enum ServoType {
     #[default]
     Standard,
-    Continuous,
+    // Continuous,
 }
 
-#[derive(Clone, Copy)]
-struct Move {
-    position: u16,
-}
-
+#[derive(Debug)]
 pub struct Servo {
     protocol: Box<dyn Protocol>,
     pin: u16,
 
     /// The servo range limitation in the physical world (default: [0, 180]).
-    range: Range,
+    range: Range<u16>,
     /// The servo PWN range for control  (default: [544, 2400]).
-    pwm_range: Range,
+    pwm_range: Range<u16>,
     /// The servo theoretical degree of movement  (default: [0, 180]).
-    degree_range: Range,
+    degree_range: Range<u16>,
     /// The servo type (default: ServoType::Standard).
     servo_type: ServoType,
     /// The servo default position to it initialize (default: 90)
     default: u16,
-    /// Last move done by the servo.
-    last_move: Option<Move>,
     /// Indicates of the servo is currently moving.
     is_moving: bool, // @todo remove?
 
     // Because we are an actuator:
     /// Current position
-    position: u16,
+    state: u16,
+    /// Last move done by the servo.
+    previous: u16,
     /// Inner handler to the task running the animation.
     interval: Option<TaskHandler>,
+
+    // Because we are an emitter:
+    events: EventManager,
 }
 
 impl Servo {
-    pub fn new(board: &Board, pin: u16) -> Result<Self, Error> {
-        // Set pin mode to SERVO
-        let mut protocol = board.protocol();
-        protocol.set_pin_mode(pin, PinModeId::SERVO)?;
-        protocol.servo_config(pin, Range::from([544, 2400]))?;
+    pub fn new(board: &Board, pin: u16, default: u16) -> Result<Self, Error> {
+        let pwm_range = Range::from([600, 2400]);
 
-        Ok(Self {
+        let mut servo = Self {
             protocol: board.protocol(),
             pin,
             range: Range::from([0, 180]),
-            pwm_range: Range::from([544, 2400]),
+            pwm_range,
             degree_range: Range::from([0, 180]),
             servo_type: ServoType::default(),
-            default: 90,
+            default,
             is_moving: false,
-            last_move: None,
+            previous: default,
             interval: None,
-            position: 90,
-        })
+            events: EventManager::default(),
+            state: default,
+        };
+
+        // --
+        // The following may seem tedious, but it ensures we attach the servo with the default value
+        // already set.
+        // Check if SERVO MODE exists for this pin.
+        servo.pin()?.get_mode(PinModeId::SERVO).ok_or(UnknownMode {
+            mode: PinModeId::SERVO,
+        })?;
+        servo.protocol.servo_config(pin, pwm_range)?;
+        servo.to(servo.default)?;
+        servo.protocol.set_pin_mode(pin, PinModeId::SERVO)?;
+        Ok(servo)
     }
 
     /// Set the Servo range limitation in degree.
@@ -76,26 +88,28 @@ impl Servo {
     ///
     /// # Parameters
     /// * `range`: the requested range
-    pub fn with_range<R: Into<Range>>(mut self, range: R) -> Result<Self, Error> {
+    pub fn with_range<R: Into<Range<u16>>>(mut self, range: R) -> Self {
         let input = range.into();
 
         // Rearrange value: min <= max.
         let input = Range {
-            min: input.min.min(input.max),
-            max: input.max.max(input.min),
+            start: input.start.min(input.end),
+            end: input.end.max(input.start),
         };
 
         // Clamp the range into the degree_range.
         self.range = Range {
-            min: input
-                .min
-                .clamp(self.degree_range.min, self.degree_range.max),
-            max: input
-                .max
-                .clamp(self.degree_range.min, self.degree_range.max),
+            start: input
+                .start
+                .clamp(self.degree_range.start, self.degree_range.end),
+            end: input
+                .end
+                .clamp(self.degree_range.start, self.degree_range.end),
         };
+        // Clamp the default position inside the range.
+        self.default = self.default.clamp(self.range.start, self.range.end);
 
-        Ok(self)
+        self
     }
 
     /// Set the theoretical range of degrees of movement for the servo (some servos can range from 0 to 90°, 180°, 270°, 360°, etc...).
@@ -105,48 +119,51 @@ impl Servo {
     ///
     /// # Parameters
     /// * `degree_range`: the requested range
-    pub fn with_degree_range<R: Into<Range>>(mut self, degree_range: R) -> Result<Self, Error> {
+    pub fn with_degree_range<R: Into<Range<u16>>>(mut self, degree_range: R) -> Self {
         let input = degree_range.into();
 
         // Rearrange value: min <= max.
         let input = Range {
-            min: input.min.min(input.max),
-            max: input.max.max(input.min),
+            start: input.start.min(input.end),
+            end: input.end.max(input.start),
         };
 
         self.degree_range = input;
 
         // Clamp the range into the degree_range.
         self.range = Range {
-            min: self
+            start: self
                 .range
-                .min
-                .clamp(self.degree_range.min, self.degree_range.max),
-            max: self
+                .start
+                .clamp(self.degree_range.start, self.degree_range.end),
+            end: self
                 .range
-                .max
-                .clamp(self.degree_range.min, self.degree_range.max),
+                .end
+                .clamp(self.degree_range.start, self.degree_range.end),
         };
+        // Clamp the default position inside the range.
+        self.default = self.default.clamp(self.range.start, self.range.end);
 
-        self.protocol.servo_config(self.pin, self.degree_range)?;
+        self
+    }
 
+    pub fn set_pwn_range<R: Into<Range<u16>>>(mut self, pwm_range: R) -> Result<Self, Error> {
+        let input = pwm_range.into();
+        self.pwm_range = input;
+        self.protocol.servo_config(self.pin, input)?;
         Ok(self)
     }
 
     /// Move the servo to the requested position at max speed.
     pub fn to(&mut self, to: u16) -> Result<&Self, Error> {
         // Clamp the request within the Servo range.
-        let target = to.clamp(self.range.min, self.range.max);
-
-        // No need to move if last move was already that one.
-        if self.last_move.is_some() && self.last_move.unwrap().position == target {
-            return Ok(self);
-        }
+        let state: u16 = to.clamp(self.range.start, self.range.end);
 
         // Stops any animation running.
         self.stop();
 
-        self.update(State::from(target))
+        self.set_state(state)?;
+        Ok(self)
     }
 
     /// Stops the servo.
@@ -159,45 +176,89 @@ impl Servo {
         }
     }
 
+    pub fn sweep() {
+        // // Swipe the servo.
+        // loop {
+        //     servo.to(0).unwrap();
+        //     pause!(1000);
+        //     servo.to(180).unwrap();
+        //     pause!(1000);
+        // }
+    }
+
     // @todo move this to device
     pub fn pin(&self) -> Result<Pin, Error> {
         let lock = self.protocol.hardware().read();
         Ok(lock.get_pin(self.pin)?.clone())
+    }
+
+    // ########################################
+    // Event related functions
+
+    /// Registers a callback to be executed on a given event on the board.
+    ///
+    /// Available events for a board are:
+    /// * `ready`: Triggered when the board is connected and ready to run. To use it, register though the [`Self::on()`] method.
+    /// * `exit`: Triggered when the board is disconnected. To use it, register though the [`Self::on()`] method.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// #[hermes_five::runtime]
+    /// async fn main() {
+    ///     let board1 = Board::run();
+    ///     board.on("ready", || async move {
+    ///         // Here, you know the board to be connected and ready to receive data.
+    ///     }).await;
+    /// }
+    /// ```
+    pub async fn on<S, F, T, Fut>(&self, event: S, callback: F) -> EventHandler
+    where
+        S: Into<String>,
+        T: 'static + Send + Sync + Clone,
+        F: FnMut(T) -> Fut + Send + 'static + UnwindSafe,
+        Fut: std::future::Future<Output = ()> + Send + 'static,
+    {
+        self.events.on(event, callback).await
     }
 }
 
 // @todo make this a derive macro
 impl Device for Servo {}
 
+#[async_trait]
 impl Actuator for Servo {
     /// Update the Servo position.
-    fn update(&mut self, target: State) -> Result<&Self, Error> {
-        let target: u16 = target.as_integer() as u16;
+    fn set_state(&mut self, state: u16) -> Result<(), Error> {
+        self.state = state;
 
-        // Map value from degree_range to pwm_range scale.
-        let microseconds = target.map(
-            self.degree_range.min,
-            self.degree_range.max,
-            self.pwm_range.min,
-            self.pwm_range.max,
+        // No need to move if last move was already that one.
+        if self.previous == self.state {
+            // return Ok(());
+        }
+
+        let state: f64 = state.scale(
+            self.degree_range.start,
+            self.degree_range.end,
+            self.pwm_range.start,
+            self.pwm_range.end,
         );
+        // println!("      - pwm: {}", state as u16);
+        self.protocol.analog_write(self.pin, state as u16)?;
+        self.previous = self.state;
 
-        self.protocol.analog_write(self.pin, microseconds)?;
-        self.position = target;
-        self.last_move = Some(Move {
-            position: self.position,
-        });
-
-        Ok(self)
+        Ok(())
     }
 
-    fn animate(
-        &mut self,
-        target: State,
-        duration: Duration,
-        easing: Easing,
-    ) -> Result<&Self, Error> {
-        todo!()
+    /// Internal only (used by [`Animation`]).
+    fn get_state(&self) -> u16 {
+        self.state
+    }
+}
+
+impl Drop for Servo {
+    fn drop(&mut self) {
+        self.to(self.default).expect("TODO: panic message");
     }
 }
 
@@ -207,14 +268,16 @@ impl Clone for Servo {
             protocol: self.protocol.clone(),
             pin: self.pin,
             range: self.range,
-            pwm_range: self.range,
+            pwm_range: self.pwm_range,
             degree_range: self.degree_range,
             servo_type: self.servo_type,
             default: self.default,
-            position: self.position,
-            last_move: self.last_move,
-            is_moving: false,
+            state: self.state,
+            previous: self.previous,
+            is_moving: self.is_moving,
+            // do not clone
             interval: None,
+            events: EventManager::default(),
         }
     }
 }

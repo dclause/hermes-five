@@ -3,12 +3,12 @@ use hermes_five::devices::Servo;
 
 #[hermes_five::runtime]
 async fn main() {
-    let board = Board::run().await;
+    let board = Board::run();
 
     board
         .on("ready", |board: Board| async move {
             // Register a Servo on pin 9.
-            let mut servo = Servo::new(&board, 9).expect("Servo is instantiated");
+            let mut servo = Servo::new(&board, 9, 0).expect("Servo is instantiated");
             println!("{:?}", servo.pin());
 
             // Swipe the servo.

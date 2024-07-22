@@ -11,16 +11,17 @@ async fn main() {
             let mut led = Led::new(&board, 13).expect("Embedded led is instantiated");
             println!("{:?}", led.pin());
 
-            // Blinks the LED every 100ms (for 3sec).
-            led.blink(100).await;
+            // Pulse the LED every 500ms.
+            // @todo create pulse helper
+            // led.pulse(100).await;
 
-            // Notice how blink is not blocker for the current thread, yet it is for the runtime
-            println!("This will print immediately");
-            pause!(3000);
-            println!("This will print 3 seconds later");
+            // Wait for 10 seconds.
+            pause!(10000);
 
-            // Stops the LED animation.
+            // stop() stops the animation.
+            // off() shuts the led off.
             led.stop();
+            led.off();
         })
         .await;
 }

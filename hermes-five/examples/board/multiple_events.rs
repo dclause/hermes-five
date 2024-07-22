@@ -29,7 +29,7 @@ async fn main() {
         .on("ready", |board: Board| async move {
             println!("Callback 3: close board in 1sec");
             pause!(1000);
-            board.close().await;
+            board.close();
         })
         .await;
 
@@ -40,5 +40,5 @@ async fn main() {
         .await;
 
     // The trick is to start the board only when everything is defined.
-    board.open().await;
+    board.open();
 }

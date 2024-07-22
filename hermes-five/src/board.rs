@@ -37,10 +37,10 @@ impl Default for Board {
     ///
     /// # Example
     /// // Following lines are all equivalent:
-    /// let board = Board::run().await;
-    /// let board = Board::default().open().await;
-    /// let board = Board::build(SerialProtocol::default()).open().await;
-    /// let board = Board::default().with_protocol(SerialProtocol::default()).open().await;
+    /// let board = Board::run();
+    /// let board = Board::default().open();
+    /// let board = Board::build(SerialProtocol::default()).open();
+    /// let board = Board::default().with_protocol(SerialProtocol::default()).open();
     /// ```
     fn default() -> Self {
         Self::build(SerialProtocol::default())
@@ -53,20 +53,20 @@ impl Board {
     /// # Example
     /// ```
     /// // Following lines are all equivalent:
-    /// let board = Board::run().await;
-    /// let board = Board::default().open().await;
-    /// let board = Board::build(SerialProtocol::default()).open().await;
-    /// let board = Board::default().with_protocol(SerialProtocol::default()).open().await;
+    /// let board = Board::run();
+    /// let board = Board::default().open();
+    /// let board = Board::build(SerialProtocol::default()).open();
+    /// let board = Board::default().with_protocol(SerialProtocol::default()).open();
     /// ```
-    pub async fn run() -> Self {
-        Self::default().open().await
+    pub fn run() -> Self {
+        Self::default().open()
     }
 
     /// Creates a board using the given protocol.
     ///
     /// # Example
     /// ```
-    /// let board = Board::build(SerialProtocol::new("COM4")).open().await
+    /// let board = Board::build(SerialProtocol::new("COM4")).open()
     /// ```
     pub fn build<P: Protocol + 'static>(protocol: P) -> Self {
         Self {
@@ -79,7 +79,7 @@ impl Board {
     ///
     /// # Example
     /// ```
-    /// let board = Board::default().with_protocol(SerialProtocol::new("COM4")).open().await;
+    /// let board = Board::default().with_protocol(SerialProtocol::new("COM4")).open();
     /// ```
     pub fn with_protocol<P: Protocol + 'static>(mut self, protocol: P) -> Self {
         self.protocol = Box::new(protocol);
@@ -104,9 +104,9 @@ impl Board {
     /// ```
     /// #[hermes_five::runtime]
     /// async fn main() {
-    ///     let board = Board::run().await;
+    ///     let board = Board::run();
     ///     // Is equivalent to:
-    ///     let board = Board::default().open().await;
+    ///     let board = Board::default().open();
     ///     // Register something to do when the board is connected.
     ///     board.on("ready", || async move {
     ///         // Something to do when connected.
@@ -115,7 +115,7 @@ impl Board {
     /// }
     /// ```
     ///
-    pub async fn open(self) -> Self {
+    pub fn open(self) -> Self {
         let events = self.events.clone();
         let mut callback_board = self.clone();
         let _ = task::run(async move {
@@ -125,8 +125,7 @@ impl Board {
             callback_board.protocol.handshake()?;
             events.emit("ready", callback_board).await;
             Ok(())
-        })
-        .await;
+        });
         self
     }
 
@@ -148,11 +147,11 @@ impl Board {
     /// ```
     /// #[hermes_five::runtime]
     /// async fn main() {
-    ///     let board = Board::run().await;
+    ///     let board = Board::run();
     ///     board.on("ready", || async move {
     ///         // Something to do when connected.
     ///         hermes_five::utils::sleep(std::time::Duration::from_secs(3)).await;
-    ///         board.close().await;
+    ///         board.close();
     ///     });
     ///     board.on("close", || async move {
     ///         // Something to do when connection closes.
@@ -160,7 +159,7 @@ impl Board {
     /// }
     /// ```
     ///
-    pub async fn close(self) -> Self {
+    pub fn close(self) -> Self {
         let events = self.events.clone();
         let mut protocol = self.protocol.clone();
         let callback_board = self.clone();
@@ -168,8 +167,7 @@ impl Board {
             protocol.close()?;
             events.emit("close", callback_board).await;
             Ok(())
-        })
-        .await;
+        });
         self
     }
 
@@ -187,7 +185,7 @@ impl Board {
     /// ```
     /// #[hermes_five::runtime]
     /// async fn main() {
-    ///     let board1 = Board::run().await;
+    ///     let board1 = Board::run();
     ///     board.on("ready", || async move {
     ///         // Here, you know the board to be connected and ready to receive data.
     ///     }).await;

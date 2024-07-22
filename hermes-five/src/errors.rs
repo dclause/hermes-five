@@ -48,4 +48,8 @@ pub enum Error {
         pin: u16,
         operation: String,
     },
+
+    // ##### ANIMATION RELATED #####
+    /// Animation error: {info}
+    Sequence { info: String },
 }
