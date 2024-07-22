@@ -98,7 +98,7 @@ impl Led {
 
                 // If the value is higher than the intensity, we update it on the spot.
                 if self.state > intensity {
-                    self.set_state(intensity as f64)?;
+                    self.set_state(intensity)?;
                 }
 
                 Ok(self)
@@ -109,14 +109,14 @@ impl Led {
     /// Turn the LED on.
     pub fn on(&mut self) -> Result<&Self, Error> {
         self.is_on = true;
-        self.set_state(self.intensity as f64)?;
+        self.set_state(self.intensity)?;
         Ok(self)
     }
 
     /// Turn the LED off.
     pub fn off(&mut self) -> Result<&Self, Error> {
         self.is_on = false;
-        self.set_state(0f64)?;
+        self.set_state(0)?;
         Ok(self)
     }
 
@@ -185,8 +185,8 @@ impl Device for Led {}
 impl Actuator for Led {
     /// Internal only: Update the LED to the target state.
     /// /!\ No checks are made on the state validity.
-    fn set_state(&mut self, state: f64) -> Result<(), Error> {
-        self.state = state as u16;
+    fn set_state(&mut self, state: u16) -> Result<(), Error> {
+        self.state = state;
         match self.pin()?.mode.id {
             // on/off digital operation.
             PinModeId::OUTPUT => self.protocol.digital_write(self.pin, self.state > 0),

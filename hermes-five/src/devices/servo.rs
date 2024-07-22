@@ -157,7 +157,7 @@ impl Servo {
     /// Move the servo to the requested position at max speed.
     pub fn to(&mut self, to: u16) -> Result<&Self, Error> {
         // Clamp the request within the Servo range.
-        let state: f64 = to.clamp(self.range.start, self.range.end) as f64;
+        let state: u16 = to.clamp(self.range.start, self.range.end);
 
         // Stops any animation running.
         self.stop();
@@ -229,8 +229,8 @@ impl Device for Servo {}
 #[async_trait]
 impl Actuator for Servo {
     /// Update the Servo position.
-    fn set_state(&mut self, state: f64) -> Result<(), Error> {
-        self.state = state as u16;
+    fn set_state(&mut self, state: u16) -> Result<(), Error> {
+        self.state = state;
 
         // No need to move if last move was already that one.
         if self.previous == self.state {

@@ -8,4 +8,6 @@ pub mod devices;
 pub mod errors;
 pub mod protocols;
 // mod storage;
+#[cfg(test)]
+pub mod tests;
 pub mod utils;
