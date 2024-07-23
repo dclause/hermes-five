@@ -1,7 +1,7 @@
 use crate::devices::{Actuator, Device};
 use crate::errors::Error;
 
-// Mock Actuator for testing purposes
+/// Mock [`Actuator`] for testing purposes.
 #[derive(Clone, Debug)]
 pub struct MockActuator {
     state: u16,

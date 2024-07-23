@@ -5,6 +5,7 @@ use async_trait::async_trait;
 use crate::board::Board;
 use crate::devices::{Actuator, Device};
 use crate::errors::{Error, UnknownMode};
+use crate::pause_sync;
 use crate::protocols::{Pin, PinModeId, Protocol};
 use crate::utils::events::{EventHandler, EventManager};
 use crate::utils::Range;
@@ -77,6 +78,7 @@ impl Servo {
         servo.protocol.servo_config(pin, pwm_range)?;
         servo.to(servo.default)?;
         servo.protocol.set_pin_mode(pin, PinModeId::SERVO)?;
+        pause_sync!(100);
         Ok(servo)
     }
 
@@ -243,7 +245,6 @@ impl Actuator for Servo {
             self.pwm_range.start,
             self.pwm_range.end,
         );
-        // println!("      - pwm: {}", state as u16);
         self.protocol.analog_write(self.pin, state as u16)?;
         self.previous = self.state;
 

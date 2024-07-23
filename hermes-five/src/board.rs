@@ -133,7 +133,6 @@ impl Board {
     pub fn blocking_open(mut self) -> Result<Self, Error> {
         self.protocol.open()?;
         self.protocol.handshake()?;
-        println!("Board connected: {}", self);
         Ok(self)
     }
 

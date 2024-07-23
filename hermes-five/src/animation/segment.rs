@@ -66,7 +66,7 @@ pub struct Segment {
     /// Determines whether the segment should replay in a loop (starting from the [`Segment::loopback`] time).
     repeat: bool,
     /// The point in time (in ms) the animation will restart the loop when `loop` is set to true (default: 0).
-    loopback: u32,
+    loopback: u64,
     /// Controls the speed of the animation. (default: 100)
     /// Defined as a percentage of standard time. For example:
     /// - 50% means time moves twice as slow, so 1000ms lasts 2000ms in real time.
@@ -95,7 +95,7 @@ impl Segment {
         match self.is_repeat() {
             true => loop {
                 self.play_once().await?;
-                self.reset();
+                self.current_time = self.loopback;
             },
             false => self.play_once().await?,
         };
@@ -181,7 +181,7 @@ impl Segment {
 // ########################################
 // Implementing basic getters and setters.
 impl Segment {
-    /// Gets the name of the segment.
+    /// Returns the name of the segment.
     pub fn get_name(&self) -> String {
         self.name.clone()
     }
@@ -189,19 +189,19 @@ impl Segment {
     pub fn is_repeat(&self) -> bool {
         self.repeat
     }
-    /// Gets the loopback time.
-    pub fn get_loopback(&self) -> u32 {
+    /// Returns the loopback time.
+    pub fn get_loopback(&self) -> u64 {
         self.loopback
     }
-    /// Gets the playback speed as a percentage (between 0% and 100%).
+    /// Returns the playback speed as a percentage (between 0% and 100%).
     pub fn get_speed(&self) -> u8 {
         self.speed
     }
-    /// Gets the frames per second (fps) for the segment.
+    /// Returns the frames per second (fps) for the segment.
     pub fn get_fps(&self) -> u8 {
         self.fps
     }
-    /// Gets the tracks in the segment.
+    /// Returns the tracks in the segment.
     pub fn get_tracks(&self) -> &Vec<Track> {
         &self.tracks
     }
@@ -217,7 +217,7 @@ impl Segment {
         self
     }
     /// Sets the loopback time and returns the updated segment.
-    pub fn set_loopback(mut self, loopback: u32) -> Self {
+    pub fn set_loopback(mut self, loopback: u64) -> Self {
         self.loopback = loopback;
         self
     }
