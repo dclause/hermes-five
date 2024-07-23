@@ -4,7 +4,9 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 
-use hermes_macros_inner::{runtime_macro, TokioMode};
+use crate::internals::{runtime_macro, TokioMode};
+
+mod internals;
 
 /// Macro definition for Hermes-Five Runtime.
 ///

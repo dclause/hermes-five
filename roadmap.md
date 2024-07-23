@@ -26,7 +26,6 @@ The currently anticipated Roadmap is the following:
 - [X] ~~Investigate wrap task into spawn to avoid .await on task::run()~~
 - [ ] Events callback should be able to return either () or Ok(()) (like task)
 - [X] ~~Replace all Mutex/RwLock locking with parking_lot~~
-- [ ] Explore if all async work can be switchable using create feature
 - [ ] Add tracing/log for all method
-- [ ] Add https://github.com/colin-kiegel/rust-derive-builder / https://docs.rs/derive-getters/latest/derive_getters/
+- [ ] Add https://github.com/colin-kiegel/rust-derive-builder / https://docs.rs/derive-getters/latest/derive_getters/ ?
 - [ ] Explore REPL (using: https://rust-script.org/ ?)

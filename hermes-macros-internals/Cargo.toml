@@ -1,15 +1,18 @@
 [package]
-name = "hermes-macros-inner"
-description = "Inner (private) macros definitions for hermes-five - this crate is used for test coverage purposes only."
-publish = false
+name = "hermes-macros-internals"
+description = "Inner (private) - this crate is used for test coverage purposes only."
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 repository.workspace = true
 readme.workspace = true
 license.workspace = true
+publish = false
+build = "build.rs"
+exclude = ["build.rs"]
 
 [lib]
+path = "lib.rs"
 
 [dependencies]
 proc-macro2 = "1.0.86"

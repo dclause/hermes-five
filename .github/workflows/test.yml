@@ -29,7 +29,12 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v4
 
-      - name: Run all tests
+      - name: Run all feature tests
         run: cargo test --workspace --all-features --verbose --color=always
+        env:
+          RUST_BACKTRACE: 1
+
+      - name: Run default features tests
+        run: cargo test --workspace --verbose --color=always
         env:
           RUST_BACKTRACE: 1

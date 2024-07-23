@@ -228,7 +228,7 @@ impl DerefMut for Board {
 
 #[cfg(test)]
 mod tests {
-    use crate::protocols::MockProtocol;
+    use crate::tests::mocks::protocol::MockProtocol;
 
     use super::*;
 

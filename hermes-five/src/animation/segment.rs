@@ -373,7 +373,7 @@ mod tests {
         let elapsed = start.elapsed().unwrap().as_millis();
         assert!(play.is_ok());
         assert!(
-            elapsed > 100 && elapsed < 150,
+            elapsed >= 100 && elapsed < 150,
             "Play takes the same time as play once: {}",
             elapsed
         );

@@ -2,7 +2,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{ItemFn, ReturnType, Stmt};
 
-use crate::helpers::hermes_five_crate_path;
+use crate::internals::helpers::hermes_five_crate_path;
 
 mod helpers;
 
@@ -13,9 +13,8 @@ pub enum TokioMode {
 
 /// See `#[hermes_macros::runtime]` for details in [`hermes-macros`] crate.
 ///
-/// This method is defined outside the proc-macro crate and uses proc_macro2 TokenStream in
-/// order to allow easier testing and tarpaulin code coverage.   
-/// This is the only benefice to have it as a subcrate.
+/// This method uses proc_macro2 TokenStream in order to allow easier testing and tarpaulin code coverage.
+/// This is the only benefice to have it as a sub-method here (and have it bound to sub-crate hermes-macros-internals)
 pub fn runtime_macro(item: TokenStream, tokio: TokioMode) -> TokenStream {
     let hermes_five = hermes_five_crate_path();
     // Parse the input tokens into a syntax tree
@@ -124,7 +123,10 @@ pub fn runtime_macro(item: TokenStream, tokio: TokioMode) -> TokenStream {
 
 #[cfg(test)]
 mod tests {
-    use crate::*;
+    use proc_macro2::TokenStream;
+    use quote::quote;
+
+    use crate::internals::{runtime_macro, TokioMode};
 
     fn before() -> TokenStream {
         quote! {hermes_five::utils::task::init_task_channel().await;}
