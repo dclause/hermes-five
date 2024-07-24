@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::errors::*;
 use crate::errors::HardwareError::UnknownPin;
 use crate::protocols::{I2CReply, Pin};
@@ -21,7 +23,7 @@ use crate::protocols::{I2CReply, Pin};
 pub struct Hardware {
     /// A vector of `Pin` instances, representing the hardware's pins.
     #[cfg_attr(feature = "serde", serde(skip))]
-    pub pins: Vec<Pin>,
+    pub pins: HashMap<u16, Pin>,
     /// A vector of `I2CReply` instances, representing I2C communication data.
     #[cfg_attr(feature = "serde", serde(skip))]
     pub i2c_data: Vec<I2CReply>,
@@ -42,9 +44,7 @@ impl Hardware {
     /// # Errors
     /// * `UnknownPin` - An `Error` returned if the pin index is out of bounds.
     pub fn get_pin(&self, pin: u16) -> Result<&Pin, Error> {
-        self.pins
-            .get(pin as usize)
-            .ok_or(Error::from(UnknownPin { pin }))
+        self.pins.get(&pin).ok_or(Error::from(UnknownPin { pin }))
     }
 
     /// Retrieves a mutable reference to a pin by its index.
@@ -56,52 +56,34 @@ impl Hardware {
     /// * `UnknownPin` - An `Error` returned if the pin index is out of bounds.
     pub fn get_pin_mut(&mut self, pin: u16) -> Result<&mut Pin, Error> {
         self.pins
-            .get_mut(pin as usize)
+            .get_mut(&pin)
             .ok_or(Error::from(UnknownPin { pin }))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::protocols::{Hardware, Pin};
-
-    fn test_hardware() -> Hardware {
-        Hardware {
-            pins: vec![
-                Pin {
-                    id: 0,
-                    value: 0,
-                    ..Pin::default()
-                },
-                Pin {
-                    id: 1,
-                    value: 1,
-                    ..Pin::default()
-                },
-            ],
-            ..Default::default()
-        }
-    }
+    use crate::tests::mocks::hardware::create_test_hardware;
 
     #[test]
     fn test_get_pin_success() {
-        assert_eq!(test_hardware().get_pin(0).unwrap().value, 0);
-        assert_eq!(test_hardware().get_pin(1).unwrap().value, 1);
-        assert_eq!(test_hardware().get_pin_mut(0).unwrap().value, 0);
-        assert_eq!(test_hardware().get_pin_mut(1).unwrap().value, 1);
+        assert_eq!(create_test_hardware().get_pin(3).unwrap().value, 3);
+        assert_eq!(create_test_hardware().get_pin(11).unwrap().value, 11);
+        assert_eq!(create_test_hardware().get_pin_mut(3).unwrap().value, 3);
+        assert_eq!(create_test_hardware().get_pin_mut(11).unwrap().value, 11);
     }
 
     #[test]
     fn test_get_pin_error() {
-        assert!(test_hardware().get_pin(2).is_err());
-        assert!(test_hardware().get_pin_mut(2).is_err());
+        assert!(create_test_hardware().get_pin(5).is_err());
+        assert!(create_test_hardware().get_pin_mut(6).is_err());
     }
 
     #[test]
     fn test_mutate_pin() {
-        let mut hardware = test_hardware();
-        assert_eq!(hardware.get_pin_mut(1).unwrap().value, 1);
-        hardware.get_pin_mut(1).unwrap().value = 3;
-        assert_eq!(hardware.get_pin_mut(1).unwrap().value, 3);
+        let mut hardware = create_test_hardware();
+        assert_eq!(hardware.get_pin_mut(11).unwrap().value, 11);
+        hardware.get_pin_mut(11).unwrap().value = 255;
+        assert_eq!(hardware.get_pin_mut(11).unwrap().value, 255);
     }
 }

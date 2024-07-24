@@ -74,7 +74,7 @@ impl Protocol for SerialProtocol {
     // Inner data related functions
 
     /// Retrieve the internal hardware.
-    fn hardware(&self) -> &Arc<RwLock<Hardware>> {
+    fn get_hardware(&self) -> &Arc<RwLock<Hardware>> {
         &self.hardware
     }
 
@@ -204,7 +204,7 @@ mod tests {
         let protocol = SerialProtocol::new("/dev/ttyACM0");
         assert_eq!(protocol.port, "/dev/ttyACM0");
         assert!(protocol.io.lock().is_none());
-        assert_eq!(protocol.hardware().read().firmware_name, "");
+        assert_eq!(protocol.get_hardware().read().firmware_name, "");
         assert_eq!(protocol.get_protocol_details(), "via port /dev/ttyACM0");
     }
 

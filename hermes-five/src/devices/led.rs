@@ -38,7 +38,7 @@ impl Led {
 
         // Get the PWM mode if any
         let pwm_mode = {
-            let hardware = protocol.hardware().write();
+            let hardware = protocol.get_hardware().write();
             let _pin = hardware.get_pin(pin)?;
             _pin.supports_mode(PinModeId::PWM)
         };
@@ -155,7 +155,7 @@ impl Led {
 
     // @todo move this to device ?
     pub fn pin(&self) -> Result<Pin, Error> {
-        let lock = self.protocol.hardware().read();
+        let lock = self.protocol.get_hardware().read();
         Ok(lock.get_pin(self.pin)?.clone())
     }
 }

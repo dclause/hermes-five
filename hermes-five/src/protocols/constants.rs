@@ -1,16 +1,16 @@
 //! Firmata protocol constants
 
 /// Received Protocol message.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Message {
-    ProtocolVersion,
     Analog,
     Digital,
     EmptyResponse,
     AnalogMappingResponse,
     CapabilityResponse,
     PinStateResponse,
-    ReportFirmware,
+    ReportFirmwareVersion,
+    ReportProtocolVersion,
     I2CReply,
 }
 

@@ -201,7 +201,7 @@ impl Board {
 
     // @todo describe / verify
     pub fn hardware(&self) -> RwLockReadGuard<Hardware> {
-        self.protocol.hardware().read()
+        self.protocol.get_hardware().read()
     }
 }
 

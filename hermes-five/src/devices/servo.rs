@@ -194,7 +194,7 @@ impl Servo {
 
     // @todo move this to device
     pub fn pin(&self) -> Result<Pin, Error> {
-        let lock = self.protocol.hardware().read();
+        let lock = self.protocol.get_hardware().read();
         Ok(lock.get_pin(self.pin)?.clone())
     }
 

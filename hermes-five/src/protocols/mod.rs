@@ -1,13 +1,14 @@
 use std::any::type_name;
+use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::sync::Arc;
 
 use dyn_clone::DynClone;
 use parking_lot::RwLock;
 
-use crate::errors::*;
-use crate::errors::HardwareError::{IncompatibleMode, UnknownPin};
+use crate::errors::HardwareError::IncompatibleMode;
 use crate::errors::ProtocolError::{MessageTooShort, UnexpectedData};
+use crate::errors::*;
 pub use crate::protocols::constants::*;
 pub use crate::protocols::flavor::*;
 pub use crate::protocols::hardware::*;
@@ -31,7 +32,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     // Inner data related functions
 
     /// Retrieve the internal hardware.
-    fn hardware(&self) -> &Arc<RwLock<Hardware>>;
+    fn get_hardware(&self) -> &Arc<RwLock<Hardware>>;
 
     /// Returns the protocol name (used for Display only)
     fn get_protocol_name(&self) -> &'static str {
@@ -95,11 +96,8 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     /// https://github.com/firmata/protocol/blob/master/protocol.md#message-types
     fn analog_write(&mut self, pin: u16, level: u16) -> Result<(), Error> {
         {
-            let mut lock = self.hardware().write();
-            lock.pins
-                .get_mut(pin as usize)
-                .ok_or(UnknownPin { pin })?
-                .value = level;
+            let mut lock = self.get_hardware().write();
+            lock.get_pin_mut(pin)?.value = level;
         }
         self.write(&[
             ANALOG_MESSAGE | pin as u8,
@@ -110,7 +108,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
 
     /// Write `level` to the digital `pin`.
     ///
-    /// Send an DIGITAL_MESSAGE (0x90 - set analog value).   
+    /// Send an DIGITAL_MESSAGE (0x90 - set digital value).
     /// https://github.com/firmata/protocol/blob/master/protocol.md#message-types
     fn digital_write(&mut self, pin: u16, level: bool) -> Result<(), Error> {
         let port = (pin / 8) as u8;
@@ -118,7 +116,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         let mut i = 0;
 
         {
-            let mut lock = self.hardware().write();
+            let mut lock = self.get_hardware().write();
             let _pin = lock.get_pin_mut(pin)?;
 
             // Check if mode is oK.
@@ -165,7 +163,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     /// https://github.com/firmata/protocol/blob/master/protocol.md#data-message-expansion
     fn set_pin_mode(&mut self, pin: u16, mode: PinModeId) -> Result<(), Error> {
         {
-            let mut lock = self.hardware().write();
+            let mut lock = self.get_hardware().write();
             let mut _pin = lock.get_pin_mut(pin)?;
             let _mode = _pin.supports_mode(mode).ok_or(IncompatibleMode {
                 pin,
@@ -224,15 +222,16 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     // SERVO
 
     /// Sends a SERVO_CONFIG command (0x70 - configure servo)
-    fn servo_config(&mut self, pin: u16, pwn_range: Range<u16>) -> Result<(), Error> {
+    /// https://github.com/firmata/protocol/blob/master/servos.md
+    fn servo_config(&mut self, pin: u16, pwm_range: Range<u16>) -> Result<(), Error> {
         self.write(&[
             START_SYSEX,
             SERVO_CONFIG,
             pin as u8,
-            pwn_range.start as u8 & SYSEX_REALTIME,
-            (pwn_range.start >> 7) as u8 & SYSEX_REALTIME,
-            pwn_range.end as u8 & SYSEX_REALTIME,
-            (pwn_range.end >> 7) as u8 & SYSEX_REALTIME,
+            pwm_range.start as u8 & SYSEX_REALTIME,
+            (pwm_range.start >> 7) as u8 & SYSEX_REALTIME,
+            pwm_range.end as u8 & SYSEX_REALTIME,
+            (pwm_range.end >> 7) as u8 & SYSEX_REALTIME,
             END_SYSEX,
         ])
     }
@@ -259,47 +258,31 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     /// Handle a REPORT_VERSION_RESPONSE message (0xF9 - return the firmware version).
     /// https://github.com/firmata/protocol/blob/master/protocol.md#message-types
     fn handle_report_version(&mut self, buf: &[u8]) -> Result<Message, Error> {
-        let mut lock = self.hardware().write();
-        lock.protocol_version = format!("{:o}.{:o}", buf[1], buf[2]);
-        Ok(Message::ProtocolVersion)
+        let mut lock = self.get_hardware().write();
+        lock.protocol_version = format!("{}.{}", buf[1], buf[2]);
+        Ok(Message::ReportProtocolVersion)
     }
 
     /// Handle an ANALOG_MESSAGE message (0xE0 - report state of an analog pin)
     /// https://github.com/firmata/protocol/blob/master/protocol.md#data-message-expansion
     fn handle_analog_message(&mut self, buf: &[u8]) -> Result<Message, Error> {
-        if buf.len() < 3 {
-            return Err(Error::from(MessageTooShort {
-                operation: "handle_analog_message",
-                expected: 3,
-                received: buf.len(),
-            }));
-        }
         let pin = (buf[0] as u16 & 0x0F) + 14;
         let value = (buf[1] as u16) | ((buf[2] as u16) << 7);
-        if self.hardware().read().pins.len() as u16 > pin {
-            self.hardware().write().get_pin_mut(pin)?.value = value;
-        }
+        self.get_hardware().write().get_pin_mut(pin)?.value = value;
         Ok(Message::Analog)
     }
 
     /// Handle a DIGITAL_MESSAGE message (0x90 - report state of a digital pin/port)
     /// https://github.com/firmata/protocol/blob/master/protocol.md#data-message-expansion
     fn handle_digital_message(&mut self, buf: &[u8]) -> Result<Message, Error> {
-        if buf.len() < 3 {
-            return Err(Error::from(MessageTooShort {
-                operation: "handle_digital_message",
-                expected: 3,
-                received: buf.len(),
-            }));
-        }
         let port = (buf[0] as u16) & 0x0F;
         let value = (buf[1] as u16) | ((buf[2] as u16) << 7);
 
         for i in 0..8 {
             let pin = (8 * port) + i;
-            let mode: PinModeId = self.hardware().read().get_pin(pin)?.mode.id;
-            if self.hardware().read().pins.len() as u16 > pin && mode == PinModeId::INPUT {
-                self.hardware().write().get_pin_mut(pin)?.value = (value >> (i & 0x07)) & 0x01;
+            let mode: PinModeId = self.get_hardware().read().get_pin(pin)?.mode.id;
+            if mode == PinModeId::INPUT {
+                self.get_hardware().write().get_pin_mut(pin)?.value = (value >> (i & 0x07)) & 0x01;
             }
         }
         Ok(Message::Digital)
@@ -308,6 +291,10 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     /// Handle a START_SYSEX message: dispatch to various message/command/response using the sysex format.
     /// https://github.com/firmata/protocol/blob/master/protocol.md#sysex-message-format
     fn handle_sysex_message(&mut self, buf: &mut Vec<u8>) -> Result<Message, Error> {
+        if buf[1] == END_SYSEX || buf[2] == END_SYSEX {
+            return Ok(Message::EmptyResponse);
+        }
+
         loop {
             // Read until END_SYSEX.
             let mut byte = [0];
@@ -318,7 +305,6 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
             }
         }
         match buf[1] {
-            END_SYSEX => Ok(Message::EmptyResponse),
             ANALOG_MAPPING_RESPONSE => self.handle_analog_mapping_response(buf),
             CAPABILITY_RESPONSE => self.handle_capability_response(buf),
             REPORT_FIRMWARE => self.handle_report_firmware(buf),
@@ -331,7 +317,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     /// Handle an ANALOG_MAPPING_RESPONSE message (0x6A - reply with analog pins mapping info).
     /// https://github.com/firmata/protocol/blob/master/protocol.md#analog-mapping-query
     fn handle_analog_mapping_response(&mut self, buf: &[u8]) -> Result<Message, Error> {
-        let mut lock = self.hardware().write();
+        let mut lock = self.get_hardware().write();
         let mut i = 2;
         while buf[i] != END_SYSEX {
             if buf[i] != SYSEX_REALTIME {
@@ -355,8 +341,8 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     fn handle_capability_response(&mut self, buf: &[u8]) -> Result<Message, Error> {
         let mut id = 0;
         let mut i = 2;
-        let mut lock = self.hardware().write();
-        lock.pins = vec![];
+        let mut lock = self.get_hardware().write();
+        lock.pins = HashMap::new();
 
         while buf[i] != END_SYSEX {
             let mut supported_modes: Vec<PinMode> = vec![];
@@ -379,7 +365,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
             if !pin.supported_modes.is_empty() {
                 pin.mode = pin.supported_modes.first().unwrap().clone();
             }
-            lock.pins.push(pin);
+            lock.pins.insert(pin.id, pin);
 
             i += 1;
             id += 1;
@@ -390,21 +376,21 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     /// Handle a REPORT_FIRMWARE message (0x79 - report name and version of the firmware).
     /// https://github.com/firmata/protocol/blob/master/protocol.md#query-firmware-name-and-version
     fn handle_report_firmware(&mut self, buf: &[u8]) -> Result<Message, Error> {
-        if buf.len() < 4 {
+        if buf.len() < 5 {
             return Err(Error::from(MessageTooShort {
                 operation: "handle_report_firmware",
-                expected: 4,
+                expected: 5,
                 received: buf.len(),
             }));
         }
         let major = buf[2];
         let minor = buf[3];
-        let mut lock = self.hardware().write();
-        lock.firmware_version = format!("{:o}.{:o}", major, minor);
-        if buf.len() > 4 {
+        let mut lock = self.get_hardware().write();
+        lock.firmware_version = format!("{}.{}", major, minor);
+        if buf.len() > 5 {
             lock.firmware_name = std::str::from_utf8(&buf[4..buf.len() - 1])?.to_string();
         }
-        Ok(Message::ReportFirmware)
+        Ok(Message::ReportFirmwareVersion)
     }
 
     /// Handle an I2C_REPLY message (0x6E - read and decode an i2c message)
@@ -427,7 +413,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
             reply.data.push((buf[i] as u16) | (buf[i + 1] as u16) << 7);
             i += 2;
         }
-        self.hardware().write().i2c_data.push(reply);
+        self.get_hardware().write().i2c_data.push(reply);
         Ok(Message::I2CReply)
     }
 
@@ -443,7 +429,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
             }));
         }
 
-        let mut lock = self.hardware().write();
+        let mut lock = self.get_hardware().write();
         let pin = lock.get_pin_mut(pin)?;
         // Check if the state announce by the protocol is plausible and fetch it.
         let mode = PinModeId::from_u8(buf[3])?;
@@ -464,7 +450,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
 
 impl Display for Box<dyn Protocol> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let lock = self.hardware().read();
+        let lock = self.get_hardware().read();
         write!(
             f,
             "firmware={}, version={}, protocol={}, connection={:?}",
@@ -478,48 +464,469 @@ impl Display for Box<dyn Protocol> {
 
 #[cfg(test)]
 mod tests {
+    use crate::protocols::{Message, PinModeId, Protocol};
+    use crate::tests::mocks::protocol::MockProtocol;
+    use crate::utils::Range;
 
-    // @todo Implement tests
+    fn format_as_hex(slice: &[u8]) -> String {
+        slice
+            .iter()
+            .map(|byte| format!("0x{:02X}", byte))
+            .collect::<Vec<String>>()
+            .join(", ")
+    }
 
-    // #[test]
-    // fn test_handshake() {
-    //     let mut protocol = MockProtocol {
-    //         hardware: ProtocolHardware::default(),
-    //     };
-    //
-    // assert_eq!(protocol.get_protocol_name(), "MockProtocol");
-    //
-    //     let handshake = protocol.handshake();
-    //     assert!(
-    //         handshake.is_ok(),
-    //         "Handshake error: {}",
-    //         handshake.unwrap_err()
-    //     );
-    //
-    //     assert_eq!(protocol.hardware.firmware_version, "2.5");
-    // }
-    //
-    // #[test]
-    // fn test_analog_write() {
-    //     let mut protocol = MockProtocol {
-    //         hardware: ProtocolHardware::default(),
-    //     };
-    //
-    //     assert!(protocol.analog_write(0, 255).is_ok());
-    //
-    //     // Add more assertions based on your specific protocol behavior
-    //     assert_eq!(protocol.hardware.pins[0].value, 255);
-    // }
-    //
-    // #[test]
-    // fn test_digital_write() {
-    //     let mut protocol = MockProtocol {
-    //         hardware: ProtocolHardware::default(),
-    //     };
-    //
-    //     assert!(protocol.digital_write(7, 1).is_ok());
-    //
-    //     // Add more assertions based on your specific protocol behavior
-    //     assert_eq!(protocol.hardware.pins[7].value, 1);
-    // }
+    #[test]
+    fn test_handshake() {
+        let mut protocol = MockProtocol::default();
+        protocol.index = 10;
+        // Result for query firmware
+        protocol.buf[10..15].copy_from_slice(&[0xF0, 0x79, 0x01, 0x0C, 0xF7]);
+        // Result for report capabilities
+        protocol.buf[15..26].copy_from_slice(&[
+            0xF0, 0x6C, 0x00, 0x08, 0x7F, 0x00, 0x08, 0x01, 0x08, 0x7F, 0xF7,
+        ]);
+        // Result for analog mapping
+        protocol.buf[26..32].copy_from_slice(&[0xF0, 0x6A, 0x7F, 0x7F, 0x7F, 0xF7]);
+
+        let result = protocol.handshake();
+        assert!(result.is_ok(), "Handshake error: {:?}", result.unwrap_err());
+    }
+
+    #[test]
+    fn test_analog_write() {
+        let mut protocol = MockProtocol::default();
+        let result = protocol.analog_write(0, 170);
+        assert!(result.is_ok(), "{:?}", result);
+        assert!(
+            protocol.buf.starts_with(&[0xE0, 0x2A, 0x01]),
+            "Buffer data has been sent [{:?}]",
+            format_as_hex(&protocol.buf[..3])
+        );
+        {
+            let lock = protocol.get_hardware().read();
+            let pin = lock.get_pin(0).unwrap();
+            assert_eq!(pin.value, 170, "Pin value updated");
+        }
+
+        let result = protocol.analog_write(5, 0);
+        assert!(result.is_err());
+        assert_eq!(
+            result.err().unwrap().to_string(),
+            "Hardware error: Unknown pin 5."
+        );
+    }
+
+    #[test]
+    fn test_digital_write() {
+        let mut protocol = MockProtocol::default();
+        let result = protocol.digital_write(13, true);
+        assert!(result.is_ok(), "{:?}", result);
+        assert!(
+            protocol.buf.starts_with(&[0x91, 0x7F, 0x01]),
+            "Buffer data has been sent [{:?}]",
+            format_as_hex(&protocol.buf[..3])
+        );
+
+        {
+            let lock = protocol.get_hardware().read();
+            let pin = lock.get_pin(13).unwrap();
+            assert_eq!(pin.value, 1);
+            let pin = lock.get_pin(11).unwrap();
+            assert_eq!(pin.value, 11, "Other pin value does not change");
+        }
+
+        let result = protocol.digital_write(7, true);
+        assert!(result.is_err(),);
+        assert_eq!(
+            result.err().unwrap().to_string(),
+            "Hardware error: Unknown pin 7."
+        );
+    }
+
+    #[test]
+    fn test_set_pin_mode() {
+        let mut protocol = MockProtocol::default();
+
+        {
+            let lock = protocol.get_hardware().read();
+            let pin = lock.get_pin(8).unwrap();
+            assert_eq!(pin.mode.id, PinModeId::PWM);
+        }
+
+        let result = protocol.set_pin_mode(8, PinModeId::OUTPUT);
+        assert!(result.is_ok(), "{:?}", result);
+        assert!(
+            protocol.buf.starts_with(&[0xF4, 0x08, 0x01]),
+            "Buffer data has been sent [{:?}]",
+            format_as_hex(&protocol.buf[..3])
+        );
+
+        {
+            let lock = protocol.get_hardware().read();
+            let pin = lock.get_pin(8).unwrap();
+            assert_eq!(pin.mode.id, PinModeId::OUTPUT);
+        }
+
+        let result = protocol.set_pin_mode(8, PinModeId::SHIFT);
+        assert!(result.is_err());
+        assert_eq!(
+            result.err().unwrap().to_string(),
+            "Hardware error: Pin (8) not compatible with mode (SHIFT) - try to set pin mode."
+        );
+    }
+
+    #[test]
+    fn test_servo_config() {
+        let mut protocol = MockProtocol::default();
+        let result = protocol.servo_config(8, Range::from([500, 2500]));
+        assert!(
+            result.is_ok(),
+            "Servo config error: {:?}",
+            result.unwrap_err()
+        );
+        assert!(
+            protocol
+                .buf
+                .starts_with(&[0xF0, 0x70, 0x08, 0x74, 0x03, 0x44, 0x13, 0xF7]),
+            "Buffer data has been sent [{:?}]",
+            format_as_hex(&protocol.buf[..8])
+        );
+    }
+
+    #[test]
+    fn test_query_firmware() {
+        let mut protocol = MockProtocol::default();
+        let result = protocol.query_firmware();
+        assert!(result.is_ok(), "Query firmware: {:?}", result.unwrap_err());
+        assert!(
+            protocol.buf.starts_with(&[0xF0, 0x79, 0xF7]),
+            "Buffer data has been sent [{:?}]",
+            format_as_hex(&protocol.buf[..3])
+        );
+    }
+
+    #[test]
+    fn test_query_capabilities() {
+        let mut protocol = MockProtocol::default();
+        let result = protocol.query_capabilities();
+        assert!(
+            result.is_ok(),
+            "Query capabilities: {:?}",
+            result.unwrap_err()
+        );
+        assert!(
+            protocol.buf.starts_with(&[0xF0, 0x6B, 0xF7]),
+            "Buffer data has been sent [{:?}]",
+            format_as_hex(&protocol.buf[..3])
+        );
+    }
+
+    #[test]
+    fn test_query_analog_mapping() {
+        let mut protocol = MockProtocol::default();
+        let result = protocol.query_analog_mapping();
+        assert!(
+            result.is_ok(),
+            "Query analog mapping: {:?}",
+            result.unwrap_err()
+        );
+        assert!(
+            protocol.buf.starts_with(&[0xF0, 0x69, 0xF7]),
+            "Buffer data has been sent [{:?}]",
+            format_as_hex(&protocol.buf[..3])
+        );
+    }
+
+    #[test]
+    fn test_report_analog() {
+        let mut protocol = MockProtocol::default();
+        let result = protocol.report_analog(1, true);
+        assert!(result.is_ok(), "Report analog: {:?}", result.unwrap_err());
+        assert!(
+            protocol.buf.starts_with(&[0xC1, 0x01]),
+            "Buffer data has been sent [{:?}]",
+            format_as_hex(&protocol.buf[..2])
+        );
+    }
+
+    #[test]
+    fn test_report_digital() {
+        let mut protocol = MockProtocol::default();
+        let result = protocol.report_digital(1, true);
+        assert!(result.is_ok(), "Report analog: {:?}", result.unwrap_err());
+        assert!(
+            protocol.buf.starts_with(&[0xD1, 0x01]),
+            "Buffer data has been sent [{:?}]",
+            format_as_hex(&protocol.buf[..2])
+        );
+    }
+
+    #[test]
+    fn test_handle_report_version() {
+        let mut protocol = MockProtocol::default();
+        protocol.buf[..3].copy_from_slice(&[0xF9, 0x01, 0x19]);
+        let result = protocol.read_and_decode();
+        assert!(
+            result.is_ok(),
+            "Handle report version: {:?}",
+            result.unwrap_err()
+        );
+        assert_eq!(result.unwrap(), Message::ReportProtocolVersion);
+        {
+            let lock = protocol.get_hardware().read();
+            assert_eq!(lock.to_owned().protocol_version, "1.25");
+        }
+    }
+
+    #[test]
+    fn test_handle_analog_message() {
+        let mut protocol = MockProtocol::default();
+        protocol.buf[..3].copy_from_slice(&[0xE1, 0xDE, 0x00]);
+        let result = protocol.read_and_decode();
+        assert!(
+            result.is_ok(),
+            "Handle report version: {:?}",
+            result.unwrap_err()
+        );
+        assert_eq!(result.unwrap(), Message::Analog);
+        {
+            let lock = protocol.get_hardware().read();
+            assert_eq!(lock.to_owned().get_pin(15).unwrap().value, 222);
+        }
+    }
+
+    #[test]
+    fn test_handle_digital_message() {
+        let mut protocol = MockProtocol::default();
+        {
+            let lock = protocol.get_hardware().read();
+            assert_eq!(lock.to_owned().get_pin(10).unwrap().value, 10);
+            assert_eq!(lock.to_owned().get_pin(12).unwrap().value, 12);
+        }
+
+        protocol.buf[..3].copy_from_slice(&[0x91, 0x00, 0x00]);
+        let result = protocol.read_and_decode();
+        assert!(
+            result.is_ok(),
+            "Handle report version: {:?}",
+            result.unwrap_err()
+        );
+        assert_eq!(result.unwrap(), Message::Digital);
+        {
+            let lock = protocol.get_hardware().read();
+            assert_eq!(lock.to_owned().get_pin(10).unwrap().value, 0);
+            assert_eq!(lock.to_owned().get_pin(12).unwrap().value, 12);
+        }
+    }
+
+    #[test]
+    fn test_handle_empty_sysex() {
+        let mut protocol = MockProtocol::default();
+        protocol.buf[..1].copy_from_slice(&[0x11]);
+        let result = protocol.read_and_decode();
+        assert!(
+            result.is_err(),
+            "Handle empty sysex: {:?}",
+            result.unwrap_err()
+        );
+        assert_eq!(
+            result.err().unwrap().to_string(),
+            "Protocol error: Unexpected data received."
+        );
+
+        protocol.index = 0;
+        protocol.buf[..2].copy_from_slice(&[0xF0, 0xF7]);
+        let result = protocol.read_and_decode();
+        assert!(
+            result.is_ok(),
+            "Handle empty sysex: {:?}",
+            result.unwrap_err()
+        );
+        assert_eq!(result.unwrap(), Message::EmptyResponse);
+    }
+
+    #[test]
+    fn test_handle_analog_mapping_response() {
+        let mut protocol = MockProtocol::default();
+        protocol.buf[..6].copy_from_slice(&[0xF0, 0x6A, 0x01, 0x7F, 0x7F, 0xF7]);
+        {
+            let lock = protocol.get_hardware().read();
+            assert_eq!(lock.to_owned().get_pin(0).unwrap().channel, None);
+        }
+        let result = protocol.read_and_decode();
+        assert!(
+            result.is_ok(),
+            "Handle empty sysex: {:?}",
+            result.unwrap_err()
+        );
+        assert_eq!(result.unwrap(), Message::AnalogMappingResponse);
+        {
+            let lock = protocol.get_hardware().read();
+            assert_eq!(lock.to_owned().get_pin(0).unwrap().channel, Some(1));
+        }
+
+        // Unsupported possible data
+        let mut protocol = MockProtocol::default();
+        protocol.buf[..6].copy_from_slice(&[0xF0, 0x6A, 0x01, 0x01, 0x01, 0xF7]);
+        let result = protocol.read_and_decode();
+        assert!(result.is_err());
+        assert_eq!(
+            result.err().unwrap().to_string(),
+            "Hardware error: Pin (2) not compatible with mode (ANALOG) - handle_analog_mapping_response."
+        );
+    }
+
+    #[test]
+    fn test_handle_capability_response() {
+        let mut protocol = MockProtocol::default();
+        protocol.buf[..11].copy_from_slice(&[
+            0xF0, 0x6C, 0x00, 0x08, 0x7F, 0x00, 0x08, 0x01, 0x08, 0x7F, 0xF7,
+        ]);
+        let result = protocol.read_and_decode();
+        assert!(
+            result.is_ok(),
+            "Handle empty sysex: {:?}",
+            result.unwrap_err()
+        );
+        assert_eq!(result.unwrap(), Message::CapabilityResponse);
+        {
+            let lock = protocol.get_hardware().read();
+            let hardware = lock.to_owned();
+            assert_eq!(hardware.pins.len(), 2, "{:?}", hardware.pins);
+            assert_eq!(hardware.get_pin(0).unwrap().supported_modes.len(), 1);
+            assert_eq!(hardware.get_pin(1).unwrap().supported_modes.len(), 2);
+        }
+    }
+
+    #[test]
+    fn test_handle_report_firmware() {
+        // No firmware name.
+        let mut protocol = MockProtocol::default();
+        protocol.buf[..5].copy_from_slice(&[0xF0, 0x79, 0x01, 0x0C, 0xF7]);
+        let result = protocol.read_and_decode();
+        assert!(
+            result.is_ok(),
+            "Handle report firmware: {:?}",
+            result.unwrap_err()
+        );
+        assert_eq!(result.unwrap(), Message::ReportFirmwareVersion);
+        {
+            let lock = protocol.get_hardware().read();
+            assert_eq!(lock.to_owned().firmware_version, "1.12");
+            assert_eq!(lock.to_owned().firmware_name, "Fake protocol");
+        }
+
+        // With a custom firmware name.
+        let mut protocol = MockProtocol::default();
+        protocol.buf[..11].copy_from_slice(&[
+            0xF0, 0x79, 0x02, 0x40, 0x66, 0x6F, 0x6F, 0x62, 0x61, 0x72, 0xF7,
+        ]);
+        let result = protocol.read_and_decode();
+        assert!(
+            result.is_ok(),
+            "Handle report firmware: {:?}",
+            result.unwrap_err()
+        );
+        assert_eq!(result.unwrap(), Message::ReportFirmwareVersion);
+        {
+            let lock = protocol.get_hardware().read();
+            assert_eq!(lock.to_owned().firmware_version, "2.64");
+            assert_eq!(lock.to_owned().firmware_name, "foobar");
+        }
+
+        // Not enough data.
+        let mut protocol = MockProtocol::default();
+        protocol.buf[..4].copy_from_slice(&[0xF0, 0x79, 0x02, 0xF7]);
+        let result = protocol.read_and_decode();
+        assert!(result.is_err());
+        assert_eq!(result.err().unwrap().to_string(), "Protocol error: Not enough bytes received - 'handle_report_firmware' expected 5 bytes, 4 received.");
+    }
+
+    #[test]
+    fn test_handle_pin_state_response() {
+        let mut protocol = MockProtocol::default();
+        protocol.buf[..6].copy_from_slice(&[0xF0, 0x6E, 0x03, 0x00, 0x1E, 0xF7]);
+
+        {
+            let lock = protocol.get_hardware().read();
+            assert_eq!(
+                lock.to_owned().get_pin(3).unwrap().mode.id,
+                PinModeId::OUTPUT
+            );
+            assert_eq!(lock.to_owned().get_pin(3).unwrap().value, 3);
+        }
+        let result = protocol.read_and_decode();
+        assert!(
+            result.is_ok(),
+            "Handle empty sysex: {:?}",
+            result.unwrap_err()
+        );
+        assert_eq!(result.unwrap(), Message::PinStateResponse);
+        {
+            let lock = protocol.get_hardware().read();
+            assert_eq!(
+                lock.to_owned().get_pin(3).unwrap().mode.id,
+                PinModeId::INPUT
+            );
+            assert_eq!(lock.to_owned().get_pin(3).unwrap().value, 30);
+        }
+    }
+
+    #[test]
+    fn test_i2c_config() {
+        let mut protocol = MockProtocol::default();
+        let result = protocol.i2c_config(100);
+        assert!(
+            result.is_ok(),
+            "I2C config error: {:?}",
+            result.unwrap_err()
+        );
+        assert!(
+            protocol.buf.starts_with(&[0xF0, 0x78, 0x64, 0x00, 0xF7]),
+            "Buffer data has been sent [{:?}]",
+            format_as_hex(&protocol.buf[..5])
+        );
+    }
+
+    #[test]
+    fn test_i2c_read() {
+        let mut protocol = MockProtocol::default();
+        let result = protocol.i2c_read(0x40, 4);
+        assert!(result.is_ok(), "I2C read error: {:?}", result.unwrap_err());
+        assert!(
+            protocol
+                .buf
+                .starts_with(&[0xF0, 0x76, 0x40, 0x08, 0x04, 0x00, 0xF7]),
+            "Buffer data has been sent [{:?}]",
+            format_as_hex(&protocol.buf[..7])
+        );
+    }
+
+    #[test]
+    fn test_i2c_write() {
+        let mut protocol = MockProtocol::default();
+        let result = protocol.i2c_write(0x40, &[0x01, 0x02, 0x03]);
+        assert!(result.is_ok(), "I2C write error: {:?}", result.unwrap_err());
+        assert!(
+            protocol
+                .buf
+                .starts_with(&[0xF0, 0x76, 0x40, 0x00, 0x01, 0x00, 0x02, 0x00, 0x03, 0x00, 0xF7]),
+            "Buffer data has been sent [{:?}]",
+            format_as_hex(&protocol.buf[..11])
+        );
+    }
+
+    #[test]
+    fn test_handle_i2c_reply() {
+        // let mut protocol = MockProtocol::default();
+        // protocol.buf[..2].copy_from_slice(&[0xF0, 0xF7]);
+        // let result = protocol.read_and_decode();
+        // assert!(
+        //     result.is_ok(),
+        //     "Handle empty sysex: {:?}",
+        //     result.unwrap_err()
+        // );
+        // assert_eq!(result.unwrap(), Message::EmptyResponse);
+    }
 }

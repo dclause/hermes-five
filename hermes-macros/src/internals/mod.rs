@@ -44,11 +44,7 @@ pub fn runtime_macro(item: TokenStream, tokio: TokioMode) -> TokenStream {
     let return_expr = if has_return_type {
         match stmts.pop() {
             Some(Stmt::Expr(expr, ..)) => Some(expr),
-            Some(stmt) => {
-                stmts.push(stmt);
-                None
-            }
-            None => None,
+            _ => None,
         }
     } else {
         None
