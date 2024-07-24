@@ -14,17 +14,3 @@ authors = ["Dominique CLAUSE <dom.clause@gmail.com>"]
 repository = "https://github.com/dclause/hermes-five"
 readme = "README.md"
 license = "MIT"
-
-[profile.release]
-opt-level = 3               # All optimizations
-lto = true                  # Enable link-time optimization
-codegen-units = 1           # Reduce number of codegen units to increase optimizations
-panic = 'abort'             # Abort on panic
-strip = true                # Strip symbols from binary*
-debug = false               # No debug info into release
-rpath = false               # Turns off rpath (run-time search path)
-debug-assertions = false    # Turn of cfg(debug_assertions)
-
-[profile.release-lto]
-inherits = "release"
-lto = true
