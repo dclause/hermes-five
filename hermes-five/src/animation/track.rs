@@ -33,11 +33,11 @@ use crate::utils::scale::Scalable;
 ///
 /// # Fields
 ///
-/// * `name` - The name of the track.
-/// * `device` - The [`Actuator`] associated with this track.
-/// * `keyframes` - A list of [`Keyframe`]s defining the animation.
-/// * `previous` - The previous state value of the actuator.
-/// * `current` - The current state value of the actuator.
+/// * `name`: The name of the track.
+/// * `device`: The [`Actuator`] associated with this track.
+/// * `keyframes`: A list of [`Keyframe`]s defining the animation.
+/// * `previous`: The previous state value of the actuator.
+/// * `current`: The current state value of the actuator.
 #[derive(Clone, Debug)]
 pub struct Track {
     // @todo keep?

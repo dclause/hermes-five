@@ -1,17 +1,21 @@
+use std::sync::Arc;
+
+use parking_lot::RwLock;
+
 use crate::errors::Error;
-use crate::protocols::{Protocol, ProtocolHardware};
+use crate::protocols::{Hardware, Protocol};
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug, Default)]
 pub struct MockProtocol {
     /// The base-protocol attributes.
     #[cfg_attr(feature = "serde", serde(skip))]
-    hardware: ProtocolHardware,
+    hardware: Arc<RwLock<Hardware>>,
 }
 
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl Protocol for MockProtocol {
-    fn hardware(&self) -> &ProtocolHardware {
+    fn hardware(&self) -> &Arc<RwLock<Hardware>> {
         &self.hardware
     }
 

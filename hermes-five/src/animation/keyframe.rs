@@ -22,10 +22,10 @@ use crate::utils::scale::Scalable;
 /// ```
 ///
 /// # Fields
-/// * `target` - The target device state at the end of the keyframe.
-/// * `start` - The start time of the keyframe in milliseconds.
-/// * `end` - The end time of the keyframe in milliseconds.
-/// * `transition` - The easing function applied during the transition.
+/// * `target`: The target device state at the end of the keyframe.
+/// * `start`: The start time of the keyframe in milliseconds.
+/// * `end`: The end time of the keyframe in milliseconds.
+/// * `transition`: The easing function applied during the transition.
 #[derive(Clone, Debug)]
 pub struct Keyframe {
     /// The target value of the keyframe: will be applied as a state for the [`Actuator`] of the

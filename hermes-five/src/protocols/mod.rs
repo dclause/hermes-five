@@ -1,23 +1,25 @@
 use std::any::type_name;
 use std::fmt::{Debug, Display, Formatter};
+use std::sync::Arc;
 
 use dyn_clone::DynClone;
+use parking_lot::RwLock;
 
 use crate::errors::*;
 use crate::errors::HardwareError::{IncompatibleMode, UnknownPin};
 use crate::errors::ProtocolError::{MessageTooShort, UnexpectedData};
 pub use crate::protocols::constants::*;
 pub use crate::protocols::flavor::*;
+pub use crate::protocols::hardware::*;
 pub use crate::protocols::i2c_reply::I2CReply;
 pub use crate::protocols::pins::*;
-pub use crate::protocols::protocol::*;
 use crate::utils::Range;
 
 pub mod constants;
 mod flavor;
+mod hardware;
 mod i2c_reply;
 mod pins;
-mod protocol;
 
 // Makes a Box<dyn Protocol> clone (used for Board cloning).
 dyn_clone::clone_trait_object!(Protocol);
@@ -29,7 +31,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     // Inner data related functions
 
     /// Retrieve the internal hardware.
-    fn hardware(&self) -> &ProtocolHardware;
+    fn hardware(&self) -> &Arc<RwLock<Hardware>>;
 
     /// Returns the protocol name (used for Display only)
     fn get_protocol_name(&self) -> &'static str {
@@ -120,7 +122,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
             let _pin = lock.get_pin_mut(pin)?;
 
             // Check if mode is oK.
-            _pin.check_current_mode(PinModeId::OUTPUT)?;
+            _pin.validate_current_mode(PinModeId::OUTPUT)?;
 
             // Store the value we will write to the current pin.
             lock.get_pin_mut(pin)?.value = u16::from(level);
@@ -165,7 +167,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         {
             let mut lock = self.hardware().write();
             let mut _pin = lock.get_pin_mut(pin)?;
-            let _mode = _pin.get_mode(mode).ok_or(IncompatibleMode {
+            let _mode = _pin.supports_mode(mode).ok_or(IncompatibleMode {
                 pin,
                 mode,
                 context: "try to set pin mode",
@@ -334,11 +336,13 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         while buf[i] != END_SYSEX {
             if buf[i] != SYSEX_REALTIME {
                 let pin = &mut lock.get_pin_mut((i - 2) as u16)?;
-                pin.mode = pin.get_mode(PinModeId::ANALOG).ok_or(IncompatibleMode {
-                    pin: (i - 2) as u16,
-                    mode: PinModeId::ANALOG,
-                    context: "handle_analog_mapping_response",
-                })?;
+                pin.mode = pin
+                    .supports_mode(PinModeId::ANALOG)
+                    .ok_or(IncompatibleMode {
+                        pin: (i - 2) as u16,
+                        mode: PinModeId::ANALOG,
+                        context: "handle_analog_mapping_response",
+                    })?;
                 pin.channel = Some(buf[i]);
             }
             i += 1;
@@ -443,7 +447,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         let pin = lock.get_pin_mut(pin)?;
         // Check if the state announce by the protocol is plausible and fetch it.
         let mode = PinModeId::from_u8(buf[3])?;
-        let current_state = pin.get_mode(mode).unwrap();
+        let current_state = pin.supports_mode(mode).unwrap();
         pin.mode = current_state;
 
         let mut i = 4;

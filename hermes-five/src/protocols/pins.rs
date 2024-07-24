@@ -1,35 +1,56 @@
 use std::fmt::{Debug, Display, Formatter};
 
-use crate::errors::Error;
-use crate::errors::HardwareError::{IncompatibleMode, UnknownPin};
+use crate::errors::{Error, Unknown};
+use crate::errors::HardwareError::IncompatibleMode;
 
-/// The current state and configuration of a pin.
+/// Represents the current state and configuration of a pin.
+///
+/// # Fields
+///
+/// - `id`: The pin ID, which should correspond to the position of the pin in the [`Hardware::pins`] vector.
+/// - `mode`: The currently configured mode of the pin.
+/// - `supported_modes`: A vector of all pin modes supported by this pin.
+/// - `channel`: For analog pins, this is the channel number (e.g., "A0"=>0, "A1"=>1).
+/// - `value`: The pin value.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Default)]
 pub struct Pin {
-    /// The pin id: should correspond also to the position of the pin in the [`ProtocolHardware::pins`]
+    /// The pin id: should correspond also to the position of the pin in the [`Hardware::pins`]
     pub id: u16,
     /// Currently configured mode.
     pub mode: PinMode,
     /// All pin supported modes.
     pub supported_modes: Vec<PinMode>,
-    /// For analog pin, this is the channel number ie "A0", "A1", etc...
+    /// For analog pin, this is the channel number ie "A0"=>0, "A1"=>1, etc...
     pub channel: Option<u8>,
     /// Pin value.
     pub value: u16,
 }
 
 impl Pin {
-    /// Retrieve the given mode among the available ones.
-    pub fn get_mode(&self, mode: PinModeId) -> Option<PinMode> {
+    /// Verifies if a pin supports the given mode and returns it if it does.
+    ///
+    /// # Arguments
+    /// * `mode`: The ID of the mode to retrieve.
+    ///
+    /// # Returns
+    /// * `None` if the mode is not supported.
+    /// * `PinMode` the `PinMode` configuration if supported
+    pub fn supports_mode(&self, mode: PinModeId) -> Option<PinMode> {
         match self.supported_modes.iter().find(|m| m.id == mode) {
             None => None,
             Some(mode) => Some(mode.clone()),
         }
     }
 
-    /// Check if pin currently have
-    pub fn check_current_mode(&self, mode: PinModeId) -> Result<(), Error> {
+    /// Validates that the pin is in the given mode.
+    ///
+    /// # Arguments
+    /// * `mode`: The ID of the mode to check: the pin should be in that mode.
+    ///
+    /// # Errors
+    /// *`IncompatibleMode`: the pin's current mode does not match the expected mode.
+    pub fn validate_current_mode(&self, mode: PinModeId) -> Result<(), Error> {
         match self.mode.id == mode {
             true => Ok(()),
             false => Err(IncompatibleMode {
@@ -63,6 +84,11 @@ impl Debug for Pin {
 
 // ########################################
 
+/// Represents a mode configuration for a pin.
+///
+/// # Fields
+/// - `id`: The ID of the mode.
+/// - `resolution`: The resolution (number of bits) this mode uses.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Default, Copy)]
 pub struct PinMode {
@@ -81,7 +107,7 @@ impl Display for PinMode {
 impl Debug for PinMode {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self.id {
-            PinModeId::UNSUPPORTED => write!(f, "{}", self.id),
+            PinModeId::UNSUPPORTED => write!(f, "[{}]", self.id),
             _ => write!(f, "[id: {}, resolution: {}]", self.id, self.resolution),
         }
     }
@@ -89,8 +115,10 @@ impl Debug for PinMode {
 
 // ########################################
 
+/// Enumerates the possible modes for a pin.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
+#[repr(u8)]
 pub enum PinModeId {
     /// Same as INPUT defined in Arduino.
     INPUT = 0,
@@ -130,6 +158,16 @@ pub enum PinModeId {
 }
 
 impl PinModeId {
+    /// Converts a `u8` byte value into a `PinModeId`.
+    ///
+    /// # Arguments
+    /// * `value`: The `u8` value representing the pin mode.
+    ///
+    /// # Errors
+    /// * `Unknown`: The value does not match any known pin mode.
+    ///
+    /// # Returns
+    /// The corresponding `PinModeId` if the value is valid, otherwise returns an error.
     pub fn from_u8(value: u8) -> Result<PinModeId, Error> {
         match value {
             0 => Ok(PinModeId::INPUT),
@@ -149,7 +187,9 @@ impl PinModeId {
             0x0E => Ok(PinModeId::TONE),
             0x0F => Ok(PinModeId::DHT),
             0x7F => Ok(PinModeId::UNSUPPORTED),
-            x => Err(Error::from(UnknownPin { pin: x as u16 })),
+            x => Err(Error::from(Unknown {
+                info: format!("PinMode not found with value: {}", x),
+            })),
         }
     }
 }
@@ -163,5 +203,140 @@ impl From<PinModeId> for u8 {
 impl Display for PinModeId {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::protocols::{Pin, PinMode, PinModeId};
+
+    #[test]
+    fn test_pin_supports_mode() {
+        let pin = Pin {
+            supported_modes: vec![
+                PinMode {
+                    id: PinModeId::INPUT,
+                    resolution: 0,
+                },
+                PinMode {
+                    id: PinModeId::OUTPUT,
+                    resolution: 0,
+                },
+            ],
+            ..Default::default()
+        };
+
+        // Mode is supported
+        let supported_mode = pin.supports_mode(PinModeId::INPUT);
+        assert!(supported_mode.is_some());
+
+        // Mode is not supported
+        assert!(pin.supports_mode(PinModeId::PWM).is_none());
+    }
+
+    #[test]
+    fn test_check_current_mode_success() {
+        let pin = Pin {
+            mode: PinMode {
+                id: PinModeId::PWM,
+                resolution: 10,
+            },
+            ..Default::default()
+        };
+
+        assert!(pin.validate_current_mode(PinModeId::PWM).is_ok());
+        assert!(pin.validate_current_mode(PinModeId::SHIFT).is_err());
+    }
+
+    #[test]
+    fn test_pin_display() {
+        let mut pin = Pin {
+            supported_modes: vec![
+                PinMode {
+                    id: PinModeId::INPUT,
+                    resolution: 0,
+                },
+                PinMode {
+                    id: PinModeId::OUTPUT,
+                    resolution: 1,
+                },
+                PinMode {
+                    id: PinModeId::ANALOG,
+                    resolution: 8,
+                },
+            ],
+            channel: Some(1),
+            ..Default::default()
+        };
+        assert_eq!(format!("{:?}", pin), String::from("Pin { id: 0, mode: \"UNSUPPORTED\", supported modes: [[id: INPUT, resolution: 0], [id: OUTPUT, resolution: 1], [id: ANALOG, resolution: 8]], channel: \"A1\", value: 0 }"));
+        pin.mode = PinMode {
+            id: PinModeId::INPUT,
+            resolution: 0,
+        };
+        pin.channel = None;
+        assert_eq!(format!("{:?}", pin), String::from("Pin { id: 0, mode: \"INPUT\", supported modes: [[id: INPUT, resolution: 0], [id: OUTPUT, resolution: 1], [id: ANALOG, resolution: 8]], channel: \"\", value: 0 }"));
+    }
+
+    #[test]
+    fn test_pin_mode_display() {
+        let mode = PinMode {
+            id: PinModeId::PWM,
+            resolution: 8,
+        };
+        assert_eq!(format!("{}", mode), "PWM");
+    }
+
+    #[test]
+    fn test_pin_mode_debug() {
+        let mode = PinMode {
+            id: PinModeId::PWM,
+            resolution: 8,
+        };
+        assert_eq!(format!("{:?}", mode), "[id: PWM, resolution: 8]");
+        let unsupported = PinMode {
+            id: PinModeId::UNSUPPORTED,
+            resolution: 0,
+        };
+        assert_eq!(format!("{:?}", unsupported), "[UNSUPPORTED]");
+    }
+
+    #[test]
+    fn test_pin_mode_id_conversions() {
+        // From u8 to PinModeId: success
+        let mode = PinModeId::from_u8(0x0F);
+        assert!(mode.is_ok());
+        assert_eq!(PinModeId::from_u8(0).unwrap(), PinModeId::INPUT);
+        assert_eq!(PinModeId::from_u8(1).unwrap(), PinModeId::OUTPUT);
+        assert_eq!(PinModeId::from_u8(2).unwrap(), PinModeId::ANALOG);
+        assert_eq!(PinModeId::from_u8(3).unwrap(), PinModeId::PWM);
+        assert_eq!(PinModeId::from_u8(4).unwrap(), PinModeId::SERVO);
+        assert_eq!(PinModeId::from_u8(5).unwrap(), PinModeId::SHIFT);
+        assert_eq!(PinModeId::from_u8(6).unwrap(), PinModeId::I2C);
+        assert_eq!(PinModeId::from_u8(7).unwrap(), PinModeId::ONEWIRE);
+        assert_eq!(PinModeId::from_u8(8).unwrap(), PinModeId::STEPPER);
+        assert_eq!(PinModeId::from_u8(9).unwrap(), PinModeId::ENCODER);
+        assert_eq!(PinModeId::from_u8(0x0A).unwrap(), PinModeId::SERIAL);
+        assert_eq!(PinModeId::from_u8(0x0B).unwrap(), PinModeId::PULLUP);
+        assert_eq!(PinModeId::from_u8(0x0C).unwrap(), PinModeId::SPI);
+        assert_eq!(PinModeId::from_u8(0x0D).unwrap(), PinModeId::SONAR);
+        assert_eq!(PinModeId::from_u8(0x0E).unwrap(), PinModeId::TONE);
+        assert_eq!(PinModeId::from_u8(0x0F).unwrap(), PinModeId::DHT);
+        assert_eq!(PinModeId::from_u8(0x7F).unwrap(), PinModeId::UNSUPPORTED);
+
+        // From u8 to PinModeId: error
+        let error_mode = PinModeId::from_u8(100);
+        assert!(error_mode.is_err());
+        assert_eq!(
+            error_mode.err().unwrap().to_string(),
+            "Unknown error: PinMode not found with value: 100."
+        );
+
+        // From PinModeId to u8
+        assert_eq!(u8::from(PinModeId::SHIFT), 5);
+    }
+
+    #[test]
+    fn test_pin_mode_id_display() {
+        assert_eq!(format!("{}", PinModeId::PWM), "PWM");
     }
 }

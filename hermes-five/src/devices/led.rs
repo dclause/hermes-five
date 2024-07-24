@@ -40,7 +40,7 @@ impl Led {
         let pwm_mode = {
             let hardware = protocol.hardware().write();
             let _pin = hardware.get_pin(pin)?;
-            _pin.get_mode(PinModeId::PWM)
+            _pin.supports_mode(PinModeId::PWM)
         };
 
         // Set pin mode to OUTPUT/PWM accordingly.

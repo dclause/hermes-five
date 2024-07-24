@@ -73,7 +73,7 @@ impl Servo {
         // Check if SERVO MODE exists for this pin.
         servo
             .pin()?
-            .get_mode(PinModeId::SERVO)
+            .supports_mode(PinModeId::SERVO)
             .ok_or(IncompatibleMode {
                 pin,
                 mode: PinModeId::SERVO,
