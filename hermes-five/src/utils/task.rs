@@ -1,7 +1,6 @@
 //! Defines Hermes-Five Runtime task runner.
 use std::future::Future;
 
-use anyhow::Result;
 use parking_lot::Mutex;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::OnceCell;
@@ -15,7 +14,7 @@ use crate::errors::{Error, RuntimeError, Unknown};
 /// will be converted to TaskResult sent to the runtime..
 pub enum TaskResult {
     Ok,
-    Err(anyhow::Error),
+    Err(Error),
 }
 
 /// Represents an arc protected handler for a task.
@@ -27,8 +26,8 @@ pub static RUNTIME_TX: OnceCell<Mutex<Option<UnboundedSender<UnboundedReceiver<T
 pub static RUNTIME_RX: OnceCell<Mutex<Option<UnboundedReceiver<UnboundedReceiver<TaskResult>>>>> =
     OnceCell::const_new();
 
-impl From<Result<()>> for TaskResult {
-    fn from(result: Result<()>) -> Self {
+impl From<Result<(), Error>> for TaskResult {
+    fn from(result: Result<(), Error>) -> Self {
         match result {
             Ok(_) => TaskResult::Ok,
             Err(e) => TaskResult::Err(e),
@@ -133,9 +132,7 @@ mod tests {
     use std::sync::atomic::{AtomicU8, Ordering};
     use std::time::SystemTime;
 
-    use anyhow::bail;
-
-    use crate::errors::Error;
+    use crate::errors::{Error, Unknown};
     use crate::utils::task;
 
     #[hermes_macros::runtime]
@@ -251,7 +248,9 @@ mod tests {
         assert!(task.is_ok(), "An Ok(()) task do not panic the runtime");
 
         let task = task::run(async move {
-            bail!("Wow panic!");
+            return Err(Unknown {
+                info: "wow panic!".to_string(),
+            });
         });
 
         assert!(task.is_ok(), "A panicking task do not panic the runtime");

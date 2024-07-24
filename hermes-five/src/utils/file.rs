@@ -3,7 +3,7 @@
 use std::env;
 use std::path::{Path, PathBuf};
 
-use anyhow::Result;
+use crate::errors::Error;
 
 /// Resolves a given file path relative to app root (as opposed to console path) into an absolute path.
 ///
@@ -20,7 +20,7 @@ use anyhow::Result;
 /// // Resolves to `/home/pi/user/Cargo.toml` if the file exists.
 /// ```
 #[allow(dead_code)]
-pub fn resolve_file<P: AsRef<Path>>(path: P) -> Result<PathBuf> {
+pub fn resolve_file<P: AsRef<Path>>(path: P) -> Result<PathBuf, Error> {
     let file_path = path.as_ref();
     let absolute_path: PathBuf = match file_path.is_absolute() {
         true => file_path.to_path_buf(),
@@ -31,33 +31,23 @@ pub fn resolve_file<P: AsRef<Path>>(path: P) -> Result<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use anyhow::{bail, Result};
-
     use crate::utils::file::resolve_file;
 
     #[test]
-    fn test_resolve_relative_file() -> Result<()> {
+    fn test_resolve_relative_file() {
         let path = format!("../{}", file!());
         let file = resolve_file(&path).unwrap();
-        let output = match std::fs::canonicalize(&file) {
-            Ok(output) => output,
-            Err(err) => bail!("{}: with path {:?}", err, file),
-        };
+        let output = std::fs::canonicalize(&file).unwrap();
         let expected = std::fs::canonicalize(&path).unwrap();
         assert_eq!(output, expected);
-        Ok(())
     }
 
     #[test]
-    fn test_resolve_absolute_file() -> Result<()> {
+    fn test_resolve_absolute_file() {
         let path = format!("../{}", file!());
         let file = resolve_file(&path).unwrap();
-        let output = match std::fs::canonicalize(&file) {
-            Ok(output) => output,
-            Err(err) => bail!("{}: with path {:?}", err, file),
-        };
+        let output = std::fs::canonicalize(&file).unwrap();
         let expected = resolve_file(std::fs::canonicalize(&path).unwrap()).unwrap();
         assert_eq!(output, expected);
-        Ok(())
     }
 }

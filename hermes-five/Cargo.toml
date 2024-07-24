@@ -18,7 +18,6 @@ serde = ["dep:serde", "dep:serde_json"]
 
 [dependencies]
 hermes-macros = { path = "../hermes-macros" }
-anyhow = "1.0.86"
 async-trait = "0.1.81"
 dyn-clone = "1.0.17"
 futures = "0.3.30"
