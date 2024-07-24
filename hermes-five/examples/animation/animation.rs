@@ -1,5 +1,3 @@
-use std::time::SystemTime;
-
 use hermes_five::{Board, pause};
 use hermes_five::animation::{Animation, Keyframe, Segment, Track};
 use hermes_five::devices::Servo;

@@ -7,11 +7,11 @@ use std::time::Duration;
 
 use log::trace;
 use parking_lot::{Mutex, RwLock};
-use serialport::{DataBits, FlowControl, Parity, StopBits};
+use serialport::{DataBits, ErrorKind, FlowControl, Parity, StopBits};
 use serialport::SerialPort;
-use snafu::prelude::*;
 
-use crate::errors::*;
+use crate::errors::Error;
+use crate::errors::ProtocolError::{IoException, MessageTooShort, NotInitialized};
 use crate::protocols::{Hardware, Protocol};
 use crate::protocols::protocol::ProtocolHardware;
 
@@ -86,8 +86,7 @@ impl Protocol for SerialProtocol {
             .stop_bits(StopBits::One)
             .flow_control(FlowControl::None)
             .timeout(Duration::from_millis(1000))
-            .open()
-            .context(SerialPortSnafu)?;
+            .open()?;
         self.io = Arc::new(Mutex::new(Some(connexion)));
 
         Ok(())
@@ -103,26 +102,42 @@ impl Protocol for SerialProtocol {
     /// Write to  the internal connection. For more details see [`std::io::Write::write`].
     fn write(&mut self, buf: &[u8]) -> Result<(), Error> {
         let mut lock = self.io.lock();
-        let bytes_written = lock
-            .as_mut()
-            .ok_or(NotInitialized)?
-            .write(buf)
-            .context(IoExceptionSnafu)?;
+        let bytes_written = lock.as_mut().ok_or(NotInitialized)?.write(buf)?;
 
         // Check if all bytes were successfully written
-        if bytes_written == buf.len() {
-            Ok(())
-        } else {
-            Err(MessageTooShort)
-        }
+        match bytes_written == buf.len() {
+            true => Ok(()),
+            false => Err(MessageTooShort {
+                operation: "write",
+                expected: buf.len(),
+                received: bytes_written,
+            }),
+        }?;
+
+        Ok(())
     }
 
     /// Read from the internal connection. For more details see [`std::io::Read::read_exact`].
     fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), Error> {
         let mut lock = self.io.lock();
-        lock.as_mut()
-            .ok_or(NotInitialized)?
-            .read_exact(buf)
-            .context(IoExceptionSnafu)
+        lock.as_mut().ok_or(NotInitialized)?.read_exact(buf)?;
+        Ok(())
+    }
+}
+
+impl From<serialport::Error> for Error {
+    fn from(value: serialport::Error) -> Self {
+        let info = match value.kind {
+            ErrorKind::Io(kind) => match kind {
+                std::io::ErrorKind::Other => {
+                    String::from("Port connexion not found: check if board is connected")
+                }
+                _ => value.to_string(),
+            },
+            _ => value.to_string(),
+        };
+        Error::ProtocolError {
+            source: IoException { info },
+        }
     }
 }

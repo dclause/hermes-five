@@ -1,6 +1,7 @@
 use std::fmt::{Debug, Display, Formatter};
 
-use crate::errors::{Error, IncompatibleMode};
+use crate::errors::Error;
+use crate::errors::HardwareError::{IncompatibleMode, UnknownPin};
 
 /// The current state and configuration of a pin.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -34,9 +35,10 @@ impl Pin {
             false => Err(IncompatibleMode {
                 mode: self.mode.id,
                 pin: self.id,
-                operation: String::from("digital_write requires OUTPUT mode"),
+                context: "check_current_mode",
             }),
-        }
+        }?;
+        Ok(())
     }
 }
 
@@ -147,7 +149,7 @@ impl PinModeId {
             0x0E => Ok(PinModeId::TONE),
             0x0F => Ok(PinModeId::DHT),
             0x7F => Ok(PinModeId::UNSUPPORTED),
-            x => Err(Error::UnknownPin { pin: x as u16 }),
+            x => Err(Error::from(UnknownPin { pin: x as u16 })),
         }
     }
 }

@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 
-use crate::errors::{Error, UnknownPin};
+use crate::errors::*;
+use crate::errors::HardwareError::UnknownPin;
 use crate::protocols::{I2CReply, Pin};
 
 pub type ProtocolHardware = Arc<RwLock<Hardware>>;
@@ -26,11 +27,15 @@ pub struct Hardware {
 impl Hardware {
     /// Getter for a pin reference.
     pub fn get_pin(&self, pin: u16) -> Result<&Pin, Error> {
-        self.pins.get(pin as usize).ok_or(UnknownPin { pin })
+        self.pins
+            .get(pin as usize)
+            .ok_or(Error::from(UnknownPin { pin }))
     }
 
     /// Getter for a mutable pin reference.
     pub fn get_pin_mut(&mut self, pin: u16) -> Result<&mut Pin, Error> {
-        self.pins.get_mut(pin as usize).ok_or(UnknownPin { pin })
+        self.pins
+            .get_mut(pin as usize)
+            .ok_or(Error::from(UnknownPin { pin }))
     }
 }

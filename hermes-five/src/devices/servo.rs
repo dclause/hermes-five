@@ -4,7 +4,8 @@ use async_trait::async_trait;
 
 use crate::board::Board;
 use crate::devices::{Actuator, Device};
-use crate::errors::{Error, UnknownMode};
+use crate::errors::Error;
+use crate::errors::HardwareError::IncompatibleMode;
 use crate::pause_sync;
 use crate::protocols::{Pin, PinModeId, Protocol};
 use crate::utils::events::{EventHandler, EventManager};
@@ -72,9 +73,14 @@ impl Servo {
         // The following may seem tedious, but it ensures we attach the servo with the default value
         // already set.
         // Check if SERVO MODE exists for this pin.
-        servo.pin()?.get_mode(PinModeId::SERVO).ok_or(UnknownMode {
-            mode: PinModeId::SERVO,
-        })?;
+        servo
+            .pin()?
+            .get_mode(PinModeId::SERVO)
+            .ok_or(IncompatibleMode {
+                pin,
+                mode: PinModeId::SERVO,
+                context: "create a new Servo device",
+            })?;
         servo.protocol.servo_config(pin, pwm_range)?;
         servo.to(servo.default)?;
         servo.protocol.set_pin_mode(pin, PinModeId::SERVO)?;

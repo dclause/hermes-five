@@ -1,55 +1,159 @@
+use std::str::Utf8Error;
+
 use snafu::Snafu;
 
 pub use crate::errors::Error::*;
+use crate::errors::ProtocolError::IoException;
 use crate::protocols::PinModeId;
 
-/// Firmata error type.
 #[derive(Debug, Snafu)]
 #[snafu(visibility(pub))]
 pub enum Error {
-    // ##### GENERAL RELATED #####
-    /// Unknown error: {info}
-    Unknown { info: String },
-    /// Runtime has not been initialized. Are you sure your code runs inside #[hermes_five::runtime] ?
+    /// Runtime error: Are you sure your code runs inside #[hermes_five::runtime]?
     RuntimeError,
+    /// Protocol error: {source}.
+    ProtocolError { source: ProtocolError },
+    /// Hardware error: {source}.
+    HardwareError { source: HardwareError },
+    /// Unknown error: {info}.
+    Unknown { info: String },
+}
 
-    // ##### PROTOCOL RELATED #####
-    /// Communication error: Unknown SysEx code: {code}.
-    UnknownSysEx { code: u8 },
-    /// Received a bad byte: {byte}.
-    BadByte { byte: u8 },
-    /// Protocol error: not initialized.
+impl From<std::io::Error> for Error {
+    fn from(value: std::io::Error) -> Self {
+        Self::ProtocolError {
+            source: IoException {
+                info: value.to_string(),
+            },
+        }
+    }
+}
+
+impl From<ProtocolError> for Error {
+    fn from(value: ProtocolError) -> Self {
+        Self::ProtocolError { source: value }
+    }
+}
+
+impl From<HardwareError> for Error {
+    fn from(value: HardwareError) -> Self {
+        Self::HardwareError { source: value }
+    }
+}
+
+impl From<Utf8Error> for Error {
+    fn from(value: Utf8Error) -> Self {
+        Self::Unknown {
+            info: value.to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Snafu)]
+#[snafu(visibility(pub))]
+pub enum ProtocolError {
+    /// {info}
+    IoException { info: String },
+    /// Connection has not been initialized
     NotInitialized,
-    /// Protocol error: device currently uses {version}. This application requires 3.5.6 or later.
-    ProtocolVersion { version: String },
-    /// I/O error: {source}.
-    IoException { source: std::io::Error },
-    /// Mutex error: The Mutex holding the port was poisoned
-    MutexPoison,
-    /// UTF8 error: {source}.
-    Utf8Error { source: std::str::Utf8Error },
-    /// Data error: Not enough bytes received, message was too short.
-    MessageTooShort,
-    /// Protocol error: {source}
-    SerialPort { source: serialport::Error },
-
-    // ##### PIN RELATED #####
-    /// Unknown pin {pin}.
-    UnknownPin { pin: u16 },
-    /// Incompatible pin {pin}.
-    IncompatiblePin { pin: u16 },
-    /// The value ({value}) is not compatible with the current pin mode.
-    IncompatibleValue { value: u16 },
-    /// Unknown mode {mode}.
-    UnknownMode { mode: PinModeId },
-    /// Pin ({pin}) mode ({mode}) is not compatible with: "{operation}".
-    IncompatibleMode {
-        mode: PinModeId,
-        pin: u16,
-        operation: String,
+    /// Not enough bytes received - '{operation}' expected {expected} bytes, {received} received
+    MessageTooShort {
+        operation: &'static str,
+        expected: usize,
+        received: usize,
     },
+    /// Unexpected data received
+    UnexpectedData,
+}
 
-    // ##### ANIMATION RELATED #####
-    /// Animation error: {info}
-    Sequence { info: String },
+#[derive(Debug, Snafu)]
+#[snafu(visibility(pub))]
+pub enum HardwareError {
+    /// Pin ({pin}) not compatible with mode ({mode}) - {context}
+    IncompatibleMode {
+        pin: u16,
+        mode: PinModeId,
+        context: &'static str,
+    },
+    /// Unknown pin {pin}
+    UnknownPin { pin: u16 },
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io;
+
+    use crate::errors::HardwareError::{IncompatibleMode, UnknownPin};
+
+    use super::*;
+
+    #[test]
+    fn test_error_display() {
+        let runtime_error = RuntimeError;
+        assert_eq!(
+            format!("{}", runtime_error),
+            "Runtime error: Are you sure your code runs inside #[hermes_five::runtime]?"
+        );
+
+        let protocol_error = Error::from(IoException {
+            info: "I/O error message".to_string(),
+        });
+        assert_eq!(
+            format!("{}", protocol_error),
+            "Protocol error: I/O error message."
+        );
+
+        let hardware_error = Error::from(IncompatibleMode {
+            pin: 1,
+            mode: PinModeId::SERVO,
+            context: "test context",
+        });
+        assert_eq!(
+            format!("{}", hardware_error),
+            "Hardware error: Pin (1) not compatible with mode (SERVO) - test context."
+        );
+
+        let unknown_error = Unknown {
+            info: "Some unknown error".to_string(),
+        };
+        assert_eq!(
+            format!("{}", unknown_error),
+            "Unknown error: Some unknown error."
+        );
+    }
+
+    #[test]
+    fn test_from_io_error() {
+        let io_error = io::Error::new(io::ErrorKind::NotFound, "file not found");
+        let error: Error = io_error.into();
+        assert_eq!(format!("{}", error), "Protocol error: file not found.");
+    }
+
+    #[test]
+    fn test_from_protocol_error() {
+        let protocol_error = ProtocolError::NotInitialized;
+        let error: Error = protocol_error.into();
+        assert_eq!(
+            format!("{}", error),
+            "Protocol error: Connection has not been initialized."
+        );
+    }
+
+    #[test]
+    fn test_from_hardware_error() {
+        let hardware_error = UnknownPin { pin: 42 };
+        let error: Error = hardware_error.into();
+        assert_eq!(format!("{}", error), "Hardware error: Unknown pin 42.");
+    }
+
+    #[test]
+    fn test_from_utf8_error() {
+        #[allow(invalid_from_utf8)]
+        let utf8_error = std::str::from_utf8(&[0x80]).err().unwrap(); // Invalid UTF-8 sequence
+        let error: Error = utf8_error.into();
+        assert_eq!(
+            format!("{}", error),
+            "Unknown error: invalid utf-8 sequence of 1 bytes from index 0."
+        )
+    }
 }

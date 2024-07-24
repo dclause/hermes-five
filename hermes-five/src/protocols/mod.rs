@@ -2,9 +2,10 @@ use std::any::type_name;
 use std::fmt::{Debug, Display, Formatter};
 
 use dyn_clone::DynClone;
-use snafu::ResultExt;
 
 use crate::errors::*;
+use crate::errors::HardwareError::{IncompatibleMode, UnknownPin};
+use crate::errors::ProtocolError::{MessageTooShort, UnexpectedData};
 pub use crate::protocols::constants::*;
 pub use crate::protocols::flavor::*;
 pub use crate::protocols::i2c_reply::I2CReply;
@@ -164,7 +165,11 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         {
             let mut lock = self.hardware().write();
             let mut _pin = lock.get_pin_mut(pin)?;
-            let _mode = _pin.get_mode(mode).ok_or(UnknownMode { mode })?;
+            let _mode = _pin.get_mode(mode).ok_or(IncompatibleMode {
+                pin,
+                mode,
+                context: "try to set pin mode",
+            })?;
             _pin.mode = _mode;
         }
 
@@ -245,7 +250,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
             ANALOG_MESSAGE..=ANALOG_MESSAGE_BOUND => self.handle_analog_message(&buf),
             DIGITAL_MESSAGE..=DIGITAL_MESSAGE_BOUND => self.handle_digital_message(&buf),
             START_SYSEX => self.handle_sysex_message(&mut buf),
-            _ => Err(BadByte { byte: buf[0] }),
+            _ => Err(Error::from(UnexpectedData)),
         }
     }
 
@@ -261,7 +266,11 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     /// https://github.com/firmata/protocol/blob/master/protocol.md#data-message-expansion
     fn handle_analog_message(&mut self, buf: &[u8]) -> Result<Message, Error> {
         if buf.len() < 3 {
-            return Err(MessageTooShort);
+            return Err(Error::from(MessageTooShort {
+                operation: "handle_analog_message",
+                expected: 3,
+                received: buf.len(),
+            }));
         }
         let pin = (buf[0] as u16 & 0x0F) + 14;
         let value = (buf[1] as u16) | ((buf[2] as u16) << 7);
@@ -275,7 +284,11 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     /// https://github.com/firmata/protocol/blob/master/protocol.md#data-message-expansion
     fn handle_digital_message(&mut self, buf: &[u8]) -> Result<Message, Error> {
         if buf.len() < 3 {
-            return Err(MessageTooShort);
+            return Err(Error::from(MessageTooShort {
+                operation: "handle_digital_message",
+                expected: 3,
+                received: buf.len(),
+            }));
         }
         let port = (buf[0] as u16) & 0x0F;
         let value = (buf[1] as u16) | ((buf[2] as u16) << 7);
@@ -309,7 +322,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
             REPORT_FIRMWARE => self.handle_report_firmware(buf),
             I2C_REPLY => self.handle_i2c_reply(buf),
             PIN_STATE_RESPONSE => self.handle_pin_state_response(buf),
-            _ => Err(UnknownSysEx { code: buf[1] }),
+            _ => Err(Error::from(UnexpectedData)),
         }
     }
 
@@ -321,8 +334,10 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         while buf[i] != END_SYSEX {
             if buf[i] != SYSEX_REALTIME {
                 let pin = &mut lock.get_pin_mut((i - 2) as u16)?;
-                pin.mode = pin.get_mode(PinModeId::ANALOG).ok_or(UnknownMode {
+                pin.mode = pin.get_mode(PinModeId::ANALOG).ok_or(IncompatibleMode {
+                    pin: (i - 2) as u16,
                     mode: PinModeId::ANALOG,
+                    context: "handle_analog_mapping_response",
                 })?;
                 pin.channel = Some(buf[i]);
             }
@@ -371,14 +386,19 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     /// Handle a REPORT_FIRMWARE message (0x79 - report name and version of the firmware).
     /// https://github.com/firmata/protocol/blob/master/protocol.md#query-firmware-name-and-version
     fn handle_report_firmware(&mut self, buf: &[u8]) -> Result<Message, Error> {
-        let major = *buf.get(2).ok_or(MessageTooShort)?;
-        let minor = *buf.get(3).ok_or(MessageTooShort)?;
+        if buf.len() < 4 {
+            return Err(Error::from(MessageTooShort {
+                operation: "handle_report_firmware",
+                expected: 4,
+                received: buf.len(),
+            }));
+        }
+        let major = buf[2];
+        let minor = buf[3];
         let mut lock = self.hardware().write();
         lock.firmware_version = format!("{:o}.{:o}", major, minor);
         if buf.len() > 4 {
-            lock.firmware_name = std::str::from_utf8(&buf[4..buf.len() - 1])
-                .with_context(|_| Utf8Snafu)?
-                .to_string();
+            lock.firmware_name = std::str::from_utf8(&buf[4..buf.len() - 1])?.to_string();
         }
         Ok(Message::ReportFirmware)
     }
@@ -387,7 +407,11 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     /// https://github.com/firmata/protocol/blob/master/i2c.md
     fn handle_i2c_reply(&mut self, buf: &[u8]) -> Result<Message, Error> {
         if buf.len() < 8 {
-            return Err(MessageTooShort);
+            return Err(Error::from(MessageTooShort {
+                operation: "handle_i2c_reply",
+                expected: 8,
+                received: buf.len(),
+            }));
         }
         let mut reply = I2CReply {
             address: (buf[2] as u16) | ((buf[3] as u16) << 7),
@@ -408,7 +432,11 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     fn handle_pin_state_response(&mut self, buf: &[u8]) -> Result<Message, Error> {
         let pin = buf[2] as u16;
         if buf.len() < 4 || buf[3] == END_SYSEX {
-            return Err(MessageTooShort);
+            return Err(Error::from(MessageTooShort {
+                operation: "handle_pin_state_response",
+                expected: 4,
+                received: buf.len(),
+            }));
         }
 
         let mut lock = self.hardware().write();

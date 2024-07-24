@@ -4,7 +4,8 @@ use async_trait::async_trait;
 
 use crate::board::Board;
 use crate::devices::{Actuator, Device};
-use crate::errors::{Error, IncompatibleMode};
+use crate::errors::Error;
+use crate::errors::HardwareError::IncompatibleMode;
 use crate::pause;
 use crate::protocols::{Pin, PinMode, PinModeId, Protocol};
 use crate::utils::scale::Scalable;
@@ -33,18 +34,20 @@ pub struct Led {
 
 impl Led {
     pub fn new(board: &Board, pin: u16) -> Result<Self, Error> {
-        let pwm_mode;
-
-        // Set pin mode to OUTPUT
         let mut protocol = board.protocol();
-        protocol.set_pin_mode(pin, PinModeId::OUTPUT)?;
 
         // Get the PWM mode if any
-        {
+        let pwm_mode = {
             let hardware = protocol.hardware().write();
             let _pin = hardware.get_pin(pin)?;
-            pwm_mode = _pin.get_mode(PinModeId::PWM);
-        }
+            _pin.get_mode(PinModeId::PWM)
+        };
+
+        // Set pin mode to OUTPUT/PWM accordingly.
+        match pwm_mode {
+            None => protocol.set_pin_mode(pin, PinModeId::OUTPUT)?,
+            Some(_) => protocol.set_pin_mode(pin, PinModeId::PWM)?,
+        };
 
         Ok(Self {
             protocol: board.protocol(),
@@ -67,43 +70,31 @@ impl Led {
     ///
     /// # Errors
     /// * `IncompatibleMode`: this function will bail an error if the LED pin does not support PWM.
-    pub fn with_intensity(mut self, intensity: u8) -> Result<Self, Error> {
+    pub fn set_intensity(mut self, intensity: u8) -> Result<Self, Error> {
         // Intensity can only be between 0 and 100%
         let mut intensity = intensity.clamp(0, 100) as u16;
 
-        // If the requested intensity is 100%, let's get back to OUTPUT mode.
-        if intensity >= 100 {
-            self.intensity = 100;
-            self.protocol.set_pin_mode(self.pin, PinModeId::OUTPUT)?;
-            return Ok(self);
-        }
-
         // If the LED can use pwm mode: update the intensity
-        match self.pwm_mode {
-            None => Err(IncompatibleMode {
-                mode: PinModeId::PWM,
-                pin: self.pin,
-                operation: String::from("set LED intensity"),
-            }),
-            Some(_) => {
-                self.protocol.set_pin_mode(self.pin, PinModeId::PWM)?;
+        self.pwm_mode.ok_or(IncompatibleMode {
+            mode: PinModeId::PWM,
+            pin: self.pin,
+            context: "set LED intensity",
+        })?;
 
-                // Compute the intensity value (depending on resolution (255 on arduino for instance))
-                intensity = intensity.scale(
-                    0,
-                    100,
-                    0,
-                    2u16.pow(self.pwm_mode.unwrap().resolution as u32),
-                );
+        // Compute the intensity value (depending on resolution (255 on arduino for instance))
+        intensity = intensity.scale(
+            0,
+            100,
+            0,
+            2u16.pow(self.pwm_mode.unwrap().resolution as u32),
+        );
 
-                // If the value is higher than the intensity, we update it on the spot.
-                if self.state > intensity {
-                    self.set_state(intensity)?;
-                }
-
-                Ok(self)
-            }
+        // If the value is higher than the intensity, we update it on the spot.
+        if self.state > intensity {
+            self.set_state(intensity)?;
         }
+
+        Ok(self)
     }
 
     /// Turn the LED on.
@@ -192,11 +183,11 @@ impl Actuator for Led {
             PinModeId::OUTPUT => self.protocol.digital_write(self.pin, self.state > 0),
             // pwm (brightness) mode.
             PinModeId::PWM => self.protocol.analog_write(self.pin, self.state),
-            id => Err(IncompatibleMode {
+            id => Err(Error::from(IncompatibleMode {
                 mode: id,
                 pin: self.pin,
-                operation: String::from("update LED"),
-            }),
+                context: "update LED",
+            })),
         }?;
         Ok(())
     }

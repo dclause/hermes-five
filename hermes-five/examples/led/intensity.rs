@@ -11,7 +11,7 @@ async fn main() {
             let mut led = Led::new(&board, 11)
                 .unwrap()
                 // Lower intensity to 50%: this will now impose a PWM compatible pin.
-                .with_intensity(50)
+                .set_intensity(50)
                 .unwrap();
 
             led.blink(500).await;

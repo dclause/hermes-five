@@ -350,7 +350,7 @@ mod tests {
         let elapsed = start.elapsed().unwrap().as_millis();
         assert!(play_once.is_ok());
         assert!(
-            elapsed > 500 && elapsed < 550,
+            elapsed >= 500 && elapsed < 550,
             "Play once takes longer approx. the time of the longest track: {}",
             elapsed
         );
