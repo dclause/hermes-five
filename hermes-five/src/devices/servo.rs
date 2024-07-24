@@ -1,5 +1,3 @@
-use std::panic::UnwindSafe;
-
 use async_trait::async_trait;
 
 use crate::board::Board;
@@ -224,10 +222,10 @@ impl Servo {
     where
         S: Into<String>,
         T: 'static + Send + Sync + Clone,
-        F: FnMut(T) -> Fut + Send + 'static + UnwindSafe,
+        F: FnMut(T) -> Fut + Send + 'static,
         Fut: std::future::Future<Output = ()> + Send + 'static,
     {
-        self.events.on(event, callback).await
+        self.events.on(event, callback)
     }
 }
 

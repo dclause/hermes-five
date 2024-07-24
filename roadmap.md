@@ -25,6 +25,7 @@ The currently anticipated Roadmap is the following:
 - [X] ~~Make event return TaskResult rather than force ()~~
 - [X] ~~Investigate wrap task into spawn to avoid .await on task::run()~~
 - [ ] Events callback should be able to return either () or Ok(()) (like task)
+- [X] ~~Events on/emit should not need async~~
 - [X] ~~Replace all Mutex/RwLock locking with parking_lot~~
 - [ ] Add tracing/log for all method
 - [ ] Add https://github.com/colin-kiegel/rust-derive-builder / https://docs.rs/derive-getters/latest/derive_getters/ ?

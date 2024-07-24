@@ -5,7 +5,6 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::Duration;
 
-use log::trace;
 use parking_lot::{Mutex, RwLock};
 use serialport::{DataBits, ErrorKind, FlowControl, Parity, StopBits};
 use serialport::SerialPort;
@@ -78,8 +77,6 @@ impl Protocol for SerialProtocol {
 
     /// Open the communication with the registered port.
     fn open(&mut self) -> Result<(), Error> {
-        trace!("Open serial protocol on port: {}", self.port);
-
         let connexion = serialport::new(self.port.clone(), 57_600)
             .data_bits(DataBits::Eight)
             .parity(Parity::None)
@@ -94,7 +91,6 @@ impl Protocol for SerialProtocol {
 
     /// Gracefully shuts down the serial port communication.
     fn close(&mut self) -> Result<(), Error> {
-        trace!("Close serial protocol on port: {}", self.port);
         *self.io.lock() = None;
         Ok(())
     }

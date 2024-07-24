@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use futures::future::BoxFuture;
 use futures::FutureExt;
-use tokio::sync::Mutex;
+use parking_lot::Mutex;
 
 use crate::utils::task;
 
@@ -65,7 +65,7 @@ impl EventManager {
     /// // No matching handler (because of parameters) will be called
     /// events.emit("ready", ("bar")).await;
     /// ```
-    pub async fn on<S, F, T, Fut>(&self, event: S, mut callback: F) -> EventHandler
+    pub fn on<S, F, T, Fut>(&self, event: S, mut callback: F) -> EventHandler
     where
         S: Into<String>,
         T: 'static + Send + Sync + Clone,
@@ -73,19 +73,19 @@ impl EventManager {
         Fut: std::future::Future<Output = ()> + Send + 'static,
     {
         let event_name = event.into();
-        let callback_event = event_name.clone();
         // Generate a unique ID.
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         // Boxes the callback and downcast its parameter.
         let boxed_callback = Box::new(move |arg: Arc<dyn Any + Send + Sync>| {
             match arg.downcast::<T>() {
                 Ok(arg) => (callback)((*arg).clone()).boxed(),
-                Err(_) => {
-                    // Handle error case where the argument is not of type T
-                    log::warn!("The callback for event '{}' could not be called because parameter does not match", callback_event);
-                    // Current strategy is to ignore the callback
-                    Box::pin(async {})
-                }
+                Err(_) => Box::pin(async {}),
+                // Err(_) => {
+                //     // Handle error case where the argument is not of type T
+                //     log::warn!("The callback for event '{}' could not be called because parameter does not match", callback_event);
+                //     // Current strategy is to ignore the callback
+                //     Box::pin(async {})
+                // }
             }
         });
 
@@ -96,7 +96,6 @@ impl EventManager {
 
         self.callbacks
             .lock()
-            .await
             .entry(event_name)
             .or_default()
             .push(wrapper);
@@ -136,13 +135,13 @@ impl EventManager {
     /// // No event registered for "nothing" event.
     /// events.emit("nothing", ()).await;
     /// ```
-    pub async fn emit<'a, S, T>(&self, event: S, payload: T)
+    pub fn emit<'a, S, T>(&self, event: S, payload: T)
     where
         S: Into<String>,
         T: 'static + Send + Sync,
     {
         let payload_any: Arc<dyn Any + Send + Sync> = Arc::new(payload);
-        if let Some(callbacks) = self.callbacks.lock().await.get_mut(&event.into()) {
+        if let Some(callbacks) = self.callbacks.lock().get_mut(&event.into()) {
             for wrapper in callbacks.iter_mut() {
                 let payload_clone = payload_any.clone();
                 let future = (wrapper.callback)(payload_clone);
@@ -174,11 +173,10 @@ impl EventManager {
     /// // Only the callback2 remains to be called here.
     /// events.emit("ready", 42).await;
     /// ```
-    pub async fn unregister(&self, handler: EventHandler) {
+    pub fn unregister(&self, handler: EventHandler) {
         let _ = &self
             .callbacks
             .lock()
-            .await
             .values_mut()
             .for_each(|v| v.retain(|cb| cb.id != handler));
     }
@@ -186,7 +184,10 @@ impl EventManager {
 
 impl Debug for EventManager {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("skipped").finish()
+        match self.callbacks.lock().len() {
+            1 => write!(f, "EventManager: 1 registered callback"),
+            count => write!(f, "EventManager: {} registered callbacks", count),
+        }
     }
 }
 
@@ -203,13 +204,11 @@ mod tests {
         let events: EventManager = Default::default();
         let payload = Arc::new(AtomicBool::new(false));
 
-        events
-            .on("register", |flag: Arc<AtomicBool>| async move {
-                flag.store(true, Ordering::SeqCst);
-            })
-            .await;
+        events.on("register", |flag: Arc<AtomicBool>| async move {
+            flag.store(true, Ordering::SeqCst);
+        });
 
-        events.emit("register", payload.clone()).await;
+        events.emit("register", payload.clone());
 
         pause!(100);
         assert!(
@@ -223,14 +222,12 @@ mod tests {
         let events: EventManager = Default::default();
         let flag = Arc::new(AtomicBool::new(false));
 
-        let handler = events
-            .on("unregister", |flag: Arc<AtomicBool>| async move {
-                flag.store(true, Ordering::SeqCst);
-            })
-            .await;
+        let handler = events.on("unregister", |flag: Arc<AtomicBool>| async move {
+            flag.store(true, Ordering::SeqCst);
+        });
 
-        events.unregister(handler).await;
-        events.emit("unregister", flag.clone()).await;
+        events.unregister(handler);
+        events.emit("unregister", flag.clone());
 
         pause!(100);
         assert!(
@@ -244,31 +241,25 @@ mod tests {
         let events: EventManager = Default::default();
         let flag = Arc::new(AtomicUsize::new(0));
 
-        events
-            .on("multiple", |flag: Arc<AtomicUsize>| async move {
+        events.on("multiple", |flag: Arc<AtomicUsize>| async move {
+            let value = flag.load(Ordering::SeqCst);
+            flag.store(value + 1, Ordering::SeqCst);
+        });
+
+        events.on("multiple", |flag: Arc<AtomicUsize>| async move {
+            let value = flag.load(Ordering::SeqCst);
+            flag.store(value + 1, Ordering::SeqCst);
+        });
+
+        events.on(
+            "multiple",
+            |(_not_matching, flag): (u8, Arc<AtomicUsize>)| async move {
                 let value = flag.load(Ordering::SeqCst);
                 flag.store(value + 1, Ordering::SeqCst);
-            })
-            .await;
+            },
+        );
 
-        events
-            .on("multiple", |flag: Arc<AtomicUsize>| async move {
-                let value = flag.load(Ordering::SeqCst);
-                flag.store(value + 1, Ordering::SeqCst);
-            })
-            .await;
-
-        events
-            .on(
-                "multiple",
-                |(_not_matching, flag): (u8, Arc<AtomicUsize>)| async move {
-                    let value = flag.load(Ordering::SeqCst);
-                    flag.store(value + 1, Ordering::SeqCst);
-                },
-            )
-            .await;
-
-        events.emit("multiple", flag.clone()).await;
+        events.emit("multiple", flag.clone());
 
         pause!(100);
         assert_eq!(
@@ -283,15 +274,13 @@ mod tests {
         let events: EventManager = Default::default();
         let flag = Arc::new(AtomicU8::new(0));
 
-        events
-            .on(
-                "payload",
-                |(number1, number2, container): (u8, u8, Arc<AtomicU8>)| async move {
-                    container.store(number1 + number2, Ordering::SeqCst);
-                },
-            )
-            .await;
-        events.emit("payload", (42u8, 69u8, flag.clone())).await;
+        events.on(
+            "payload",
+            |(number1, number2, container): (u8, u8, Arc<AtomicU8>)| async move {
+                container.store(number1 + number2, Ordering::SeqCst);
+            },
+        );
+        events.emit("payload", (42u8, 69u8, flag.clone()));
 
         pause!(100);
         assert_eq!(
@@ -304,7 +293,22 @@ mod tests {
     #[hermes_macros::test]
     async fn test_no_handlers_for_event() {
         let events: EventManager = Default::default();
-        let result = events.emit("no_event", ()).await;
+        let result = events.emit("no_event", ());
         assert_eq!(result, (), "Nothing to do.");
+    }
+
+    #[test]
+    fn test_event_manager_debug() {
+        let events: EventManager = Default::default();
+        events.on("test", |_: ()| async move {});
+        assert_eq!(
+            format!("{:?}", events),
+            "EventManager: 1 registered callback"
+        );
+        events.on("test2", |_: ()| async move {});
+        assert_eq!(
+            format!("{:?}", events),
+            "EventManager: 2 registered callbacks"
+        );
     }
 }

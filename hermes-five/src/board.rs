@@ -1,6 +1,5 @@
 use std::fmt::Display;
 use std::ops::{Deref, DerefMut};
-use std::panic::UnwindSafe;
 use std::time::Duration;
 
 use parking_lot::RwLockReadGuard;
@@ -123,7 +122,7 @@ impl Board {
             // give it some time: some arduino (like nano) may be slow.
             tokio::time::sleep(Duration::from_millis(200)).await;
             callback_board.protocol.handshake()?;
-            events.emit("ready", callback_board).await;
+            events.emit("ready", callback_board);
             Ok(())
         });
         self
@@ -164,7 +163,7 @@ impl Board {
         let callback_board = self.clone();
         let _ = task::run(async move {
             protocol.close()?;
-            events.emit("close", callback_board).await;
+            events.emit("close", callback_board);
             Ok(())
         });
         self
@@ -194,10 +193,10 @@ impl Board {
     where
         S: Into<String>,
         T: 'static + Send + Sync + Clone,
-        F: FnMut(T) -> Fut + Send + 'static + UnwindSafe,
+        F: FnMut(T) -> Fut + Send + 'static,
         Fut: std::future::Future<Output = ()> + Send + 'static,
     {
-        self.events.on(event, callback).await
+        self.events.on(event, callback)
     }
 
     // @todo describe / verify
