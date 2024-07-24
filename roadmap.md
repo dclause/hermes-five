@@ -10,7 +10,7 @@ The currently anticipated Roadmap is the following:
 - [X] ~~Simple board connection using Firmata protocol.~~
 - [X] ~~Simple led control (on/off) and asynchronous task (blink)~~
 - [X] ~~Simple servo control (move to position)~~
-- [ ] Demonstrate the ability to create simple Animation
+- [X] ~~Demonstrate the ability to create simple Animation~~
 - [ ] Demonstrate the ability to use Hermes-Five for HermesStudio requirements
 
 ### Phase 2: Led / Servo / Animation
