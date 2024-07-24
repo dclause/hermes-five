@@ -93,20 +93,30 @@ impl Animation {
 
     /// Skips the current sequence and jump to next.
     ///
-    /// Skipping the current segment does not pause / resume the animation: if it was running, it
+    /// Caveats:
+    /// - Skipping the current segment does not pause / resume the animation: if it was running, it
     /// continues to do so (from the beginning of next segment).
+    /// - If already on the last segment, the animation loop to the first one, hence, restart.
     pub fn next(&mut self) -> &mut Self {
+        let current = self.get_current();
+
         // Stop the current animation (do not reuse `.stop()` to avoid triggering the stop event).
         let was_running = self.cancel_animation();
 
+        // Reset current segment:
+        if let Some(segment_playing) = self.segments.get_mut(current) {
+            segment_playing.reset();
+        }
+
         // Move to the next segment if we are not at the end.
-        let current = self.get_current();
-        if current < self.segments.len() - 1 {
-            *self.current.write() = current + 1;
-            // Restart the animation from the beginning of the next segment, if it was running.
-            if was_running {
-                self.play();
-            }
+        match current < self.segments.len() - 1 {
+            true => *self.current.write() = current + 1,
+            false => *self.current.write() = 0,
+        }
+
+        // Restart the animation from the beginning of the next segment, if it was running.
+        if was_running {
+            self.play();
         }
 
         self
@@ -315,23 +325,24 @@ mod tests {
         let mut animation = create_animation();
         assert_eq!(animation.get_current(), 0);
         animation.play();
-        pause!(220);
+        pause!(230);
+        assert_eq!(animation.get_current(), 1);
         animation.pause();
+        pause!(300);
         assert_eq!(animation.get_current(), 1);
 
         // Paused animation is skipped to next in pause mode.
         animation.next();
-        pause!(220);
+        pause!(300);
         assert_eq!(animation.get_current(), 2);
 
         // Playing animation is skipped to next in playing mode:
         animation.play().next();
-        pause!(220);
+        pause!(250);
         assert_eq!(animation.get_current(), 4);
 
-        // Once on the last segment, animation is stopped when skipped:
+        // Once on the last segment, animation is restarted:
         animation.next().next().next();
-        assert!(animation.interval.read().is_none());
-        assert_eq!(animation.get_current(), 5);
+        assert_eq!(animation.get_current(), 1);
     }
 }
