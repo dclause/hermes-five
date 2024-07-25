@@ -226,7 +226,7 @@ mod tests {
 
     fn create_animation() -> Animation {
         let segment = Segment::from(
-            Track::new(MockActuator::new(40)).with_keyframe(Keyframe::new(100, 0, 200)),
+            Track::new(MockActuator::new(40)).with_keyframe(Keyframe::new(100, 0, 190)),
         );
         Animation::default()
             .with_segment(segment.clone())
