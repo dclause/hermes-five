@@ -10,6 +10,23 @@ use crate::protocols::SerialProtocol;
 use crate::utils::events::{EventHandler, EventManager};
 use crate::utils::task;
 
+pub enum BoardEvent {
+    /// Triggered when the board connexion is established and the handshake has been made.
+    OnReady,
+    /// Triggered when the board connexion is closed (gracefully).
+    OnClose,
+}
+
+impl Into<String> for BoardEvent {
+    fn into(self) -> String {
+        let event = match self {
+            BoardEvent::OnReady => "ready",
+            BoardEvent::OnClose => "close",
+        };
+        event.into()
+    }
+}
+
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Board {
     /// The event manager for the board.
@@ -35,11 +52,20 @@ impl Default for Board {
     /// Note: the board will NOT be connected until the `open` method is called.
     ///
     /// # Example
-    /// // Following lines are all equivalent:
-    /// let board = Board::run();
-    /// let board = Board::default().open();
-    /// let board = Board::build(SerialProtocol::default()).open();
-    /// let board = Board::default().with_protocol(SerialProtocol::default()).open();
+    ///
+    /// ```
+    /// use hermes_five::Board;
+    /// use hermes_five::protocols::SerialProtocol;
+    ///
+    /// #[hermes_five::runtime]
+    /// async fn main() {
+    ///     // Following lines are all equivalent:
+    ///     let board = Board::run();
+    ///     let board = Board::default().open();
+    ///     let board = Board::build(SerialProtocol::default()).open();
+    ///     let board = Board::default().with_protocol(SerialProtocol::default()).open();
+    /// }
+    /// ```
     /// ```
     fn default() -> Self {
         Self::build(SerialProtocol::default())
@@ -51,11 +77,17 @@ impl Board {
     ///
     /// # Example
     /// ```
-    /// // Following lines are all equivalent:
-    /// let board = Board::run();
-    /// let board = Board::default().open();
-    /// let board = Board::build(SerialProtocol::default()).open();
-    /// let board = Board::default().with_protocol(SerialProtocol::default()).open();
+    /// use hermes_five::Board;
+    /// use hermes_five::protocols::SerialProtocol;
+    ///
+    /// #[hermes_five::runtime]
+    /// async fn main() {
+    ///     // Following lines are all equivalent:
+    ///     let board = Board::run();
+    ///     let board = Board::default().open();
+    ///     let board = Board::build(SerialProtocol::default()).open();
+    ///     let board = Board::default().with_protocol(SerialProtocol::default()).open();
+    /// }
     /// ```
     pub fn run() -> Self {
         Self::default().open()
@@ -65,7 +97,13 @@ impl Board {
     ///
     /// # Example
     /// ```
-    /// let board = Board::build(SerialProtocol::new("COM4")).open()
+    /// use hermes_five::Board;
+    /// use hermes_five::protocols::SerialProtocol;
+    ///
+    /// #[hermes_five::runtime]
+    /// async fn main() {
+    ///     let board = Board::build(SerialProtocol::new("COM4")).open();
+    /// }
     /// ```
     pub fn build<P: Protocol + 'static>(protocol: P) -> Self {
         Self {
@@ -78,7 +116,13 @@ impl Board {
     ///
     /// # Example
     /// ```
-    /// let board = Board::default().with_protocol(SerialProtocol::new("COM4")).open();
+    /// use hermes_five::Board;
+    ///
+    /// #[hermes_five::runtime]
+    /// async fn main() {
+    ///     use hermes_five::protocols::SerialProtocol;
+    ///     let board = Board::default().with_protocol(SerialProtocol::new("COM4")).open();
+    /// }
     /// ```
     pub fn with_protocol<P: Protocol + 'static>(mut self, protocol: P) -> Self {
         self.protocol = Box::new(protocol);
@@ -101,14 +145,18 @@ impl Board {
     /// Have a look at the examples/board folder more detailed examples.
     ///
     /// ```
+    /// use hermes_five::Board;
+    /// use hermes_five::BoardEvent;
+    ///
     /// #[hermes_five::runtime]
     /// async fn main() {
     ///     let board = Board::run();
     ///     // Is equivalent to:
     ///     let board = Board::default().open();
     ///     // Register something to do when the board is connected.
-    ///     board.on("ready", || async move {
+    ///     board.on(BoardEvent::OnReady, |_: Board| async move {
     ///         // Something to do when connected.
+    ///         Ok(())
     ///     });
     ///     // code here will be executed right away, before the board is actually connected.
     /// }
@@ -143,16 +191,21 @@ impl Board {
     /// Have a look at the examples/board folder more detailed examples.
     ///
     /// ```
+    /// use hermes_five::{Board, pause};
+    /// use hermes_five::BoardEvent;
+    ///
     /// #[hermes_five::runtime]
     /// async fn main() {
-    ///     let board = Board::run();
-    ///     board.on("ready", || async move {
+    /// let board = Board::run();
+    ///     board.on(BoardEvent::OnReady, |board: Board| async move {
     ///         // Something to do when connected.
-    ///         hermes_five::utils::sleep(std::time::Duration::from_secs(3)).await;
+    ///         pause!(3000);
     ///         board.close();
+    ///         Ok(())
     ///     });
-    ///     board.on("close", || async move {
+    ///     board.on(BoardEvent::OnClose, |_: Board| async move {
     ///         // Something to do when connection closes.
+    ///         Ok(())
     ///     });
     /// }
     /// ```
@@ -163,7 +216,7 @@ impl Board {
         let callback_board = self.clone();
         let _ = task::run(async move {
             protocol.close()?;
-            events.emit("close", callback_board);
+            events.emit(BoardEvent::OnClose, callback_board);
             Ok(())
         });
         self
@@ -181,12 +234,16 @@ impl Board {
     /// # Example
     ///
     /// ```
+    /// use hermes_five::Board;
+    /// use hermes_five::BoardEvent;
+    ///
     /// #[hermes_five::runtime]
     /// async fn main() {
-    ///     let board1 = Board::run();
-    ///     board.on("ready", || async move {
+    ///     let board = Board::run();
+    ///     board.on(BoardEvent::OnReady, |_: Board| async move {
     ///         // Here, you know the board to be connected and ready to receive data.
-    ///     }).await;
+    ///         Ok(())
+    ///     });
     /// }
     /// ```
     pub fn on<S, F, T, Fut>(&self, event: S, callback: F) -> EventHandler
@@ -227,7 +284,7 @@ impl DerefMut for Board {
 
 #[cfg(test)]
 mod tests {
-    use crate::tests::mocks::protocol::MockProtocol;
+    use crate::mocks::protocol::MockProtocol;
 
     use super::*;
 

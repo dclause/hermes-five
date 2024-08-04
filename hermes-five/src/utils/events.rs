@@ -48,24 +48,31 @@ impl EventManager {
     /// # Example
     ///
     /// ```
-    /// // Instantiate an EventManager
-    /// let events: EventManager = Default::default();
+    /// use hermes_five::utils::events::EventManager;
+    /// use hermes_five::pause;
     ///
-    /// // Register various handlers for the same event.
-    /// events.on("ready", |name: String| async move { })
-    /// events.on("ready", |age: u8| async move { })
-    /// events.on("ready", |whatever: Vec<[u8;4]>| async move { })
-    /// events.on("ready", |(name, age): (&str, u8)| async move {
-    ///     println!("Event handler with parameters: {} {}.", name, age);
-    ///     std::thread::sleep(std::time::Duration::from_secs(1));
-    ///     println!("Event handler done");
-    /// });
+    /// #[hermes_five::runtime]
+    /// async fn main() {
+    ///     // Instantiate an EventManager
+    ///     let events: EventManager = Default::default();
     ///
-    /// // Invoke handlers for "ready" event.
-    /// events.emit("ready", ("foo", 69u8)).await;
+    ///     // Register various handlers for the same event.
+    ///     events.on("ready", |name: String| async move { Ok(()) });
+    ///     events.on("ready", |age: u8| async move { Ok(()) });
+    ///     events.on("ready", |whatever: Vec<[u8;4]>| async move { Ok(()) });
+    ///     events.on("ready", |(name, age): (&str, u8)| async move {
+    ///         println!("Event handler with parameters: {} {}.", name, age);
+    ///         pause!(1000);
+    ///         println!("Event handler done");
+    ///         Ok(())
+    ///     });
     ///
-    /// // No matching handler (because of parameters) will be called
-    /// events.emit("ready", ("bar")).await;
+    ///     // Invoke handlers for "ready" event.
+    ///     events.emit("ready", ("foo", 69u8));
+    ///
+    ///     // None matching handler (because of parameters) will never be called.
+    ///     events.emit("ready", ("bar"));
+    /// }
     /// ```
     pub fn on<S, F, T, Fut>(&self, event: S, mut callback: F) -> EventHandler
     where
@@ -118,24 +125,31 @@ impl EventManager {
     /// # Example
     ///
     /// ```
-    /// // Instantiate an EventManager
-    /// let events: EventManager = Default::default();
+    /// use hermes_five::utils::events::EventManager;
     ///
-    /// // Register various handlers for the same event.
-    /// events.on("ready", |name: &str| async move {
-    ///     println!("Callback 1");
-    /// })
-    /// events.on("ready", |age: u8| async move {
-    ///     println!("Callback 2");
-    /// })
+    /// #[hermes_five::runtime]
+    /// async fn main() {
+    ///     // Instantiate an EventManager
+    ///     let events: EventManager = Default::default();
     ///
-    /// // Invoke handlers for "ready" event matching &str parameter.
-    /// events.emit("ready", "foo").await;
-    /// // Invoke handlers for "ready" event matching u8 parameter.
-    /// events.emit("ready", 42).await;
+    ///     // Register various handlers for the same event.
+    ///     events.on("ready", |name: &str| async move {
+    ///         println!("Callback 1");
+    ///         Ok(())
+    ///     });
+    ///     events.on("ready", |age: u8| async move {
+    ///         println!("Callback 2");
+    ///         Ok(())
+    ///     });
     ///
-    /// // No event registered for "nothing" event.
-    /// events.emit("nothing", ()).await;
+    ///     // Invoke handlers for "ready" event matching &str parameter.
+    ///     events.emit("ready", "foo");
+    ///     // Invoke handlers for "ready" event matching u8 parameter.
+    ///     events.emit("ready", 42);
+    ///
+    ///     // No event registered for "nothing" event.
+    ///     events.emit("nothing", ());
+    /// }
     /// ```
     pub fn emit<'a, S, T>(&self, event: S, payload: T)
     where
@@ -157,23 +171,30 @@ impl EventManager {
     /// # Example
     ///
     /// ```
-    /// // Instantiate an EventManager
-    /// let events: EventManager = Default::default();
+    /// use hermes_five::utils::events::EventManager;
     ///
-    /// // Register various handlers for the same event.
-    /// let handler1 = events.on("ready", |age: u8| async move {
-    ///     println!("Callback 1");
-    /// })
-    /// let handler2 = events.on("ready", |age: u8| async move {
-    ///     println!("Callback 2");
-    /// })
+    /// #[hermes_five::runtime]
+    /// async fn main() {
+    ///     // Instantiate an EventManager
+    ///     let events: EventManager = Default::default();
     ///
-    /// // Unregister handler 1
-    /// events.unregister(handler);
+    ///     // Register various handlers for the same event.
+    ///     let handler1 = events.on("ready", |age: u8| async move {
+    ///         println!("Callback 1");
+    ///         Ok(())
+    ///     });
+    ///     let handler2 = events.on("ready", |age: u8| async move {
+    ///         println!("Callback 2");
+    ///         Ok(())
+    ///     });
     ///
-    /// // Invoke handlers for "ready" event matching u8 parameter.
-    /// // Only the callback2 remains to be called here.
-    /// events.emit("ready", 42).await;
+    ///     // Unregister handler 1.
+    ///     events.unregister(handler1);
+    ///
+    ///     // Invoke handlers for "ready" event matching u8 parameter.
+    ///     // Only the callback2 remains to be called here.
+    ///     events.emit("ready", 42);
+    /// }
     /// ```
     pub fn unregister(&self, handler: EventHandler) {
         let _ = &self

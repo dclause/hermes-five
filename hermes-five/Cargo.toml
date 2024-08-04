@@ -8,13 +8,12 @@ readme.workspace = true
 license.workspace = true
 
 [lib]
-# Authorize doctest when https://github.com/rust-lang/rust/issues/67295
-doctest = false
 
 [features]
 default = []
 libudev = ["serialport/libudev"]
 serde = ["dep:serde", "dep:serde_json"]
+mocks = []
 
 [dependencies]
 hermes-macros = { path = "../hermes-macros" }

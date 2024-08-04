@@ -18,17 +18,26 @@ use crate::utils::scale::Scalable;
 /// the `Actuator`'s value will gradually move towards value 100 (whatever it means to it: let it
 /// be the brightness of a LED, or the position of a Servo), over 1000 milliseconds, following the
 /// defined easing function.
-/// ```
-/// // Defines a board on COM4.
-/// let board = Board::build(SerialProtocol::new("COM4")).open();
-/// // Defines a servo attached to the board on PIN 9 (default servo position is 90°).
-/// let servo = Servo::default(&board, 9);
-/// // Creates a track for the servo.
-/// let track = Track::new(servo)
-///     // Turns the servo to 180° in 1000ms
-///     .with_keyframe(Keyframe::new(180, 0, 1000).set_transition(Easing::SineInOut))
-///     // Turns the servo to 0° in 1000ms
-///     .with_keyframe(Keyframe::new(0, 2000, 3000).set_transition(Easing::SineInOut));
+/// ```no_run
+/// use hermes_five::animation::{Keyframe, Track};
+/// use hermes_five::Board;
+/// use hermes_five::devices::Servo;
+/// use hermes_five::protocols::SerialProtocol;
+/// use hermes_five::utils::Easing;
+///
+/// #[hermes_five::runtime]
+/// async fn main() {
+///     // Defines a board (using serial port on COM4).
+///     let board = Board::build(SerialProtocol::new("COM4")).open();
+///     // Defines a servo attached to the board on PIN 9 (default servo position is 90°).
+///     let servo = Servo::new(&board, 9, 90).unwrap();
+///     // Creates a track for the servo.
+///     let track = Track::new(servo)
+///         // Turns the servo to 180° in 1000ms
+///         .with_keyframe(Keyframe::new(180, 0, 1000).set_transition(Easing::SineInOut))
+///         // Turns the servo to 0° in 1000ms
+///         .with_keyframe(Keyframe::new(0, 2000, 3000).set_transition(Easing::SineInOut));
+/// }
 /// ```
 ///
 /// # Fields
@@ -210,7 +219,7 @@ impl Track {
 #[cfg(test)]
 mod tests {
     use crate::animation::Keyframe;
-    use crate::tests::mocks::actuator::MockActuator;
+    use crate::mocks::actuator::MockActuator;
     use crate::utils::Range;
 
     use super::*;

@@ -17,25 +17,37 @@ use crate::utils::task::TaskHandler;
 /// from position 0° to 180° and back:
 /// (sidenote: prefer use [`Servo::sweep()`] helper for this purpose).
 /// ```
-/// let board = Board::run();
-/// board.on("ready", |board: Board| async move {
-///     let servo = Servo::new(&board, 9, 0).unwrap();
+/// use hermes_five::pause;
+/// use hermes_five::animation::{Animation, Keyframe, Segment, Track};
+/// use hermes_five::Board;
+/// use hermes_five::BoardEvent;
+/// use hermes_five::devices::Servo;
+/// use hermes_five::utils::Easing;
 ///
-///     let mut animation = Animation::from(
-///         Segment::from(
-///             Track::new(servo)
-///                 .with_keyframe(Keyframe::new(180, 0, 500).set_transition(Easing::SineInOut))
-///                 .with_keyframe(Keyframe::new(90, 1000, 2000).set_transition(Easing::SineInOut)),
-///         )
-///         .set_fps(100)
-///         .set_repeat(true),
-///     );
+/// #[hermes_five::runtime]
+/// async fn main() {
+///     let board = Board::run();
+///     board.on(BoardEvent::OnReady, |board: Board| async move {
+///         let servo = Servo::new(&board, 9, 0).unwrap();
 ///
-///     animation.play().await;
-///     pause!(3000);
+///         let mut animation = Animation::from(
+///             Segment::from(
+///                 Track::new(servo)
+///                     .with_keyframe(Keyframe::new(180, 0, 500).set_transition(Easing::SineInOut))
+///                     .with_keyframe(Keyframe::new(90, 1000, 2000).set_transition(Easing::SineInOut)),
+///             )
+///             .set_fps(100)
+///             .set_repeat(true)
+///         );
 ///
-///     animation.stop();
-/// }).await;
+///         animation.play();
+///         pause!(3000);
+///
+///         animation.stop();
+///
+///         Ok(())
+///     });
+/// }
 /// ```
 ///
 /// # Fields
@@ -219,8 +231,8 @@ mod tests {
     use serial_test::serial;
 
     use crate::animation::Keyframe;
+    use crate::mocks::actuator::MockActuator;
     use crate::pause;
-    use crate::tests::mocks::actuator::MockActuator;
 
     use super::*;
 

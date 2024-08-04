@@ -72,11 +72,15 @@ pub async fn init_task_channel() {
 ///
 /// # Example
 /// ```
+/// use hermes_five::utils::task;
+///
 /// #[hermes_five::runtime]
 /// async fn main() {
-///     task::run(async move {
+///     let handler = task::run(async move {
 ///         // whatever
-///     }).await;
+///     }).unwrap();
+///     // Abort the task early.
+///     handler.abort();
 /// }
 /// ```
 pub fn run<F, T>(future: F) -> Result<TaskHandler, Error>

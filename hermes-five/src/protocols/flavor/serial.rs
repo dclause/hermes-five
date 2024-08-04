@@ -40,8 +40,14 @@ impl SerialProtocol {
     ///
     /// # Example
     /// ```
-    /// let protocol = SerialProtocol::new("/dev/ttyACM0");
-    /// let board = Board::default().with_protocol(protocol).open();
+    /// use hermes_five::Board;
+    /// use hermes_five::protocols::SerialProtocol;
+    ///
+    /// #[hermes_five::runtime]
+    /// async fn main() {
+    ///     let protocol = SerialProtocol::new("/dev/ttyACM0");
+    ///     let board = Board::default().with_protocol(protocol).open();
+    /// }
     /// ```
     pub fn new<P: Into<String>>(port: P) -> Self {
         Self {
@@ -183,7 +189,7 @@ impl From<serialport::Error> for Error {
 
 #[cfg(test)]
 mod tests {
-    use crate::tests::mocks::io::SerialPortMock;
+    use crate::mocks::io::SerialPortMock;
 
     use super::*;
 

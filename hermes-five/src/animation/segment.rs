@@ -18,34 +18,43 @@ use crate::pause;
 ///
 /// Here is an example of defining a segment to animate a small robot with two actuators (a LED and a servo).
 /// The robot will perform a waving motion using its servo and LED.
-/// ```
-/// // Define a board on COM4.
-/// let board = Board::build(SerialProtocol::new("COM4")).open();
+/// ```no_run
+/// use hermes_five::animation::{Keyframe, Segment, Track};
+/// use hermes_five::Board;
+/// use hermes_five::devices::{Led, Servo};
+/// use hermes_five::protocols::SerialProtocol;
+/// use hermes_five::utils::Easing;
 ///
-/// // Define a servo attached to the board on PIN 9 (default servo position is 90°).
-/// let servo = Servo::default(&board, 9);
-/// // Create a track for the servo.
-/// let servo_track = Track::new(servo)
-///     // Turns the servo to 180° in 1000ms
-///     .with_keyframe(Keyframe::new(180, 0, 1000).set_transition(Easing::SineInOut))
-///     // Turns the servo to 0° in 1000ms
-///     .with_keyframe(Keyframe::new(0, 2000, 3000).set_transition(Easing::SineInOut));
+/// #[hermes_five::runtime]
+/// async fn main() {
+///     // Define a board on COM4.
+///     let board = Board::build(SerialProtocol::new("COM4")).open();
 ///
-/// // Define a LED attached to the board on PIN 13.
-/// let led = Led::default(&board, 13);
-/// // Create a track for the LED.
-/// let led_track = Track::new(led)
-///     // Turns the LED fully (instantly)
-///     .with_keyframe(Keyframe::new(255, 0, 1)
-///     // Fade out the LED in 1000ms
-///     .with_keyframe(Keyframe::new(0, 2000, 3000);
+///     // Define a servo attached to the board on PIN 9 (default servo position is 90°).
+///     let servo = Servo::new(&board, 9, 90).unwrap();
+///     // Create a track for the servo.
+///     let servo_track = Track::new(servo)
+///         // Turns the servo to 180° in 1000ms
+///         .with_keyframe(Keyframe::new(180, 0, 1000).set_transition(Easing::SineInOut))
+///         // Turns the servo to 0° in 1000ms
+///         .with_keyframe(Keyframe::new(0, 2000, 3000).set_transition(Easing::SineInOut));
 ///
-/// // Create an animation Segment for this:
-/// let segment = Segment::default()
-///     .set_name("Wave hi!")
-///     .with_track(servo_track)
-///     .with_track(led_track)
-///     .set_repeat(true);
+///     // Define a LED attached to the board on PIN 13.
+///     let led = Led::new(&board, 13).unwrap();
+///     // Create a track for the LED.
+///     let led_track = Track::new(led)
+///         // Turns the LED fully (instantly)
+///         .with_keyframe(Keyframe::new(255, 0, 1))
+///         // Fade out the LED in 1000ms
+///         .with_keyframe(Keyframe::new(0, 2000, 3000));
+///
+///     // Create an animation Segment for this:
+///     let segment = Segment::default()
+///         .set_name("Wave hi!")
+///         .with_track(servo_track)
+///         .with_track(led_track)
+///         .set_repeat(true);
+/// }
 /// ```
 ///
 /// # Fields
@@ -276,7 +285,7 @@ mod tests {
 
     use crate::animation::{Keyframe, Segment};
     use crate::animation::Track;
-    use crate::tests::mocks::actuator::MockActuator;
+    use crate::mocks::actuator::MockActuator;
 
     #[test]
     fn test_segment_default() {

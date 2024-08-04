@@ -2,10 +2,6 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{ItemFn, ReturnType, Signature, Stmt};
 
-use crate::internals::helpers::hermes_five_crate_path;
-
-mod helpers;
-
 pub enum TokioMode {
     Main,
     Test,
@@ -16,7 +12,7 @@ pub enum TokioMode {
 /// This method uses proc_macro2 TokenStream in order to allow easier testing and tarpaulin code coverage.
 /// This is the only benefice to have it as a sub-method here (and have it bound to sub-crate hermes-macros-internals)
 pub fn runtime_macro(item: TokenStream, tokio: TokioMode) -> TokenStream {
-    let hermes_five = hermes_five_crate_path();
+    let hermes_five = quote!(::hermes_five);
     // Parse the input tokens into a syntax tree
     let input: ItemFn = syn::parse2(item).unwrap();
 
@@ -148,13 +144,13 @@ mod tests {
     use crate::internals::{runtime_macro, TokioMode};
 
     fn before() -> TokenStream {
-        quote! {hermes_five::utils::task::init_task_channel().await;}
+        quote! {::hermes_five::utils::task::init_task_channel().await;}
     }
     fn after() -> TokenStream {
         quote! {
-            let cell = hermes_five::utils::task::RUNTIME_RX.get().ok_or(hermes_five::errors::RuntimeError).unwrap();
+            let cell = ::hermes_five::utils::task::RUNTIME_RX.get().ok_or(::hermes_five::errors::RuntimeError).unwrap();
             let mut lock = cell.lock();
-            let receiver = lock.as_mut().ok_or(hermes_five::errors::RuntimeError).unwrap();
+            let receiver = lock.as_mut().ok_or(::hermes_five::errors::RuntimeError).unwrap();
 
             // Wait for all dynamically spawned tasks to complete.
             while receiver.len() > 0 {
@@ -164,8 +160,8 @@ mod tests {
                     // We receive the task result through that new receiver.
                     if let Some(task_result) = task_receiver.recv().await {
                         match task_result {
-                            hermes_five::utils::task::TaskResult::Ok => {},
-                            hermes_five::utils::task::TaskResult::Err(err) => eprintln!("Task failed: {:?}", err.to_string()),
+                            ::hermes_five::utils::task::TaskResult::Ok => {},
+                            ::hermes_five::utils::task::TaskResult::Err(err) => eprintln!("Task failed: {:?}", err.to_string()),
                         }
                     }
                 }
@@ -186,7 +182,7 @@ mod tests {
 
         let control = quote! {
             fn main() -> Result<(), Error> {
-                let rt = hermes_five::utils::tokio::runtime::Builder::new_multi_thread()
+                let rt = ::hermes_five::utils::tokio::runtime::Builder::new_multi_thread()
                 .worker_threads(4)
                 .enable_all()
                 .build()
@@ -227,7 +223,7 @@ mod tests {
 
         let control = quote! {
             fn main() {
-                let rt = hermes_five::utils::tokio::runtime::Builder::new_multi_thread()
+                let rt = ::hermes_five::utils::tokio::runtime::Builder::new_multi_thread()
                 .worker_threads(4)
                 .enable_all()
                 .build()
@@ -267,7 +263,7 @@ mod tests {
 
         let control = quote! {
             fn main() -> () {
-                let rt = hermes_five::utils::tokio::runtime::Builder::new_multi_thread()
+                let rt = ::hermes_five::utils::tokio::runtime::Builder::new_multi_thread()
                 .worker_threads(4)
                 .enable_all()
                 .build()
@@ -304,7 +300,7 @@ mod tests {
         let control = quote! {
             #[test]
             fn main() {
-                let rt = hermes_five::utils::tokio::runtime::Runtime::new().unwrap();
+                let rt = ::hermes_five::utils::tokio::runtime::Runtime::new().unwrap();
                 rt.block_on(async {
                     #before
 

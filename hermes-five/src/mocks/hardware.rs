@@ -141,6 +141,32 @@ pub fn create_shift_pin(id: u16, value: u16) -> Pin {
     }
 }
 
+pub fn create_servo_pin(id: u16, value: u16) -> Pin {
+    Pin {
+        id,
+        mode: PinMode {
+            id: PinModeId::SERVO,
+            resolution: 8,
+        },
+        supported_modes: vec![
+            PinMode {
+                id: Default::default(),
+                resolution: 1,
+            },
+            PinMode {
+                id: PinModeId::SERVO,
+                resolution: 8,
+            },
+            PinMode {
+                id: PinModeId::OUTPUT,
+                resolution: 1,
+            },
+        ],
+        channel: None,
+        value,
+    }
+}
+
 pub fn create_unsupported_pin(id: u16) -> Pin {
     Pin {
         id,
@@ -169,7 +195,7 @@ pub fn create_test_hardware() -> Hardware {
             (9, create_shift_pin(9, 9)),
             (10, create_input_pin(10, 10)),
             (11, create_pwm_pin(11, 11)),
-            (12, create_pwm_pin(12, 12)),
+            (12, create_servo_pin(12, 12)),
             (13, create_digital_pin(13, 13)),
             (14, create_analog_pin(14, 100)),
             (15, create_analog_pin(15, 100)),

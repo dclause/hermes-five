@@ -63,7 +63,7 @@ impl Hardware {
 
 #[cfg(test)]
 mod tests {
-    use crate::tests::mocks::hardware::create_test_hardware;
+    use crate::mocks::hardware::create_test_hardware;
 
     #[test]
     fn test_get_pin_success() {

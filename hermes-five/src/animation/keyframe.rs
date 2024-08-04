@@ -18,7 +18,10 @@ use crate::utils::scale::Scalable;
 /// be the brightness of a LED, or the position of a Servo), over 1000 milliseconds, following the
 /// defined easing function.
 /// ```
-/// let keyframe = Keyframe::new(100, 0 1000).set_transition(Easing::SineInOut);
+/// use hermes_five::animation::Keyframe;
+/// use hermes_five::utils::Easing;
+///
+/// let keyframe = Keyframe::new(100, 0, 1000).set_transition(Easing::SineInOut);
 /// ```
 ///
 /// # Fields
@@ -55,6 +58,8 @@ impl Keyframe {
     ///
     /// # Example
     /// ```
+    /// use hermes_five::animation::Keyframe;
+    ///
     /// let keyframe = Keyframe::new(100, 0, 1000);
     /// ```
     pub fn new(target: u16, start: u64, end: u64) -> Keyframe {
@@ -108,10 +113,9 @@ impl Keyframe {
     /// and the easing function results in a coefficient of 0.75 at 600 ms, the output would be 0.75.
     /// This means that 75% of the target value transition (from previous keyframe target to 100)
     /// should be applied at that time.
-    /// ```
+    ///
     /// let keyframe = Keyframe::new(100, 0, 1000).set_transition(Easing::QuadOut);
-    /// assert!(keyframe.compute_target_coefficient(500), 0.75);
-    /// ```
+    /// assert_eq!(keyframe.compute_target_coefficient(500), 0.75);
     pub(crate) fn compute_target_coefficient(&self, time: u64) -> f32 {
         let clamped_time = time.clamp(self.start, self.end) as f32;
         let progress = clamped_time.scale(self.start as f32, self.end as f32, 0.0, 1.0);

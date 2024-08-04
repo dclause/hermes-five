@@ -80,11 +80,6 @@ pub enum Easing {
 
 impl Easing {
     /// Call the easing function.
-    /// ```
-    /// fn apply_easing(easing: Easing, t: f32) -> f32 {
-    ///     easing.call(t)
-    /// }
-    /// ````
     pub(crate) fn call(&self, t: f32) -> f32 {
         match self {
             Easing::BackIn => back_in(t),

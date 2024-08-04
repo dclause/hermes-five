@@ -210,12 +210,16 @@ impl Servo {
     /// # Example
     ///
     /// ```
+    /// use hermes_five::Board;
+    /// use hermes_five::BoardEvent;
+    ///
     /// #[hermes_five::runtime]
     /// async fn main() {
-    ///     let board1 = Board::run();
-    ///     board.on("ready", || async move {
+    ///     let board = Board::run();
+    ///     board.on(BoardEvent::OnReady, |_: Board| async move {
     ///         // Here, you know the board to be connected and ready to receive data.
-    ///     }).await;
+    ///         Ok(())
+    ///     });
     /// }
     /// ```
     pub async fn on<S, F, T, Fut>(&self, event: S, callback: F) -> EventHandler
@@ -263,7 +267,7 @@ impl Actuator for Servo {
 
 impl Drop for Servo {
     fn drop(&mut self) {
-        self.to(self.default).expect("TODO: panic message");
+        let _ = self.to(self.default);
     }
 }
 

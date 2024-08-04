@@ -466,8 +466,8 @@ impl Display for Box<dyn Protocol> {
 
 #[cfg(test)]
 mod tests {
+    use crate::mocks::protocol::MockProtocol;
     use crate::protocols::{Message, PinModeId, Protocol};
-    use crate::tests::mocks::protocol::MockProtocol;
     use crate::utils::Range;
 
     fn format_as_hex(slice: &[u8]) -> String {

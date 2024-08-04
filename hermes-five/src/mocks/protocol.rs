@@ -3,8 +3,8 @@ use std::sync::Arc;
 use parking_lot::RwLock;
 
 use crate::errors::Error;
+use crate::mocks::hardware::create_test_hardware;
 use crate::protocols::{Hardware, Protocol};
-use crate::tests::mocks::hardware::create_test_hardware;
 
 /// Mock implement for [`Protocol`].
 /// Uses [`create_test_hardware`] for the hardware:
