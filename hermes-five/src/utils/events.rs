@@ -10,6 +10,7 @@ use futures::future::BoxFuture;
 use futures::FutureExt;
 use parking_lot::Mutex;
 
+use crate::errors::Error;
 use crate::utils::task;
 
 type SyncedCallbackMap = Mutex<HashMap<String, Vec<CallbackWrapper>>>;
@@ -23,7 +24,8 @@ pub struct EventManager {
 
 struct CallbackWrapper {
     id: EventHandler,
-    callback: Box<dyn FnMut(Arc<dyn Any + Send + Sync>) -> BoxFuture<'static, ()> + Send>,
+    callback:
+        Box<dyn FnMut(Arc<dyn Any + Send + Sync>) -> BoxFuture<'static, Result<(), Error>> + Send>,
 }
 
 impl EventManager {
@@ -70,7 +72,7 @@ impl EventManager {
         S: Into<String>,
         T: 'static + Send + Sync + Clone,
         F: FnMut(T) -> Fut + Send + 'static,
-        Fut: std::future::Future<Output = ()> + Send + 'static,
+        Fut: std::future::Future<Output = Result<(), Error>> + Send + 'static,
     {
         let event_name = event.into();
         // Generate a unique ID.
@@ -79,7 +81,7 @@ impl EventManager {
         let boxed_callback = Box::new(move |arg: Arc<dyn Any + Send + Sync>| {
             match arg.downcast::<T>() {
                 Ok(arg) => (callback)((*arg).clone()).boxed(),
-                Err(_) => Box::pin(async {}),
+                Err(_) => Box::pin(async { Ok(()) }),
                 // Err(_) => {
                 //     // Handle error case where the argument is not of type T
                 //     log::warn!("The callback for event '{}' could not be called because parameter does not match", callback_event);
@@ -206,6 +208,7 @@ mod tests {
 
         events.on("register", |flag: Arc<AtomicBool>| async move {
             flag.store(true, Ordering::SeqCst);
+            Ok(())
         });
 
         events.emit("register", payload.clone());
@@ -224,6 +227,7 @@ mod tests {
 
         let handler = events.on("unregister", |flag: Arc<AtomicBool>| async move {
             flag.store(true, Ordering::SeqCst);
+            Ok(())
         });
 
         events.unregister(handler);
@@ -244,11 +248,13 @@ mod tests {
         events.on("multiple", |flag: Arc<AtomicUsize>| async move {
             let value = flag.load(Ordering::SeqCst);
             flag.store(value + 1, Ordering::SeqCst);
+            Ok(())
         });
 
         events.on("multiple", |flag: Arc<AtomicUsize>| async move {
             let value = flag.load(Ordering::SeqCst);
             flag.store(value + 1, Ordering::SeqCst);
+            Ok(())
         });
 
         events.on(
@@ -256,6 +262,7 @@ mod tests {
             |(_not_matching, flag): (u8, Arc<AtomicUsize>)| async move {
                 let value = flag.load(Ordering::SeqCst);
                 flag.store(value + 1, Ordering::SeqCst);
+                Ok(())
             },
         );
 
@@ -278,6 +285,7 @@ mod tests {
             "payload",
             |(number1, number2, container): (u8, u8, Arc<AtomicU8>)| async move {
                 container.store(number1 + number2, Ordering::SeqCst);
+                Ok(())
             },
         );
         events.emit("payload", (42u8, 69u8, flag.clone()));
@@ -300,12 +308,12 @@ mod tests {
     #[test]
     fn test_event_manager_debug() {
         let events: EventManager = Default::default();
-        events.on("test", |_: ()| async move {});
+        events.on("test", |_: ()| async move { Ok(()) });
         assert_eq!(
             format!("{:?}", events),
             "EventManager: 1 registered callback"
         );
-        events.on("test2", |_: ()| async move {});
+        events.on("test2", |_: ()| async move { Ok(()) });
         assert_eq!(
             format!("{:?}", events),
             "EventManager: 2 registered callbacks"

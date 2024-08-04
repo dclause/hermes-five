@@ -189,12 +189,12 @@ impl Board {
     ///     }).await;
     /// }
     /// ```
-    pub async fn on<S, F, T, Fut>(&self, event: S, callback: F) -> EventHandler
+    pub fn on<S, F, T, Fut>(&self, event: S, callback: F) -> EventHandler
     where
         S: Into<String>,
         T: 'static + Send + Sync + Clone,
         F: FnMut(T) -> Fut + Send + 'static,
-        Fut: std::future::Future<Output = ()> + Send + 'static,
+        Fut: std::future::Future<Output = Result<(), Error>> + Send + 'static,
     {
         self.events.on(event, callback)
     }

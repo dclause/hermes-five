@@ -132,6 +132,8 @@ mod tests {
     use std::sync::atomic::{AtomicU8, Ordering};
     use std::time::SystemTime;
 
+    use serial_test::serial;
+
     use crate::errors::{Error, Unknown};
     use crate::utils::task;
 
@@ -160,6 +162,7 @@ mod tests {
         Ok(())
     }
 
+    #[serial]
     #[test]
     fn test_task_parallel_execution() {
         // Tasks should be parallel and function should be blocked until all done.

@@ -121,7 +121,7 @@ impl Led {
 
     /// Blink the LED on/off in phases of ms (milliseconds) duration.
     /// This is an interval operation and can be stopped by calling [`Led::stop()`].
-    pub async fn blink(&mut self, ms: u64) -> &Self {
+    pub fn blink(&mut self, ms: u64) -> &Self {
         let mut self_clone = self.clone();
 
         self.interval = Arc::new(Some(

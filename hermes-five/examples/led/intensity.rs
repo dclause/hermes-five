@@ -5,16 +5,14 @@ use hermes_five::devices::Led;
 async fn main() {
     let board = Board::run();
 
-    board
-        .on("ready", |board: Board| async move {
-            // Register a LED on pin 11.
-            let mut led = Led::new(&board, 11)
-                .unwrap()
-                // Lower intensity to 50%: this will now impose a PWM compatible pin.
-                .set_intensity(50)
-                .unwrap();
+    board.on("ready", |board: Board| async move {
+        // Register a LED on pin 11.
+        let mut led = Led::new(&board, 11)?
+            // Lower intensity to 50%: this will now impose a PWM compatible pin.
+            .set_intensity(50)?;
 
-            led.blink(500).await;
-        })
-        .await;
+        led.blink(500);
+
+        Ok(())
+    });
 }

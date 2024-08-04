@@ -223,7 +223,7 @@ impl Servo {
         S: Into<String>,
         T: 'static + Send + Sync + Clone,
         F: FnMut(T) -> Fut + Send + 'static,
-        Fut: std::future::Future<Output = ()> + Send + 'static,
+        Fut: std::future::Future<Output = Result<(), Error>> + Send + 'static,
     {
         self.events.on(event, callback)
     }

@@ -6,9 +6,9 @@ use std::sync::Arc;
 use dyn_clone::DynClone;
 use parking_lot::RwLock;
 
+use crate::errors::*;
 use crate::errors::HardwareError::IncompatibleMode;
 use crate::errors::ProtocolError::{MessageTooShort, UnexpectedData};
-use crate::errors::*;
 pub use crate::protocols::constants::*;
 pub use crate::protocols::flavor::*;
 pub use crate::protocols::hardware::*;
@@ -166,7 +166,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     fn set_pin_mode(&mut self, pin: u16, mode: PinModeId) -> Result<(), Error> {
         {
             let mut lock = self.get_hardware().write();
-            let mut pin_instance = lock.get_pin_mut(pin)?;
+            let pin_instance = lock.get_pin_mut(pin)?;
             let _mode = pin_instance.supports_mode(mode).ok_or(IncompatibleMode {
                 pin,
                 mode,

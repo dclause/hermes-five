@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{ItemFn, ReturnType, Stmt};
+use syn::{ItemFn, ReturnType, Signature, Stmt};
 
 use crate::internals::helpers::hermes_five_crate_path;
 
@@ -28,11 +28,17 @@ pub fn runtime_macro(item: TokenStream, tokio: TokioMode) -> TokenStream {
         block,
     } = input;
 
+    // Create a new Signature without `async`
+    let sync_sig = Signature {
+        asyncness: None,
+        ..sig
+    };
+
     // Extract the block's statements
     let mut stmts = block.stmts;
 
     // Check if the function has an explicit return type
-    let has_return_type = match &sig.output {
+    let has_return_type = match &sync_sig.output {
         ReturnType::Default => false,
         ReturnType::Type(_, ty) => match &**ty {
             syn::Type::Tuple(tuple) if tuple.elems.is_empty() => false,
@@ -50,10 +56,24 @@ pub fn runtime_macro(item: TokenStream, tokio: TokioMode) -> TokenStream {
         None
     };
 
-    // Define the #[tokio::main] / #[tokio::test] tokio macro attribute.
-    let tokio_main_attr = match tokio {
-        TokioMode::Main => quote! {#[#hermes_five::utils::tokio::main]},
-        TokioMode::Test => quote! {#[#hermes_five::utils::tokio::test]},
+    // Define the #[test] attribute.
+    let test_attr = match tokio {
+        TokioMode::Main => quote! {},
+        TokioMode::Test => quote! {#[test]},
+    };
+
+    // Define the appropriate tokio runtime.
+    let tokio_runtime = match tokio {
+        TokioMode::Main => quote! {
+            let rt = #hermes_five::utils::tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(4)
+                .enable_all()
+                .build()
+                .unwrap();
+        },
+        TokioMode::Test => quote! {
+            let rt = #hermes_five::utils::tokio::runtime::Runtime::new().unwrap();
+        },
     };
 
     // Generate the function body
@@ -106,10 +126,13 @@ pub fn runtime_macro(item: TokenStream, tokio: TokioMode) -> TokenStream {
 
     // Generate the expanded function
     let expanded = quote! {
-        #tokio_main_attr
+        #test_attr
         #(#attrs)*
-        #vis #sig {
-            #(#body)*
+        #vis #sync_sig {
+            #tokio_runtime
+            rt.block_on(async {
+                #(#body)*
+            })
         }
     };
 
@@ -162,17 +185,23 @@ mod tests {
         };
 
         let control = quote! {
-            #[hermes_five::utils::tokio::main]
-            async fn main() -> Result<(), Error> {
-                #before
+            fn main() -> Result<(), Error> {
+                let rt = hermes_five::utils::tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(4)
+                .enable_all()
+                .build()
+                .unwrap();
+                rt.block_on(async {
+                    #before
 
-                // Original code
-                let x = 3;
-                // ---
+                    // Original code
+                    let x = 3;
+                    // ---
 
-                #after
+                    #after
 
-                Ok(())
+                    Ok(())
+                })
             }
         };
 
@@ -197,16 +226,22 @@ mod tests {
         };
 
         let control = quote! {
-            #[hermes_five::utils::tokio::main]
-            async fn main() {
-                #before
+            fn main() {
+                let rt = hermes_five::utils::tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(4)
+                .enable_all()
+                .build()
+                .unwrap();
+                rt.block_on(async {
+                    #before
 
-                // Original code
-                let x = 3;
-                blabla.await;
-                // ---
+                    // Original code
+                    let x = 3;
+                    blabla.await;
+                    // ---
 
-                #after
+                    #after
+                })
             }
         };
 
@@ -231,15 +266,21 @@ mod tests {
         };
 
         let control = quote! {
-            #[hermes_five::utils::tokio::main]
-            async fn main() -> () {
-                #before
+            fn main() -> () {
+                let rt = hermes_five::utils::tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(4)
+                .enable_all()
+                .build()
+                .unwrap();
+                rt.block_on(async {
+                    #before
 
-                // Original code
-                let x = 3;
-                // ---
+                    // Original code
+                    let x = 3;
+                    // ---
 
-                #after
+                    #after
+                })
             }
         };
 
@@ -261,14 +302,17 @@ mod tests {
         };
 
         let control = quote! {
-            #[hermes_five::utils::tokio::test]
-            async fn main() {
-                #before
+            #[test]
+            fn main() {
+                let rt = hermes_five::utils::tokio::runtime::Runtime::new().unwrap();
+                rt.block_on(async {
+                    #before
 
-                // Original code
-                // ---
+                    // Original code
+                    // ---
 
-                #after
+                    #after
+                })
             }
         };
 
