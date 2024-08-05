@@ -53,7 +53,7 @@ impl Servo {
         let pwm_range = Range::from([600, 2400]);
 
         let mut servo = Self {
-            protocol: board.protocol(),
+            protocol: board.get_protocol(),
             pin,
             range: Range::from([0, 180]),
             pwm_range,

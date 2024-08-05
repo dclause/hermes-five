@@ -44,6 +44,12 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         String::from("()")
     }
 
+    /// Checks if the communication is opened using the underlying protocol.
+    fn is_connected(&self) -> bool;
+
+    /// Sets the communication status.
+    fn set_connected(&mut self, status: bool);
+
     // ########################################
     // Functions specifically bound to the protocol.
 
@@ -61,6 +67,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
 
     /// Starts a conversation with the board: validate the firmware version and...
     fn handshake(&mut self) -> Result<(), Error> {
+        self.set_connected(false);
         self.query_firmware()?;
         self.read_and_decode()?;
         self.query_capabilities()?;
@@ -69,6 +76,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         self.read_and_decode()?;
         self.report_digital(0, true)?;
         self.report_digital(1, true)?;
+        self.set_connected(true);
         Ok(())
     }
 

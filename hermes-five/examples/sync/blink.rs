@@ -7,6 +7,6 @@ use hermes_five::errors::Error;
 fn main() -> Result<(), Error> {
     let board = Board::default().blocking_open()?;
     println!("Board connected: {}", board);
-    println!("Pins {:#?}", board.hardware().pins);
+    println!("Pins {:#?}", board.get_hardware().pins);
     Ok(())
 }

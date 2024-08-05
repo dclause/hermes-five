@@ -1,4 +1,4 @@
-use hermes_five::{Board, BoardEvent, pause};
+use hermes_five::{Board, BoardEvent};
 
 #[hermes_five::runtime]
 async fn main() {
@@ -6,9 +6,7 @@ async fn main() {
 
     board.on(BoardEvent::OnReady, |board: Board| async move {
         println!("Connection done on board.");
-        pause!(1000);
         board.close();
-        pause!(1000);
         Ok(())
     });
 

@@ -144,11 +144,11 @@ mod tests {
     #[hermes_macros::runtime]
     async fn my_runtime() -> Result<(), Error> {
         task::run(async move {
-            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+            pause!(500);
             task::run(async move {
-                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                pause!(100);
                 task::run(async move {
-                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    pause!(100);
                 })?;
                 Ok(())
             })?;
@@ -156,11 +156,11 @@ mod tests {
         })?;
 
         task::run(async move {
-            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+            pause!(500);
         })?;
 
         task::run(async move {
-            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+            pause!(500);
         })?;
 
         Ok(())

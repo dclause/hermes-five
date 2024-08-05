@@ -22,6 +22,8 @@ use crate::protocols::{Hardware, Protocol};
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
 pub struct SerialProtocol {
+    /// Indicates whether the protocol as gone through the handshake properly.
+    connected: bool,
     /// The connection port.
     port: String,
     /// A Read/Write io object.
@@ -46,11 +48,12 @@ impl SerialProtocol {
     /// #[hermes_five::runtime]
     /// async fn main() {
     ///     let protocol = SerialProtocol::new("/dev/ttyACM0");
-    ///     let board = Board::default().with_protocol(protocol).open();
+    ///     let board = Board::from(protocol).open();
     /// }
     /// ```
     pub fn new<P: Into<String>>(port: P) -> Self {
         Self {
+            connected: false,
             port: port.into(),
             io: Arc::new(Mutex::new(None)),
             hardware: Arc::new(RwLock::new(Hardware::default())),
@@ -88,6 +91,16 @@ impl Protocol for SerialProtocol {
         format!("via port {}", self.port)
     }
 
+    /// Checks if the communication is opened using the underlying protocol.
+    fn is_connected(&self) -> bool {
+        self.connected && self.io.lock().is_some()
+    }
+
+    /// Sets the protocol inner connected indicator.
+    fn set_connected(&mut self, status: bool) {
+        self.connected = status;
+    }
+
     // ########################################
     // Protocol related functions
 
@@ -120,6 +133,7 @@ impl Protocol for SerialProtocol {
     /// * `Ok(())` if successful.
     /// * `Err(Error)` if there is an issue closing the port.
     fn close(&mut self) -> Result<(), Error> {
+        self.connected = false;
         *self.io.lock() = None;
         Ok(())
     }
@@ -142,11 +156,14 @@ impl Protocol for SerialProtocol {
         // Check if all bytes were successfully written
         match bytes_written == buf.len() {
             true => Ok(()),
-            false => Err(MessageTooShort {
-                operation: "write",
-                expected: buf.len(),
-                received: bytes_written,
-            }),
+            false => {
+                self.connected = false;
+                Err(MessageTooShort {
+                    operation: "write",
+                    expected: buf.len(),
+                    received: bytes_written,
+                })
+            }
         }?;
 
         Ok(())
@@ -165,7 +182,13 @@ impl Protocol for SerialProtocol {
     /// This function blocks until the buffer is filled or an error occurs. Ensure proper error handling in calling code.
     fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), Error> {
         let mut lock = self.io.lock();
-        lock.as_mut().ok_or(NotInitialized)?.read_exact(buf)?;
+        lock.as_mut()
+            .ok_or(NotInitialized)?
+            .read_exact(buf)
+            .map_err(|err| {
+                self.connected = false;
+                err
+            })?;
         Ok(())
     }
 }

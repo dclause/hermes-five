@@ -28,7 +28,7 @@ use crate::utils::scale::Scalable;
 /// #[hermes_five::runtime]
 /// async fn main() {
 ///     // Defines a board (using serial port on COM4).
-///     let board = Board::build(SerialProtocol::new("COM4")).open();
+///     let board = Board::from(SerialProtocol::new("COM4")).open();
 ///     // Defines a servo attached to the board on PIN 9 (default servo position is 90°).
 ///     let servo = Servo::new(&board, 9, 90).unwrap();
 ///     // Creates a track for the servo.

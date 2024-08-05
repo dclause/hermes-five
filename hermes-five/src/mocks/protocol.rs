@@ -11,6 +11,7 @@ use crate::protocols::{Hardware, Protocol};
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
 pub struct MockProtocol {
+    pub connected: bool,
     /// The base-protocol attributes.
     #[cfg_attr(feature = "serde", serde(skip))]
     hardware: Arc<RwLock<Hardware>>,
@@ -23,6 +24,7 @@ pub struct MockProtocol {
 impl Default for MockProtocol {
     fn default() -> Self {
         Self {
+            connected: false,
             hardware: Arc::new(RwLock::new(create_test_hardware())),
             buf: [0; 32],
             index: 0,
@@ -36,11 +38,21 @@ impl Protocol for MockProtocol {
         &self.hardware
     }
 
+    fn is_connected(&self) -> bool {
+        self.connected
+    }
+
+    fn set_connected(&mut self, status: bool) {
+        self.connected = status;
+    }
+
     fn open(&mut self) -> Result<(), Error> {
+        self.connected = true;
         Ok(())
     }
 
     fn close(&mut self) -> Result<(), Error> {
+        self.connected = false;
         Ok(())
     }
 

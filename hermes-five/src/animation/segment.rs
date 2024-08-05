@@ -28,7 +28,7 @@ use crate::pause;
 /// #[hermes_five::runtime]
 /// async fn main() {
 ///     // Define a board on COM4.
-///     let board = Board::build(SerialProtocol::new("COM4")).open();
+///     let board = Board::from(SerialProtocol::new("COM4")).open();
 ///
 ///     // Define a servo attached to the board on PIN 9 (default servo position is 90°).
 ///     let servo = Servo::new(&board, 9, 90).unwrap();

@@ -8,7 +8,7 @@ async fn main() {
 
     board.on("ready", |mut board: Board| async move {
         println!("Board connected: {}", board);
-        println!("Pins {:#?}", board.hardware().pins);
+        println!("Pins {:#?}", board.get_hardware().pins);
 
         // Example using the low-level capability of board to use hardware.
         board.set_pin_mode(13, PinModeId::OUTPUT)?;

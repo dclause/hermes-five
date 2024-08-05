@@ -34,7 +34,7 @@ pub struct Led {
 
 impl Led {
     pub fn new(board: &Board, pin: u16) -> Result<Self, Error> {
-        let mut protocol = board.protocol();
+        let mut protocol = board.get_protocol();
 
         // Get the PWM mode if any
         let pwm_mode = {
@@ -50,7 +50,7 @@ impl Led {
         };
 
         Ok(Self {
-            protocol: board.protocol(),
+            protocol: board.get_protocol(),
             pin,
             is_on: false,
             is_running: false,
@@ -63,7 +63,7 @@ impl Led {
 
     /// Set the LED intensity (integer between 0-100) in percent of the max brightness. If a number
     /// higher than 100 is used, the intensity is set to 100%.
-    /// If the requested intensity is 100%, the led will reset to simple on/off (OUTPUT) mode.
+    /// If the requested intensity is 100%, the LED will reset to simple on/off (OUTPUT) mode.
     ///
     /// # Parameters
     /// * `intensity`: the requested intensity (between 0-100%)
