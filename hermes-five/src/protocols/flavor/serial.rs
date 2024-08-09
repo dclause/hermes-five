@@ -22,10 +22,12 @@ use crate::protocols::{Hardware, Protocol};
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
 pub struct SerialProtocol {
-    /// Indicates whether the protocol as gone through the handshake properly.
-    connected: bool,
     /// The connection port.
     port: String,
+
+    /// Indicates whether the protocol as gone through the handshake properly.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    connected: bool,
     /// A Read/Write io object.
     #[cfg_attr(feature = "serde", serde(skip))]
     io: Arc<Mutex<Option<Box<dyn SerialPort>>>>,
@@ -291,21 +293,21 @@ mod tests {
     #[test]
     fn test_from_serial_error() {
         let serial_error = serialport::Error {
-            kind: serialport::ErrorKind::Unknown,
+            kind: ErrorKind::Unknown,
             description: String::from("test error"),
         };
         let custom_error: Error = serial_error.into();
         assert_eq!(custom_error.to_string(), "Protocol error: test error.");
 
         let serial_error = serialport::Error {
-            kind: serialport::ErrorKind::Io(std::io::ErrorKind::NotFound),
+            kind: ErrorKind::Io(std::io::ErrorKind::NotFound),
             description: String::from("IO error"),
         };
         let custom_error: Error = serial_error.into();
         assert_eq!(custom_error.to_string(), "Protocol error: IO error.");
 
         let serial_error = serialport::Error {
-            kind: serialport::ErrorKind::Io(std::io::ErrorKind::Other),
+            kind: ErrorKind::Io(std::io::ErrorKind::Other),
             description: String::from("IO error"),
         };
         let custom_error: Error = serial_error.into();

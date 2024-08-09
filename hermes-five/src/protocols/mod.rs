@@ -472,6 +472,12 @@ impl Display for Box<dyn Protocol> {
     }
 }
 
+impl Default for Box<dyn Protocol> {
+    fn default() -> Self {
+        Box::new(SerialProtocol::default())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::mocks::protocol::MockProtocol;
@@ -501,6 +507,7 @@ mod tests {
 
         let result = protocol.handshake();
         assert!(result.is_ok(), "{:?}", result);
+        assert!(protocol.is_connected());
     }
 
     #[test]

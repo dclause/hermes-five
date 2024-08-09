@@ -217,7 +217,7 @@ mod tests {
             "Flag should be updated by the task after 100ms",
         );
 
-        // ######################
+        // ########################################
         // Same test but aborting
         let flag_clone = flag.clone();
 

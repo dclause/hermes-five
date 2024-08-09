@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use async_trait::async_trait;
 use dyn_clone::DynClone;
 
+use crate::Board;
 pub use crate::devices::led::Led;
 pub use crate::devices::servo::Servo;
 use crate::errors::Error;
@@ -18,7 +19,10 @@ mod servo;
 ///
 /// Implementors of this trait are required to be `Debug`, `DynClone`, `Send`, and `Sync`.
 /// This ensures that devices can be cloned and used safely in multithreaded and async environments.
-pub trait Device: Debug + DynClone + Send + Sync {}
+#[cfg_attr(feature = "serde", typetag::serde(tag = "type"))]
+pub trait Device: Debug + DynClone + Send + Sync {
+    fn set_board(&mut self, board: &Board);
+}
 dyn_clone::clone_trait_object!(Device);
 
 /// A trait for devices that can act on the world, such as adjusting state.
@@ -32,11 +36,16 @@ dyn_clone::clone_trait_object!(Device);
 /// * `get_state(&self) -> u16`
 ///     - Retrieves the current internal state of the device.
 #[async_trait]
-pub(crate) trait Actuator: Device {
+#[cfg_attr(feature = "serde", typetag::serde(tag = "type"))]
+pub trait Actuator: Device {
     /// Internal only.
-    fn set_state(&mut self, state: u16) -> Result<(), Error>;
-    /// Internal only.
+    fn _set_state(&mut self, state: u16) -> Result<(), Error>;
+    /// Retrieves the actuator current state.
     fn get_state(&self) -> u16;
+    /// Retrieves the actuator default (or neutral) state.
+    fn get_default(&self) -> u16;
+    /// Indicates the busy status, ie if the device is running an animation.
+    fn is_busy(&self) -> bool;
 }
 dyn_clone::clone_trait_object!(Actuator);
 
@@ -44,5 +53,6 @@ dyn_clone::clone_trait_object!(Actuator);
 ///
 /// This trait extends `Device` and is intended for sensors that require the same capabilities
 /// as devices, including debugging, cloning, and concurrency support.
+#[cfg_attr(feature = "serde", typetag::serde(tag = "type"))]
 pub trait Sensor: Device {}
 dyn_clone::clone_trait_object!(Sensor);

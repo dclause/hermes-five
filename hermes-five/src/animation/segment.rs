@@ -374,7 +374,7 @@ mod tests {
             ])
             .set_fps(100);
 
-        // #########################
+        // ########################################
         // Play no-repeat
 
         let start = SystemTime::now();
@@ -387,7 +387,7 @@ mod tests {
             elapsed
         );
 
-        // #########################
+        // ########################################
         // Play repeat
 
         let mut segment = segment.set_repeat(true);

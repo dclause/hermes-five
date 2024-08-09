@@ -12,7 +12,7 @@ license.workspace = true
 [features]
 default = []
 libudev = ["serialport/libudev"]
-serde = ["dep:serde", "dep:serde_json"]
+serde = ["dep:serde", "dep:serde_json", "dep:typetag"]
 mocks = []
 
 [dependencies]
@@ -25,12 +25,12 @@ parking_lot = "0.12.3"
 simple-easing = "1.0.1"
 snafu = "0.8.4"
 tokio = { version = "1.38.0", features = ["macros", "rt-multi-thread", "signal", "sync", "time"] }
-typetag = "0.2.16"
 # Protocol(s)
 serialport = { version = "4.4.0", default-features = false }
 # Feature dependent
 serde = { version = "1.0.203", optional = true }
 serde_json = { version = "1.0.120", optional = true }
+typetag = { version = "0.2.17", optional = true }
 
 [dev-dependencies]
 serial_test = "3.1.1"

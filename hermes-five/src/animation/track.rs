@@ -118,7 +118,7 @@ impl Track {
                 self.update_history(keyframe.get_target());
                 let progress = keyframe.compute_target_coefficient(timeframe.end);
                 let value: u16 = progress.scale(0, 1, self.previous, keyframe.get_target());
-                self.device.set_state(value)
+                self.device._set_state(value)
             }
         }
     }
