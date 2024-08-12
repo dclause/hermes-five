@@ -1,4 +1,3 @@
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct Range<T> {
     pub start: T,
@@ -11,6 +10,35 @@ impl<T: Copy> From<[T; 2]> for Range<T> {
             start: value[0],
             end: value[1],
         }
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<T> serde::Serialize for Range<T>
+where
+    T: serde::Serialize + Copy,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        // Serialize the Range as an array [start, end]
+        [self.start, self.end].serialize(serializer)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de, T> serde::Deserialize<'de> for Range<T>
+where
+    T: serde::Deserialize<'de> + Copy,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        // Deserialize from an array [start, end]
+        let array: [T; 2] = serde::Deserialize::deserialize(deserializer)?;
+        Ok(Self::from(array))
     }
 }
 
@@ -73,12 +101,12 @@ mod tests {
         fn test_range_serialize() {
             let range = Range { start: 6, end: 12 };
             let json = serde_json::to_string(&range).unwrap();
-            assert_eq!(json, r#"{"start":6,"end":12}"#);
+            assert_eq!(json, r#"[6,12]"#);
         }
 
         #[test]
         fn test_range_deserialize() {
-            let json = r#"{"start":7,"end":14}"#;
+            let json = r#"[7,14]"#;
             let range: Range<u8> = serde_json::from_str(json).unwrap();
             assert_eq!(range.start, 7);
             assert_eq!(range.end, 14);

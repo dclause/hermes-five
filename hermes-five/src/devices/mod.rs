@@ -4,6 +4,7 @@ use dyn_clone::DynClone;
 
 pub use crate::devices::led::Led;
 pub use crate::devices::servo::Servo;
+pub use crate::devices::servo::ServoType;
 use crate::errors::Error;
 
 mod led;
