@@ -17,7 +17,6 @@ mocks = []
 
 [dependencies]
 hermes-macros = { path = "../hermes-macros" }
-async-trait = "0.1.81"
 dyn-clone = "1.0.17"
 futures = "0.3.30"
 log = "0.4.22"

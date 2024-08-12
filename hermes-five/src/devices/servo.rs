@@ -1,7 +1,5 @@
 use std::sync::Arc;
 
-use async_trait::async_trait;
-
 use crate::board::Board;
 use crate::devices::{Actuator, Device};
 use crate::errors::Error;
@@ -38,7 +36,7 @@ pub struct Servo {
     servo_type: ServoType,
     /// The servo range limitation in the physical world (default: [0, 180]).
     range: Range<u16>,
-    /// The servo PWN range for control  (default: [544, 2400]).
+    /// The servo PWN range for control  (default: [600, 2400]).
     pwm_range: Range<u16>,
     /// The servo theoretical degree of movement  (default: [0, 180]).
     degree_range: Range<u16>,
@@ -99,7 +97,7 @@ impl Servo {
         // Stops any animation running.
         self.stop();
 
-        self._set_state(state)?;
+        self.set_state(state)?;
         Ok(self)
     }
 
@@ -232,17 +230,12 @@ impl Servo {
 }
 
 #[cfg_attr(feature = "serde", typetag::serde)]
-impl Device for Servo {
-    fn set_board(&mut self, board: &Board) {
-        self.protocol = board.get_protocol();
-    }
-}
+impl Device for Servo {}
 
-#[async_trait]
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl Actuator for Servo {
     /// Update the Servo position.
-    fn _set_state(&mut self, state: u16) -> Result<(), Error> {
+    fn set_state(&mut self, state: u16) -> Result<u16, Error> {
         self.state = state;
 
         // No need to move if last move was already that one.
@@ -259,7 +252,7 @@ impl Actuator for Servo {
         self.protocol.analog_write(self.pin, state as u16)?;
         self.previous = self.state;
 
-        Ok(())
+        Ok(state as u16)
     }
 
     /// Retrieves the actuator current state.
@@ -280,6 +273,6 @@ impl Actuator for Servo {
 
 // impl Drop for Servo {
 //     fn drop(&mut self) {
-//         let _ = self._set_state(self.get_default());
+//         let _ = self.set_state(self.get_default());
 //     }
 // }

@@ -1,7 +1,5 @@
 use std::sync::Arc;
 
-use async_trait::async_trait;
-
 use crate::board::Board;
 use crate::devices::{Actuator, Device};
 use crate::errors::Error;
@@ -71,13 +69,13 @@ impl Led {
 
     /// Turn the LED on.
     pub fn on(&mut self) -> Result<&Self, Error> {
-        self._set_state(self.intensity)?;
+        self.set_state(self.intensity)?;
         Ok(self)
     }
 
     /// Turn the LED off.
     pub fn off(&mut self) -> Result<&Self, Error> {
-        self._set_state(0)?;
+        self.set_state(0)?;
         Ok(self)
     }
 
@@ -173,7 +171,7 @@ impl Led {
 
         // If the value is higher than the intensity, we update it on the spot.
         if self.state > intensity {
-            self._set_state(intensity)?;
+            self.set_state(intensity)?;
         }
 
         Ok(self)
@@ -186,18 +184,13 @@ impl Led {
 }
 
 #[cfg_attr(feature = "serde", typetag::serde)]
-impl Device for Led {
-    fn set_board(&mut self, board: &Board) {
-        self.protocol = board.get_protocol();
-    }
-}
+impl Device for Led {}
 
-#[async_trait]
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl Actuator for Led {
     /// Internal only: Update the LED to the target state.
     /// /!\ No checks are made on the state validity.
-    fn _set_state(&mut self, state: u16) -> Result<(), Error> {
+    fn set_state(&mut self, state: u16) -> Result<u16, Error> {
         self.state = state;
         match self.get_pin_info()?.mode.id {
             // on/off digital operation.
@@ -210,7 +203,7 @@ impl Actuator for Led {
                 context: "update LED",
             })),
         }?;
-        Ok(())
+        Ok(state)
     }
 
     /// Retrieves the actuator current state.
@@ -231,6 +224,6 @@ impl Actuator for Led {
 
 // impl Drop for Led {
 //     fn drop(&mut self) {
-//         let _ = self._set_state(self.get_default());
+//         let _ = self.set_state(self.get_default());
 //     }
 // }

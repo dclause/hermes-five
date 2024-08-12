@@ -1,8 +1,8 @@
-use crate::Board;
 use crate::devices::{Actuator, Device};
 use crate::errors::Error;
 
 /// Mock [`Actuator`] for testing purposes.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
 pub struct MockActuator {
     state: u16,
@@ -14,23 +14,23 @@ impl MockActuator {
     }
 }
 
-impl Device for MockActuator {
-    fn set_board(&mut self, _: &Board) {}
-}
+#[cfg_attr(feature = "serde", typetag::serde)]
+impl Device for MockActuator {}
 
+#[cfg_attr(feature = "serde", typetag::serde)]
 impl Actuator for MockActuator {
-    fn _set_state(&mut self, state: u16) -> Result<(), Error> {
+    fn set_state(&mut self, state: u16) -> Result<u16, Error> {
         self.state = state;
-        Ok(())
+        Ok(state)
+    }
+
+    fn get_state(&self) -> u16 {
+        self.state
     }
 
     /// Retrieves the actuator default (or neutral) state.
     fn get_default(&self) -> u16 {
         0
-    }
-
-    fn get_state(&self) -> u16 {
-        self.state
     }
 
     /// Indicates the busy status, ie if the device is running an animation.

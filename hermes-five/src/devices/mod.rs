@@ -1,9 +1,7 @@
 use std::fmt::Debug;
 
-use async_trait::async_trait;
 use dyn_clone::DynClone;
 
-use crate::Board;
 pub use crate::devices::led::Led;
 pub use crate::devices::servo::Servo;
 use crate::errors::Error;
@@ -20,9 +18,7 @@ mod servo;
 /// Implementors of this trait are required to be `Debug`, `DynClone`, `Send`, and `Sync`.
 /// This ensures that devices can be cloned and used safely in multithreaded and async environments.
 #[cfg_attr(feature = "serde", typetag::serde(tag = "type"))]
-pub trait Device: Debug + DynClone + Send + Sync {
-    fn set_board(&mut self, board: &Board);
-}
+pub trait Device: Debug + DynClone + Send + Sync {}
 dyn_clone::clone_trait_object!(Device);
 
 /// A trait for devices that can act on the world, such as adjusting state.
@@ -35,11 +31,10 @@ dyn_clone::clone_trait_object!(Device);
 ///     - Sets the actuator's internal state and updates it. Returns an `Error` if the operation fails.
 /// * `get_state(&self) -> u16`
 ///     - Retrieves the current internal state of the device.
-#[async_trait]
 #[cfg_attr(feature = "serde", typetag::serde(tag = "type"))]
 pub trait Actuator: Device {
     /// Internal only.
-    fn _set_state(&mut self, state: u16) -> Result<(), Error>;
+    fn set_state(&mut self, state: u16) -> Result<u16, Error>;
     /// Retrieves the actuator current state.
     fn get_state(&self) -> u16;
     /// Retrieves the actuator default (or neutral) state.

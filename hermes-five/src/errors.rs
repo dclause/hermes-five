@@ -1,5 +1,6 @@
 use std::str::Utf8Error;
 
+use log::error;
 use snafu::Snafu;
 
 pub use crate::errors::Error::*;
@@ -20,11 +21,15 @@ pub enum Error {
 }
 
 impl From<std::io::Error> for Error {
-    fn from(value: std::io::Error) -> Self {
+    fn from(error: std::io::Error) -> Self {
+        error!("std::io error {:?}", error);
+        let info = match error.kind() {
+            std::io::ErrorKind::NotFound => String::from("Board not found or already in use"),
+            std::io::ErrorKind::PermissionDenied => String::from("Board connection lost"),
+            _ => error.to_string(),
+        };
         Self::ProtocolError {
-            source: IoException {
-                info: value.to_string(),
-            },
+            source: IoException { info: info },
         }
     }
 }
@@ -126,7 +131,10 @@ mod tests {
     fn test_from_io_error() {
         let io_error = io::Error::new(io::ErrorKind::NotFound, "file not found");
         let error: Error = io_error.into();
-        assert_eq!(format!("{}", error), "Protocol error: file not found.");
+        assert_eq!(
+            format!("{}", error),
+            "Protocol error: Board not found or already in use."
+        );
     }
 
     #[test]

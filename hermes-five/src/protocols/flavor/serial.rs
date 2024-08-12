@@ -6,11 +6,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use parking_lot::{Mutex, RwLock};
-use serialport::{DataBits, ErrorKind, FlowControl, Parity, StopBits};
+use serialport::{DataBits, FlowControl, Parity, StopBits};
 use serialport::SerialPort;
 
 use crate::errors::Error;
-use crate::errors::ProtocolError::{IoException, MessageTooShort, NotInitialized};
+use crate::errors::ProtocolError::{MessageTooShort, NotInitialized};
 use crate::protocols::{Hardware, Protocol};
 
 /// The `SerialProtocol` is made to communicate with a remote board using the serial protocol.
@@ -122,7 +122,7 @@ impl Protocol for SerialProtocol {
             .parity(Parity::None)
             .stop_bits(StopBits::One)
             .flow_control(FlowControl::None)
-            .timeout(Duration::from_millis(1000))
+            .timeout(Duration::from_millis(500))
             .open()?;
         self.io = Arc::new(Mutex::new(Some(connexion)));
 
@@ -153,7 +153,13 @@ impl Protocol for SerialProtocol {
     /// This function blocks until the write operation is complete. Ensure proper error handling in calling code.
     fn write(&mut self, buf: &[u8]) -> Result<(), Error> {
         let mut lock = self.io.lock();
-        let bytes_written = lock.as_mut().ok_or(NotInitialized)?.write(buf)?;
+        let bytes_written = match lock.as_mut().ok_or(NotInitialized)?.write(buf) {
+            Ok(bytes) => Ok(bytes),
+            Err(err) => {
+                self.connected = false;
+                Err(err)
+            }
+        }?;
 
         // Check if all bytes were successfully written
         match bytes_written == buf.len() {
@@ -197,23 +203,14 @@ impl Protocol for SerialProtocol {
 
 impl From<serialport::Error> for Error {
     fn from(value: serialport::Error) -> Self {
-        let info = match value.kind {
-            ErrorKind::Io(kind) => match kind {
-                std::io::ErrorKind::Other => {
-                    String::from("Port connexion not found: check if board is connected")
-                }
-                _ => value.to_string(),
-            },
-            _ => value.to_string(),
-        };
-        Error::ProtocolError {
-            source: IoException { info },
-        }
+        std::io::Error::from(value).into()
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use serialport::ErrorKind;
+
     use crate::mocks::io::SerialPortMock;
 
     use super::*;
@@ -243,6 +240,15 @@ mod tests {
     fn test_default_serial_protocol() {
         let protocol = SerialProtocol::default();
         assert!(protocol.port.len() > 0);
+    }
+
+    #[test]
+    fn test_protocol_setters_getters() {
+        let mut protocol = SerialProtocol::default();
+        assert!(!protocol.connected);
+        assert!(!protocol.is_connected());
+        protocol.set_connected(true);
+        assert!(protocol.connected);
     }
 
     // #[test]
@@ -304,16 +310,16 @@ mod tests {
             description: String::from("IO error"),
         };
         let custom_error: Error = serial_error.into();
-        assert_eq!(custom_error.to_string(), "Protocol error: IO error.");
+        assert_eq!(
+            custom_error.to_string(),
+            "Protocol error: Board not found or already in use."
+        );
 
         let serial_error = serialport::Error {
             kind: ErrorKind::Io(std::io::ErrorKind::Other),
             description: String::from("IO error"),
         };
         let custom_error: Error = serial_error.into();
-        assert_eq!(
-            custom_error.to_string(),
-            "Protocol error: Port connexion not found: check if board is connected."
-        );
+        assert_eq!(custom_error.to_string(), "Protocol error: IO error.");
     }
 }
