@@ -85,18 +85,13 @@ impl EventManager {
         // Generate a unique ID.
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         // Boxes the callback and downcast its parameter.
-        let boxed_callback = Box::new(move |arg: Arc<dyn Any + Send + Sync>| {
-            match arg.downcast::<T>() {
-                Ok(arg) => (callback)((*arg).clone()).boxed(),
-                Err(_) => Box::pin(async { Ok(()) }),
-                // Err(_) => {
-                //     // Handle error case where the argument is not of type T
-                //     log::warn!("The callback for event '{}' could not be called because parameter does not match", callback_event);
-                //     // Current strategy is to ignore the callback
-                //     Box::pin(async {})
-                // }
-            }
-        });
+        let boxed_callback =
+            Box::new(
+                move |arg: Arc<dyn Any + Send + Sync>| match arg.downcast::<T>() {
+                    Ok(arg) => (callback)((*arg).clone()).boxed(),
+                    Err(_) => Box::pin(async { Ok(()) }),
+                },
+            );
 
         let wrapper = CallbackWrapper {
             id,
