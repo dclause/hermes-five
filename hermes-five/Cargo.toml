@@ -10,7 +10,7 @@ license.workspace = true
 [lib]
 
 [features]
-default = []
+default = ["libudev"]
 libudev = ["serialport/libudev"]
 serde = ["dep:serde", "dep:serde_json", "dep:typetag"]
 mocks = []
