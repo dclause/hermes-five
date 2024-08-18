@@ -1,10 +1,10 @@
 use std::fmt::Display;
 use std::ops::{Deref, DerefMut};
 
+use log::{debug, trace};
 use parking_lot::RwLockReadGuard;
 
 use crate::errors::Error;
-use crate::pause;
 use crate::protocols::{Hardware, Protocol};
 use crate::protocols::SerialProtocol;
 use crate::utils::events::{EventHandler, EventManager};
@@ -143,9 +143,7 @@ impl Board {
         let mut callback_board = self.clone();
         task::run(async move {
             callback_board.protocol.open()?;
-            // Give it some time: some arduino (like nano) may be slow.
-            pause!(200);
-            callback_board.protocol.handshake()?;
+            debug!("Board is ready: {:#?}", callback_board.get_hardware());
             events.emit(BoardEvent::OnReady, callback_board);
             Ok(())
         })
@@ -157,7 +155,7 @@ impl Board {
     /// Blocking version of [`Self::open()`] method.
     pub fn blocking_open(mut self) -> Result<Self, Error> {
         self.protocol.open()?;
-        self.protocol.handshake()?;
+        debug!("Board is ready: {:#?}", self.get_hardware());
         Ok(self)
     }
 
@@ -284,6 +282,7 @@ mod tests {
     use std::sync::atomic::{AtomicBool, Ordering};
 
     use crate::mocks::protocol::MockProtocol;
+    use crate::pause;
     use crate::protocols::Message;
 
     use super::*;

@@ -45,7 +45,7 @@ pub const SET_PIN_MODE: u8 = 0xF4;
 pub const SET_DIGITAL_PIN_VALUE: u8 = 0xF5;
 //
 /// Report protocol version
-pub const REPORT_VERSION_RESPONSE: u8 = 0xF9;
+pub const REPORT_PROTOCOL_VERSION: u8 = 0xF9;
 /// Reset from MIDI
 pub const SYSTEM_RESET: u8 = 0xFF;
 //

@@ -4,6 +4,7 @@ use std::fmt::{Debug, Display, Formatter};
 use std::sync::Arc;
 
 use dyn_clone::DynClone;
+use log::trace;
 use parking_lot::RwLock;
 
 use crate::errors::*;
@@ -71,7 +72,11 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         self.query_firmware()?;
         self.read_and_decode()?;
         self.query_capabilities()?;
-        self.read_and_decode()?;
+        // The Firmata protocol is supposed to send the protocol and firmware version automatically,
+        // but it doesn't always do so. The while-loop here ensures that we are now in sync with
+        // receiving the expected data. This prevents an initial 'read_and_decode()' call that would
+        // otherwise result in a long timeout while waiting to detect the situation
+        while self.read_and_decode()? != Message::CapabilityResponse {}
         self.query_analog_mapping()?;
         self.read_and_decode()?;
         self.report_digital(0, true)?;
@@ -82,17 +87,23 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
 
     /// Query the board for current firmware and protocol information.
     fn query_firmware(&mut self) -> Result<(), Error> {
-        self.write(&[START_SYSEX, REPORT_FIRMWARE, END_SYSEX])
+        let payload = &[START_SYSEX, REPORT_FIRMWARE, END_SYSEX];
+        trace!("Query firmware: {:02X?}", payload);
+        self.write(payload)
     }
 
     /// Query the board for all available capabilities.
     fn query_capabilities(&mut self) -> Result<(), Error> {
-        self.write(&[START_SYSEX, CAPABILITY_QUERY, END_SYSEX])
+        let payload = &[START_SYSEX, CAPABILITY_QUERY, END_SYSEX];
+        trace!("Query capabilities: {:02X?}", payload);
+        self.write(payload)
     }
 
     /// Query the board for available analog pins.
     fn query_analog_mapping(&mut self) -> Result<(), Error> {
-        self.write(&[START_SYSEX, ANALOG_MAPPING_QUERY, END_SYSEX])
+        let payload = &[START_SYSEX, ANALOG_MAPPING_QUERY, END_SYSEX];
+        trace!("Query analog mapping: {:02X?}", payload);
+        self.write(payload)
     }
 
     // ########################################
@@ -107,11 +118,14 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
             let mut lock = self.get_hardware().write();
             lock.get_pin_mut(pin)?.value = level;
         }
-        self.write(&[
+
+        let payload = &[
             ANALOG_MESSAGE | pin as u8,
             level as u8 & SYSEX_REALTIME,
             (level >> 7) as u8 & SYSEX_REALTIME,
-        ])
+        ];
+        trace!("Analog write: {:02X?}", payload);
+        self.write(payload)
     }
 
     /// Write `level` to the digital `pin`.
@@ -145,11 +159,13 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
             }
         }
 
-        self.write(&[
+        let payload = &[
             DIGITAL_MESSAGE | port as u8,
             value as u8 & SYSEX_REALTIME,
             (value >> 7) as u8 & SYSEX_REALTIME,
-        ])
+        ];
+        trace!("Digital write: {:02X?}", payload);
+        self.write(payload)
     }
 
     /// Set the analog reporting `state` of the specified `pin`.
@@ -250,14 +266,14 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     // FIRMATA main function.
 
     /// Read from the protocol, parse and return its type.
-    /// The following method should use Firmata Protocol such as defined here:  
+    /// The following method should use Firmata Protocol such as defined here:
     /// https://github.com/firmata/protocol
     fn read_and_decode(&mut self) -> Result<Message, Error> {
         let mut buf = vec![0; 3];
         self.read_exact(&mut buf)?;
 
         match buf[0] {
-            REPORT_VERSION_RESPONSE => self.handle_report_version(&buf),
+            REPORT_PROTOCOL_VERSION => self.handle_protocol_version(&buf),
             ANALOG_MESSAGE..=ANALOG_MESSAGE_BOUND => self.handle_analog_message(&buf),
             DIGITAL_MESSAGE..=DIGITAL_MESSAGE_BOUND => self.handle_digital_message(&buf),
             START_SYSEX => self.handle_sysex_message(&mut buf),
@@ -267,9 +283,10 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
 
     /// Handle a REPORT_VERSION_RESPONSE message (0xF9 - return the firmware version).
     /// https://github.com/firmata/protocol/blob/master/protocol.md#message-types
-    fn handle_report_version(&mut self, buf: &[u8]) -> Result<Message, Error> {
+    fn handle_protocol_version(&mut self, buf: &[u8]) -> Result<Message, Error> {
         let mut lock = self.get_hardware().write();
         lock.protocol_version = format!("{}.{}", buf[1], buf[2]);
+        trace!("Received protocol version: {}", lock.protocol_version);
         Ok(Message::ReportProtocolVersion)
     }
 
@@ -278,6 +295,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     fn handle_analog_message(&mut self, buf: &[u8]) -> Result<Message, Error> {
         let pin = (buf[0] as u16 & 0x0F) + 14;
         let value = (buf[1] as u16) | ((buf[2] as u16) << 7);
+        trace!("Received analog message: pin({})={}", pin, value);
         self.get_hardware().write().get_pin_mut(pin)?.value = value;
         Ok(Message::Analog)
     }
@@ -287,6 +305,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     fn handle_digital_message(&mut self, buf: &[u8]) -> Result<Message, Error> {
         let port = (buf[0] as u16) & 0x0F;
         let value = (buf[1] as u16) | ((buf[2] as u16) << 7);
+        trace!("Received digital message: pin({})={}", port, value);
 
         for i in 0..8 {
             let pin = (8 * port) + i;
@@ -317,7 +336,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         match buf[1] {
             ANALOG_MAPPING_RESPONSE => self.handle_analog_mapping_response(buf),
             CAPABILITY_RESPONSE => self.handle_capability_response(buf),
-            REPORT_FIRMWARE => self.handle_report_firmware(buf),
+            REPORT_FIRMWARE => self.handle_firmware_report(buf),
             I2C_REPLY => self.handle_i2c_reply(buf),
             PIN_STATE_RESPONSE => self.handle_pin_state_response(buf),
             _ => Err(Error::from(UnexpectedData)),
@@ -380,15 +399,17 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
             i += 1;
             id += 1;
         }
+
+        trace!("Received capability response: {:#?}", lock.pins);
         Ok(Message::CapabilityResponse)
     }
 
     /// Handle a REPORT_FIRMWARE message (0x79 - report name and version of the firmware).
     /// https://github.com/firmata/protocol/blob/master/protocol.md#query-firmware-name-and-version
-    fn handle_report_firmware(&mut self, buf: &[u8]) -> Result<Message, Error> {
+    fn handle_firmware_report(&mut self, buf: &[u8]) -> Result<Message, Error> {
         if buf.len() < 5 {
             return Err(Error::from(MessageTooShort {
-                operation: "handle_report_firmware",
+                operation: "handle_firmware_report",
                 expected: 5,
                 received: buf.len(),
             }));
@@ -397,8 +418,12 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         let minor = buf[3];
         let mut lock = self.get_hardware().write();
         lock.firmware_version = format!("{}.{}", major, minor);
+        trace!("Received firmware version: {}", lock.firmware_version);
         if buf.len() > 5 {
-            lock.firmware_name = std::str::from_utf8(&buf[4..buf.len() - 1])?.to_string();
+            lock.firmware_name = std::str::from_utf8(&buf[4..buf.len() - 1])?
+                .to_string()
+                .replace('\0', "");
+            trace!("Received firmware name: {}", lock.firmware_name);
         }
         Ok(Message::ReportFirmwareVersion)
     }
@@ -454,6 +479,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
             i += 1;
         }
         pin.value = value as u16;
+        trace!("Received pin state: {:?}", pin);
         Ok(Message::PinStateResponse)
     }
 }
@@ -680,7 +706,7 @@ mod tests {
     }
 
     #[test]
-    fn test_handle_report_version() {
+    fn test_handle_protocol_version() {
         let mut protocol = MockProtocol::default();
         protocol.buf[..3].copy_from_slice(&[0xF9, 0x01, 0x19]);
         let result = protocol.read_and_decode();
@@ -835,7 +861,7 @@ mod tests {
 
     /// Test to decode of "report firmware" command: retrieves the firmware protocol and version.
     #[test]
-    fn test_handle_report_firmware() {
+    fn test_handle_firmware_report() {
         // No firmware name.
         let mut protocol = MockProtocol::default();
         protocol.buf[..5].copy_from_slice(&[0xF0, 0x79, 0x01, 0x0C, 0xF7]);
@@ -871,7 +897,7 @@ mod tests {
         protocol.buf[..4].copy_from_slice(&[0xF0, 0x79, 0x02, 0xF7]);
         let result = protocol.read_and_decode();
         assert!(result.is_err(), "{:?}", result);
-        assert_eq!(result.err().unwrap().to_string(), "Protocol error: Not enough bytes received - 'handle_report_firmware' expected 5 bytes, 4 received.");
+        assert_eq!(result.err().unwrap().to_string(), "Protocol error: Not enough bytes received - 'handle_firmware_report' expected 5 bytes, 4 received.");
     }
 
     /// Simulate (and test) the handling of a "pin state response" which is reading at a pin value.
