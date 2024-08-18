@@ -2,15 +2,17 @@
 //!
 //! It allows communication of boards connected via a serial port.
 use std::fmt::Debug;
+use std::io::{Read, Write};
 use std::sync::Arc;
 use std::time::Duration;
 
+use log::trace;
 use parking_lot::{Mutex, RwLock};
-use serialport::{DataBits, FlowControl, Parity, StopBits};
+use serialport::{ClearBuffer, DataBits, FlowControl, Parity, StopBits};
 use serialport::SerialPort;
 
 use crate::errors::Error;
-use crate::errors::ProtocolError::{MessageTooShort, NotInitialized};
+use crate::errors::ProtocolError::NotInitialized;
 use crate::protocols::{Hardware, Protocol};
 
 /// The `SerialProtocol` is made to communicate with a remote board using the serial protocol.
@@ -122,9 +124,25 @@ impl Protocol for SerialProtocol {
             .parity(Parity::None)
             .stop_bits(StopBits::One)
             .flow_control(FlowControl::None)
-            .timeout(Duration::from_millis(500))
-            .open()?;
-        self.io = Arc::new(Mutex::new(Some(connexion)));
+            .timeout(Duration::from_secs(10))
+            .open_native()?;
+        trace!("Serial port is now opened: {:?}", connexion);
+
+        // Clear interference if any.
+        connexion.clear(ClearBuffer::All)?;
+
+        // Save the IO (required by handshake).
+        self.io = Arc::new(Mutex::new(Some(Box::new(connexion))));
+
+        // Perform handshake.
+        self.handshake()?;
+
+        // Reduce timeout.
+        self.io
+            .lock()
+            .as_mut()
+            .unwrap()
+            .set_timeout(Duration::from_millis(200))?;
 
         Ok(())
     }
@@ -153,27 +171,7 @@ impl Protocol for SerialProtocol {
     /// This function blocks until the write operation is complete. Ensure proper error handling in calling code.
     fn write(&mut self, buf: &[u8]) -> Result<(), Error> {
         let mut lock = self.io.lock();
-        let bytes_written = match lock.as_mut().ok_or(NotInitialized)?.write(buf) {
-            Ok(bytes) => Ok(bytes),
-            Err(err) => {
-                self.connected = false;
-                Err(err)
-            }
-        }?;
-
-        // Check if all bytes were successfully written
-        match bytes_written == buf.len() {
-            true => Ok(()),
-            false => {
-                self.connected = false;
-                Err(MessageTooShort {
-                    operation: "write",
-                    expected: buf.len(),
-                    received: bytes_written,
-                })
-            }
-        }?;
-
+        lock.as_mut().ok_or(NotInitialized)?.write_all(buf)?;
         Ok(())
     }
 
@@ -276,7 +274,7 @@ mod tests {
         let result = protocol.write(&[1, 2, 3]);
         assert!(result.is_ok());
         let result = protocol.write(&[]);
-        assert!(result.is_err());
+        assert!(result.is_ok());
 
         let mut protocol = get_test_failing_protocol();
         let result = protocol.write(&[1, 2, 3]);
