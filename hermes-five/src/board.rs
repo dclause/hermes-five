@@ -1,7 +1,7 @@
 use std::fmt::Display;
 use std::ops::{Deref, DerefMut};
 
-use log::{debug, trace};
+use log::trace;
 use parking_lot::RwLockReadGuard;
 
 use crate::errors::Error;
@@ -143,7 +143,7 @@ impl Board {
         let mut callback_board = self.clone();
         task::run(async move {
             callback_board.protocol.open()?;
-            debug!("Board is ready: {:#?}", callback_board.get_hardware());
+            trace!("Board is ready: {:#?}", callback_board.get_hardware());
             events.emit(BoardEvent::OnReady, callback_board);
             Ok(())
         })
@@ -155,7 +155,7 @@ impl Board {
     /// Blocking version of [`Self::open()`] method.
     pub fn blocking_open(mut self) -> Result<Self, Error> {
         self.protocol.open()?;
-        debug!("Board is ready: {:#?}", self.get_hardware());
+        trace!("Board is ready: {:#?}", self.get_hardware());
         Ok(self)
     }
 

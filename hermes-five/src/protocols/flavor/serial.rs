@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use log::trace;
 use parking_lot::{Mutex, RwLock};
-use serialport::{ClearBuffer, DataBits, FlowControl, Parity, StopBits};
+use serialport::{DataBits, FlowControl, Parity, StopBits};
 use serialport::SerialPort;
 
 use crate::errors::Error;
@@ -127,9 +127,6 @@ impl Protocol for SerialProtocol {
             .timeout(Duration::from_secs(10))
             .open_native()?;
         trace!("Serial port is now opened: {:?}", connexion);
-
-        // Clear interference if any.
-        connexion.clear(ClearBuffer::All)?;
 
         // Save the IO (required by handshake).
         self.io = Arc::new(Mutex::new(Some(Box::new(connexion))));

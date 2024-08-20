@@ -400,7 +400,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
             id += 1;
         }
 
-        trace!("Received capability response: {:#?}", lock.pins);
+        trace!("Received capability response: @see hardware.pins");
         Ok(Message::CapabilityResponse)
     }
 
