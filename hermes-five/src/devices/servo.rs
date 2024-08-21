@@ -140,6 +140,12 @@ impl Servo {
         self.servo_type
     }
 
+    /// Sets the servo type.
+    pub fn set_type(mut self, servo_type: ServoType) -> Self {
+        self.servo_type = servo_type;
+        self
+    }
+
     /// Retrieves the servo motion range limitation in degree.
     ///
     /// A servo has a physical range (cf [`Servo::degree_range`]) corresponding to a command range
@@ -182,6 +188,11 @@ impl Servo {
         self
     }
 
+    /// Retrieves the theoretical range of degrees of movement for the servo (some servos can range from 0 to 90°, 180°, 270°, 360°, etc...).
+    pub fn get_degree_range(&self) -> Range<u16> {
+        self.degree_range
+    }
+
     /// Set the theoretical range of degrees of movement for the servo (some servos can range from 0 to 90°, 180°, 270°, 360°, etc...).
     ///
     /// - No matter the order given, the range will always have min <= max
@@ -215,6 +226,11 @@ impl Servo {
         self.default = self.default.clamp(self.range.start, self.range.end);
 
         self
+    }
+
+    /// Retrieves the theoretical range of pwm controls the servo response to.
+    pub fn get_pwn_range(&self) -> Range<u16> {
+        self.pwm_range
     }
 
     /// Set the theoretical range of pwm controls the servo response to.

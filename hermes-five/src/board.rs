@@ -5,7 +5,7 @@ use log::trace;
 use parking_lot::RwLockReadGuard;
 
 use crate::errors::Error;
-use crate::protocols::{Hardware, Protocol};
+use crate::protocols::{Hardware, PinModeId, Protocol};
 use crate::protocols::SerialProtocol;
 use crate::utils::events::{EventHandler, EventManager};
 use crate::utils::task;
@@ -140,11 +140,10 @@ impl Board {
     /// ```
     pub fn open(self) -> Self {
         let events = self.events.clone();
-        let mut callback_board = self.clone();
+        let callback_board = self.clone();
         task::run(async move {
-            callback_board.protocol.open()?;
-            trace!("Board is ready: {:#?}", callback_board.get_hardware());
-            events.emit(BoardEvent::OnReady, callback_board);
+            let board = callback_board.blocking_open()?;
+            events.emit(BoardEvent::OnReady, board);
             Ok(())
         })
         .expect("Task failed");
@@ -188,15 +187,26 @@ impl Board {
     ///
     pub fn close(self) -> Self {
         let events = self.events.clone();
-        let mut protocol = self.protocol.clone();
         let callback_board = self.clone();
         task::run(async move {
-            protocol.close()?;
-            events.emit(BoardEvent::OnClose, callback_board);
+            let board = callback_board.blocking_close()?;
+            events.emit(BoardEvent::OnClose, board);
             Ok(())
         })
         .expect("Task failed");
         self
+    }
+
+    /// Blocking version of [`Self::close()`] method.
+    pub fn blocking_close(mut self) -> Result<Self, Error> {
+        // Detach all pins.
+        let pins = self.get_hardware().pins.clone();
+        for (id, _) in pins {
+            let _ = self.set_pin_mode(id, PinModeId::OUTPUT);
+        }
+        self.protocol.close()?;
+        trace!("Board is closed");
+        Ok(self)
     }
 
     // ########################################

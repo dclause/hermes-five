@@ -62,7 +62,7 @@ impl Led {
             default: 0,
             intensity: 0xFF,
             pwm_mode,
-            protocol: board.get_protocol(),
+            protocol,
             interval: Arc::new(None),
         })
     }
@@ -136,9 +136,15 @@ impl Led {
         Ok(lock.get_pin(self.pin)?.clone())
     }
 
-    /// Retrieves the LED current intensity settings.
-    pub fn get_intensity(&self) -> u16 {
-        self.intensity
+    /// Retrieves the LED current intensity in percentage (0-100%).
+    pub fn get_intensity(&self) -> u8 {
+        // Compute the intensity percentage (depending on resolution (255 on arduino for instance))
+        self.intensity.scale(
+            0,
+            2u16.pow(self.pwm_mode.unwrap().resolution as u32),
+            0,
+            100,
+        )
     }
 
     /// Set the LED intensity (integer between 0-100) in percent of the max brightness. If a number

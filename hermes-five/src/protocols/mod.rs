@@ -9,7 +9,7 @@ use parking_lot::RwLock;
 
 use crate::errors::*;
 use crate::errors::HardwareError::IncompatibleMode;
-use crate::errors::ProtocolError::{MessageTooShort, UnexpectedData};
+use crate::errors::ProtocolError::MessageTooShort;
 pub use crate::protocols::constants::*;
 pub use crate::protocols::flavor::*;
 pub use crate::protocols::hardware::*;
@@ -114,18 +114,38 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     /// Send an ANALOG_MESSAGE (0xE0 - set analog value).
     /// https://github.com/firmata/protocol/blob/master/protocol.md#message-types
     fn analog_write(&mut self, pin: u16, level: u16) -> Result<(), Error> {
+        // Set the pin value
         {
             let mut lock = self.get_hardware().write();
             lock.get_pin_mut(pin)?.value = level;
         }
 
-        let payload = &[
-            ANALOG_MESSAGE | pin as u8,
-            level as u8 & SYSEX_REALTIME,
-            (level >> 7) as u8 & SYSEX_REALTIME,
-        ];
+        let payload = if pin > 15 {
+            // Extended analog message
+            let mut payload = vec![
+                START_SYSEX,
+                EXTENDED_ANALOG,
+                pin as u8,
+                level as u8 & SYSEX_REALTIME,
+                (level >> 7) as u8 & SYSEX_REALTIME,
+            ];
+            if level > 0x00004000 {
+                payload.push((level >> 14) as u8 & SYSEX_REALTIME);
+            }
+            payload.push(END_SYSEX);
+            payload
+        } else {
+            // Standard analog message
+            vec![
+                ANALOG_MESSAGE | pin as u8,
+                level as u8 & SYSEX_REALTIME,
+                (level >> 7) as u8 & SYSEX_REALTIME,
+            ]
+        };
+
         trace!("Analog write: {:02X?}", payload);
-        self.write(payload)
+        self.write(&payload)?;
+        Ok(())
     }
 
     /// Write `level` to the digital `pin`.
@@ -277,7 +297,10 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
             ANALOG_MESSAGE..=ANALOG_MESSAGE_BOUND => self.handle_analog_message(&buf),
             DIGITAL_MESSAGE..=DIGITAL_MESSAGE_BOUND => self.handle_digital_message(&buf),
             START_SYSEX => self.handle_sysex_message(&mut buf),
-            _ => Err(Error::from(UnexpectedData)),
+            _ => {
+                trace!("Protocol: unexpected data: {:02X?}", buf.as_slice());
+                Ok(Message::EmptyResponse)
+            }
         }
     }
 
@@ -339,7 +362,10 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
             REPORT_FIRMWARE => self.handle_firmware_report(buf),
             I2C_REPLY => self.handle_i2c_reply(buf),
             PIN_STATE_RESPONSE => self.handle_pin_state_response(buf),
-            _ => Err(Error::from(UnexpectedData)),
+            _ => {
+                trace!("Sysex: unexpected data: {:02X?}", buf.as_slice());
+                Ok(Message::EmptyResponse)
+            }
         }
     }
 
@@ -770,14 +796,11 @@ mod tests {
         protocol.buf[..1].copy_from_slice(&[0x11]);
         let result = protocol.read_and_decode();
         assert!(
-            result.is_err(),
+            result.is_ok(),
             "Handle empty sysex: {:?}",
             result.unwrap_err()
         );
-        assert_eq!(
-            result.err().unwrap().to_string(),
-            "Protocol error: Unexpected data received."
-        );
+        assert_eq!(result.unwrap(), Message::EmptyResponse);
 
         // Unexpected data when the first byte is a sysex, the size is plausible,
         // but the second is not a valid sysex command.
@@ -785,14 +808,11 @@ mod tests {
         protocol.buf[..4].copy_from_slice(&[0xF0, 0x11, 0x11, 0xF7]);
         let result = protocol.read_and_decode();
         assert!(
-            result.is_err(),
+            result.is_ok(),
             "Handle empty sysex: {:?}",
             result.unwrap_err()
         );
-        assert_eq!(
-            result.err().unwrap().to_string(),
-            "Protocol error: Unexpected data received."
-        );
+        assert_eq!(result.unwrap(), Message::EmptyResponse);
 
         // Empty command error when a sysex is received and closed immediately.
         protocol.index = 0;
