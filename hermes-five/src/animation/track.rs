@@ -42,23 +42,24 @@ use crate::utils::scale::Scalable;
 ///
 /// # Fields
 ///
-/// * `name`: The name of the track.
 /// * `device`: The [`Actuator`] associated with this track.
 /// * `keyframes`: A list of [`Keyframe`]s defining the animation.
 /// * `previous`: The previous state value of the actuator.
 /// * `current`: The current state value of the actuator.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
 pub struct Track {
-    // @todo keep?
-    name: String,
     /// The [`Actuator`] device that this track is associated with.
     /// All keyframes' [`Keyframe::target`] values will reference this device.
     device: Box<dyn Actuator>,
     /// The [`Keyframe`]s belonging to this track.
     keyframes: Vec<Keyframe>,
 
-    // (Internal): keyframe history
+    // ########################################
+    // # Volatile utility data.
+    #[cfg_attr(feature = "serde", serde(skip))]
     previous: u16,
+    #[cfg_attr(feature = "serde", serde(skip))]
     current: u16,
 }
 
@@ -74,7 +75,6 @@ impl Track {
     pub fn new<T: Actuator + 'static>(device: T) -> Self {
         let history = device.get_state();
         Self {
-            name: String::from("New track"),
             device: Box::new(device),
             keyframes: vec![],
             previous: history,
@@ -176,8 +176,7 @@ impl Display for Track {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Track '{}': {} keyframes - duration: {}ms",
-            self.name,
+            "Track: {} keyframes - duration: {}ms",
             self.keyframes.len(),
             self.get_duration()
         )
@@ -187,10 +186,6 @@ impl Display for Track {
 // ########################################
 // Implementing basic getters and setters.
 impl Track {
-    /// Returns the name for the [`Track`].
-    pub fn get_name(&self) -> String {
-        self.name.clone()
-    }
     /// Returns the device associated with the [`Track`].
     #[allow(private_interfaces)]
     pub fn get_device(&self) -> &Box<dyn Actuator> {
@@ -199,12 +194,6 @@ impl Track {
     /// Returns the keyframes of this [`Track`].
     pub fn get_keyframes(&self) -> &Vec<Keyframe> {
         &self.keyframes
-    }
-
-    /// Returns the keyframes of this [`Track`].
-    pub fn set_name<S: Into<String>>(mut self, name: S) -> Self {
-        self.name = name.into();
-        self
     }
 
     /// Add a new keyframe to this [`Track`].
@@ -231,15 +220,11 @@ mod tests {
         let actuator = MockActuator::new(5);
         let track = Track::new(actuator);
 
-        assert_eq!(track.get_name(), "New track");
         assert_eq!(track.get_keyframes().len(), 0);
         assert_eq!(track.previous, 5);
         assert_eq!(track.current, 5);
 
-        let track = track
-            .with_keyframe(Keyframe::new(50, 0, 2000))
-            .set_name("New name");
-        assert_eq!(track.get_name(), "New name");
+        let track = track.with_keyframe(Keyframe::new(50, 0, 2000));
         assert_eq!(track.get_keyframes().len(), 1);
     }
 
@@ -348,7 +333,7 @@ mod tests {
             .with_keyframe(Keyframe::new(100, 500, 2200))
             .with_keyframe(Keyframe::new(100, 100, 1000));
 
-        let expected_display = "Track 'New track': 3 keyframes - duration: 2200ms";
+        let expected_display = "Track: 3 keyframes - duration: 2200ms";
         assert_eq!(format!("{}", track), expected_display);
     }
 }

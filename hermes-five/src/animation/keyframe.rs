@@ -29,6 +29,7 @@ use crate::utils::scale::Scalable;
 /// * `start`: The start time of the keyframe in milliseconds.
 /// * `end`: The end time of the keyframe in milliseconds.
 /// * `transition`: The easing function applied during the transition.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
 pub struct Keyframe {
     /// The target value of the keyframe: will be applied as a state for the [`Actuator`] of the

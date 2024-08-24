@@ -50,7 +50,6 @@ use crate::pause;
 ///
 ///     // Create an animation Segment for this:
 ///     let segment = Segment::default()
-///         .set_name("Wave hi!")
 ///         .with_track(servo_track)
 ///         .with_track(led_track)
 ///         .set_repeat(true);
@@ -59,7 +58,6 @@ use crate::pause;
 ///
 /// # Fields
 ///
-/// - `name`: The name of the segment.
 /// - `repeat`: Determines whether the segment should replay in a loop starting from the `loopback` time (default: false).
 /// - `loopback`: The time in milliseconds when the animation will restart the loop if `repeat` is true (default: 0).
 /// - `speed`: Controls the speed of the animation as a percentage of standard time (default: 100). For example:
@@ -68,10 +66,9 @@ use crate::pause;
 /// - `fps`: The number of frames per second for running the animation (default: 40). Higher fps results in smoother animations, though the desired fps is not always guaranteed to be reached (especially at high fps values).
 /// - `tracks`: The tracks associated with this segment.
 /// - `current_time`: The current time in milliseconds of the segment's playback.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
 pub struct Segment {
-    /// The segment's name.
-    name: String,
     /// Determines whether the segment should replay in a loop (starting from the [`Segment::loopback`] time).
     repeat: bool,
     /// The point in time (in ms) the animation will restart the loop when `loop` is set to true (default: 0).
@@ -88,7 +85,11 @@ pub struct Segment {
     fps: u8,
     /// The tracks for this segment.
     tracks: Vec<Track>,
+
+    // ########################################
+    // # Volatile utility data.
     /// The current time (in ms) the segment is currently at.
+    #[cfg_attr(feature = "serde", serde(skip))]
     current_time: u64,
 }
 
@@ -114,8 +115,6 @@ impl Segment {
 
     /// Plays all tracks once only.
     pub async fn play_once(&mut self) -> Result<(), Error> {
-        // println!("Play segment: [{}] at {} fps", self, self.fps);
-
         let start_time = SystemTime::now();
 
         let total_duration = self.get_duration();
@@ -185,15 +184,16 @@ impl Segment {
             }
         }
     }
+
+    /// Gets the current play time.
+    pub fn get_progress(&self) -> u64 {
+        self.current_time
+    }
 }
 
 // ########################################
 // Implementing basic getters and setters.
 impl Segment {
-    /// Returns the name of the segment.
-    pub fn get_name(&self) -> String {
-        self.name.clone()
-    }
     /// Checks if the segment should repeat.
     pub fn is_repeat(&self) -> bool {
         self.repeat
@@ -215,11 +215,6 @@ impl Segment {
         &self.tracks
     }
 
-    /// Sets the name of the segment and returns the updated segment.
-    pub fn set_name<S: Into<String>>(mut self, name: S) -> Self {
-        self.name = name.into();
-        self
-    }
     /// Sets whether the segment should repeat and returns the updated segment.
     pub fn set_repeat(mut self, repeat: bool) -> Self {
         self.repeat = repeat;
@@ -256,7 +251,6 @@ impl Segment {
 impl Default for Segment {
     fn default() -> Self {
         Segment {
-            name: String::from("New segment"),
             repeat: false,
             loopback: 0,
             speed: 100,
@@ -271,8 +265,7 @@ impl Display for Segment {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Segment '{}': {} tracks - duration: {}ms",
-            self.name,
+            "Segment: {} tracks - duration: {}ms",
             self.tracks.len(),
             self.get_duration()
         )
@@ -290,7 +283,6 @@ mod tests {
     #[test]
     fn test_segment_default() {
         let segment = Segment::default();
-        assert_eq!(segment.get_name(), "New segment");
         assert!(!segment.is_repeat());
         assert_eq!(segment.get_loopback(), 0);
         assert_eq!(segment.get_speed(), 100);
@@ -302,7 +294,6 @@ mod tests {
     #[test]
     fn test_segment_setters() {
         let segment = Segment::default()
-            .set_name("Test Segment")
             .set_repeat(true)
             .set_loopback(100)
             .set_speed(150)
@@ -312,7 +303,6 @@ mod tests {
                 Track::new(MockActuator::new(100)),
             ]);
 
-        assert_eq!(segment.get_name(), "Test Segment");
         assert!(segment.is_repeat());
         assert_eq!(segment.get_loopback(), 100);
         assert_eq!(segment.get_speed(), 150);
@@ -325,7 +315,7 @@ mod tests {
         let mut segment = Segment::default();
         segment.current_time = 100;
         segment.reset();
-        assert_eq!(segment.current_time, 0);
+        assert_eq!(segment.get_progress(), 0);
     }
 
     #[test]
@@ -353,7 +343,7 @@ mod tests {
             ])
             .set_fps(100);
 
-        assert_eq!(segment.current_time, 0);
+        assert_eq!(segment.get_progress(), 0);
         let start = SystemTime::now();
         let play_once = segment.play_once().await;
         let elapsed = start.elapsed().unwrap().as_millis();
@@ -363,7 +353,7 @@ mod tests {
             "Play once takes longer approx. the time of the longest track: {}",
             elapsed
         );
-        assert!(segment.current_time >= 500)
+        assert!(segment.get_progress() >= 500)
     }
 
     #[tokio::test]
@@ -418,7 +408,7 @@ mod tests {
                     .with_keyframe(Keyframe::new(20, 3500, 3800)),
             );
 
-        let expected_display = "Segment 'New segment': 2 tracks - duration: 4000ms";
+        let expected_display = "Segment: 2 tracks - duration: 4000ms";
         assert_eq!(format!("{}", segment), expected_display);
     }
 }

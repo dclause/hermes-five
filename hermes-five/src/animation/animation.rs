@@ -52,19 +52,21 @@ use crate::utils::task::TaskHandler;
 ///
 /// # Fields
 ///
-/// - `name`: The name of the animation.
 /// - `segments`: The ordered list of animation [`Segment`]s.
 /// - `current`: The index of the currently running [`Segment`] (starting at 0).
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
 pub struct Animation {
-    /// The animation name.
-    name: String,
     /// The ordered list of animation [`Segment`].
     segments: Vec<Segment>,
-    /// The index of current running [`Segment`].
-    current: Arc<RwLock<usize>>,
 
+    // ########################################
+    // # Volatile utility data.
+    /// The index of current running [`Segment`].
+    #[cfg_attr(feature = "serde", serde(skip))]
+    current: Arc<RwLock<usize>>,
     /// Inner handler to the task running the animation.
+    #[cfg_attr(feature = "serde", serde(skip))]
     interval: Arc<RwLock<Option<TaskHandler>>>,
 }
 
@@ -148,6 +150,31 @@ impl Animation {
         self
     }
 
+    /// Gets the total duration of the animation.
+    ///
+    /// The duration is determined by the sum of segment durations.
+    pub fn get_duration(&self) -> u64 {
+        self.segments
+            .iter()
+            .map(|segment| segment.get_duration())
+            .sum()
+    }
+
+    /// Gets the current play time.
+    /// @todo fix: because we clone self on .play(), the progress is no longer available on segment.
+    pub fn get_progress(&self) -> u64 {
+        let current_segment_index = self.current.read().clone();
+        match self.segments.get(current_segment_index) {
+            None => 0,
+            Some(segment_playing) => segment_playing.get_progress(),
+        }
+    }
+
+    /// Indicates if the animation is currently playing.
+    pub fn is_playing(&self) -> bool {
+        self.interval.read().as_ref().is_some()
+    }
+
     /// Inner helper: cancel the animation and return a flag indicating if it was running.
     fn cancel_animation(&mut self) -> bool {
         let was_running = match self.interval.read().as_ref() {
@@ -182,10 +209,6 @@ impl From<Track> for Animation {
 // ########################################
 // Simple getters and setters
 impl Animation {
-    /// Returns the name of the segment.
-    pub fn get_name(&self) -> String {
-        self.name.clone()
-    }
     /// Returns the list of segments in the animation.
     pub fn get_segments(&self) -> &Vec<Segment> {
         &self.segments
@@ -195,11 +218,6 @@ impl Animation {
         self.current.read().clone()
     }
 
-    /// Sets the name of the segment and returns the updated segment.
-    pub fn set_name<S: Into<String>>(mut self, name: S) -> Self {
-        self.name = name.into();
-        self
-    }
     /// Sets the list of segments for the animation.
     pub fn set_segments(mut self, segments: Vec<Segment>) -> Self {
         self.segments = segments;
@@ -218,7 +236,6 @@ impl Animation {
 impl Default for Animation {
     fn default() -> Self {
         Self {
-            name: String::from("New animation"),
             segments: vec![],
             current: Arc::new(RwLock::new(0)),
             interval: Arc::new(RwLock::new(None)),
@@ -253,24 +270,22 @@ mod tests {
     fn test_animation() {
         let animation = create_animation();
 
-        assert_eq!(animation.get_name(), "New animation");
         assert_eq!(animation.get_current(), 0);
         assert_eq!(animation.get_segments().len(), 6);
+        assert_eq!(animation.get_duration(), 190 * 6);
 
-        let animation = animation.set_name("Test animation").set_segments(vec![]);
-        assert_eq!(animation.get_name(), "Test animation");
+        let animation = animation.set_segments(vec![]);
         assert_eq!(animation.get_segments().len(), 0);
+        assert_eq!(animation.get_duration(), 0);
     }
 
     #[test]
     fn test_animation_converters() {
         let animation_from_track = Animation::from(Track::new(MockActuator::new(40)));
-        assert_eq!(animation_from_track.get_name(), "New animation");
         assert_eq!(animation_from_track.get_current(), 0);
         assert_eq!(animation_from_track.get_segments().len(), 1);
 
         let animation_from_segment = Animation::from(Segment::default());
-        assert_eq!(animation_from_segment.get_name(), "New animation");
         assert_eq!(animation_from_segment.get_current(), 0);
         assert_eq!(animation_from_segment.get_segments().len(), 1);
     }
@@ -281,9 +296,14 @@ mod tests {
         let mut animation = create_animation();
 
         assert_eq!(animation.get_current(), 0);
+        assert_eq!(animation.get_progress(), 0);
+        assert!(!animation.is_playing());
         animation.play();
+        assert!(animation.is_playing());
+        assert!(animation.is_playing());
         // @todo test "complete" event.
         pause!(220);
+        // assert!(animation.get_progress() > 0);
         assert_eq!(animation.get_current(), 1);
         pause!(220);
         assert_eq!(animation.get_current(), 2);
