@@ -139,11 +139,11 @@ impl Board {
     /// }
     /// ```
     pub fn open(self) -> Self {
-        let events = self.events.clone();
+        let events_clone = self.events.clone();
         let callback_board = self.clone();
         task::run(async move {
             let board = callback_board.blocking_open()?;
-            events.emit(BoardEvent::OnReady, board);
+            events_clone.emit(BoardEvent::OnReady, board);
             Ok(())
         })
         .expect("Task failed");

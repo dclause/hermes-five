@@ -1,12 +1,15 @@
 use std::sync::Arc;
 
+use parking_lot::RwLock;
+
+use crate::animation::{Animation, Keyframe, Track};
 use crate::board::Board;
 use crate::devices::{Actuator, Device};
 use crate::errors::Error;
 use crate::errors::HardwareError::IncompatibleMode;
 use crate::pause_sync;
 use crate::protocols::{Pin, PinModeId, Protocol};
-use crate::utils::Range;
+use crate::utils::{Easing, Range};
 use crate::utils::scale::Scalable;
 use crate::utils::task::TaskHandler;
 
@@ -26,7 +29,8 @@ pub struct Servo {
     /// The pin (id) of the board [`Board`] used to control the Servo.
     pin: u16,
     /// The current Servo state.
-    state: u16,
+    #[cfg_attr(feature = "serde", serde(with = "crate::devices::arc_rwlock_serde"))]
+    state: Arc<RwLock<u16>>,
     /// The LED default value (default: ON).
     default: u16,
 
@@ -40,6 +44,13 @@ pub struct Servo {
     pwm_range: Range<u16>,
     /// The servo theoretical degree of movement  (default: [0, 180]).
     degree_range: Range<u16>,
+    /// Specifies is the servo command is inverted.
+    #[cfg_attr(
+        feature = "serde",
+        serde(skip_serializing_if = "crate::utils::is_default")
+    )]
+    #[cfg_attr(feature = "serde", serde(default))]
+    inverted: bool,
 
     // ########################################
     // # Volatile utility data.
@@ -51,6 +62,9 @@ pub struct Servo {
     /// Inner handler to the task running the animation.
     #[cfg_attr(feature = "serde", serde(skip))]
     interval: Arc<Option<TaskHandler>>,
+    /// Inner handler to the task running the animation.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    animation: Arc<Option<Animation>>,
 }
 
 impl Servo {
@@ -59,15 +73,17 @@ impl Servo {
 
         let mut servo = Self {
             pin,
-            state: default,
+            state: Arc::new(RwLock::new(default)),
             default,
             servo_type: ServoType::default(),
             range: Range::from([0, 180]),
             pwm_range,
             degree_range: Range::from([0, 180]),
+            inverted: false,
             previous: default,
             protocol: board.get_protocol(),
             interval: Arc::new(None),
+            animation: Arc::new(None),
         };
 
         // --
@@ -91,13 +107,10 @@ impl Servo {
 
     /// Move the servo to the requested position at max speed.
     pub fn to(&mut self, to: u16) -> Result<&Self, Error> {
-        // Clamp the request within the Servo range.
-        let state: u16 = to.clamp(self.range.start, self.range.end);
-
         // Stops any animation running.
         self.stop();
 
-        self.set_state(state)?;
+        self.set_state(to)?;
         Ok(self)
     }
 
@@ -243,6 +256,17 @@ impl Servo {
         self.protocol.servo_config(self.pin, input)?;
         Ok(self)
     }
+
+    /// Retrieves if the servo command is set to be inverted.
+    pub fn is_inverted(&self) -> bool {
+        self.inverted
+    }
+
+    /// Sets the servo command inversion mode.
+    pub fn set_inverted(mut self, inverted: bool) -> Self {
+        self.inverted = inverted;
+        self
+    }
 }
 
 #[cfg_attr(feature = "serde", typetag::serde)]
@@ -250,30 +274,49 @@ impl Device for Servo {}
 
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl Actuator for Servo {
+    fn animate(&mut self, state: u16, duration: u64, transition: Easing) {
+        let mut animation = Animation::from(
+            Track::new(self.clone())
+                .with_keyframe(Keyframe::new(state, 0, duration).set_transition(transition)),
+        );
+        animation.play();
+        self.animation = Arc::new(Some(animation));
+    }
+
     /// Update the Servo position.
     fn set_state(&mut self, state: u16) -> Result<u16, Error> {
-        self.state = state;
-
+        // Clamp the request within the Servo range.
+        let state: u16 = state.clamp(self.range.start, self.range.end);
         // No need to move if last move was already that one.
-        if self.previous == self.state {
-            // return Ok(());
+        if state == self.previous {
+            return Ok(state);
         }
 
-        let state: f64 = state.scale(
-            self.degree_range.start,
-            self.degree_range.end,
-            self.pwm_range.start,
-            self.pwm_range.end,
-        );
-        self.protocol.analog_write(self.pin, state as u16)?;
-        self.previous = self.state;
+        let state: f64 = match self.inverted {
+            true => state.scale(
+                self.degree_range.end,
+                self.degree_range.start,
+                self.pwm_range.start,
+                self.pwm_range.end,
+            ),
+            false => state.scale(
+                self.degree_range.start,
+                self.degree_range.end,
+                self.pwm_range.start,
+                self.pwm_range.end,
+            ),
+        };
 
+        self.protocol.analog_write(self.pin, state as u16)?;
+        self.previous = self.state.read().clone();
+
+        *self.state.write() = state as u16;
         Ok(state as u16)
     }
 
     /// Retrieves the actuator current state.
     fn get_state(&self) -> u16 {
-        self.state
+        self.state.read().clone()
     }
 
     /// Retrieves the actuator default (or neutral) state.
