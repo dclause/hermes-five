@@ -108,7 +108,10 @@ pub fn runtime_macro(item: TokenStream, tokio: TokioMode) -> TokenStream {
                 if let Some(task_result) = task_receiver.recv().await {
                     match task_result {
                         #hermes_five::utils::task::TaskResult::Ok => {},
-                        #hermes_five::utils::task::TaskResult::Err(err) => eprintln!("Task failed: {:?}", err.to_string()),
+                        #hermes_five::utils::task::TaskResult::Err(err) => {
+                            #hermes_five::utils::log::error!("Task failed: {:?}", err.to_string());
+                            eprintln!("Task failed: {:?}", err.to_string());
+                        },
                     }
                 }
             }
@@ -161,7 +164,10 @@ mod tests {
                     if let Some(task_result) = task_receiver.recv().await {
                         match task_result {
                             ::hermes_five::utils::task::TaskResult::Ok => {},
-                            ::hermes_five::utils::task::TaskResult::Err(err) => eprintln!("Task failed: {:?}", err.to_string()),
+                            ::hermes_five::utils::task::TaskResult::Err(err) => {
+                                ::hermes_five::utils::log::error!("Task failed: {:?}", err.to_string());
+                                eprintln!("Task failed: {:?}", err.to_string());
+                            },
                         }
                     }
                 }
