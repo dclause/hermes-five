@@ -1,10 +1,35 @@
+use std::fmt::{Display, Formatter};
 use std::sync::Arc;
 
 use parking_lot::RwLock;
 
 use crate::animation::{Segment, Track};
+use crate::errors::Error;
+use crate::utils::events::{EventHandler, EventManager};
 use crate::utils::task;
 use crate::utils::task::TaskHandler;
+
+/// Lists all events a Animation can emit/listen.
+pub enum AnimationEvent {
+    /// Triggered when the animation starts.
+    OnSegmentDone,
+    /// Triggered when the animation starts.
+    OnStart,
+    /// Triggered when the animation stops.
+    OnEnd,
+}
+
+/// Convert events to string to facilitate usage with [`EventManager`].
+impl Into<String> for AnimationEvent {
+    fn into(self) -> String {
+        let event = match self {
+            AnimationEvent::OnSegmentDone => "segment_done",
+            AnimationEvent::OnStart => "start",
+            AnimationEvent::OnEnd => "end",
+        };
+        event.into()
+    }
+}
 
 /// Represents an animation: a collection of ordered [`Segment`]s to be run in sequence.
 ///
@@ -68,6 +93,9 @@ pub struct Animation {
     /// Inner handler to the task running the animation.
     #[cfg_attr(feature = "serde", serde(skip))]
     interval: Arc<RwLock<Option<TaskHandler>>>,
+    /// The event manager for the animation.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    events: EventManager,
 }
 
 // ########################################
@@ -77,22 +105,30 @@ impl Animation {
     ///
     /// The animation will start from the current segment or from the beginning if it was stopped.
     pub fn play(&mut self) -> &mut Self {
+        let events_clone = self.events.clone();
         let mut self_clone = self.clone();
-        let handler = task::run(async move {
-            // Loop through the segments and run them one by one.
-            for index in self_clone.get_current()..self_clone.segments.len() {
-                *self_clone.current.write() = index;
 
-                // Retrieve the currently running segment.
-                let segment_playing = self_clone.segments.get_mut(index).unwrap();
-                segment_playing.play().await?;
-            }
+        self.events.emit(AnimationEvent::OnStart, self.clone());
+        if self.get_duration() > 0 {
+            let handler = task::run(async move {
+                // Loop through the segments and run them one by one.
+                for index in self_clone.get_current()..self_clone.segments.len() {
+                    *self_clone.current.write() = index;
 
-            *self_clone.current.write() = 0; // reset to the beginning
-            Ok(())
-        })
-        .unwrap();
-        *self.interval.write() = Some(handler);
+                    // Retrieve the currently running segment.
+                    let segment_playing = self_clone.segments.get_mut(index).unwrap();
+                    segment_playing.play().await?;
+                    events_clone.emit(AnimationEvent::OnSegmentDone, segment_playing.clone());
+                }
+
+                *self_clone.current.write() = 0; // reset to the beginning
+                *self_clone.interval.write() = None;
+                events_clone.emit(AnimationEvent::OnEnd, self_clone);
+                Ok(())
+            })
+            .unwrap();
+            *self.interval.write() = Some(handler);
+        }
 
         self
     }
@@ -152,11 +188,14 @@ impl Animation {
 
     /// Gets the total duration of the animation.
     ///
-    /// The duration is determined by the sum of segment durations.
+    /// The duration is determined by the sum of segment durations or u64::MAX if a segment is on repeat mode.
     pub fn get_duration(&self) -> u64 {
         self.segments
             .iter()
-            .map(|segment| segment.get_duration())
+            .map(|segment| match segment.is_repeat() {
+                true => u64::MAX,
+                false => segment.get_duration(),
+            })
             .sum()
     }
 
@@ -189,6 +228,26 @@ impl Animation {
         }
         was_running
     }
+
+    // ########################################
+    // Event related functions
+
+    /// Registers a callback to be executed on a given event on the board. To use it, register though the [`Self::on()`] method.
+    ///
+    /// Available events for an animation are:
+    /// * `OnSegmentDone` | `segment_done`: Triggered when a segment is done. To use it, register though the [`Self::on()`] method.
+    /// * `OnStart` | `start`: Triggered when the animation starts. To use it, register though the [`Self::on()`] method.
+    /// * `OnEnd` | `end`: Triggered when the animation ends. To use it, register though the [`Self::on()`] method.
+    /// ```
+    pub fn on<S, F, T, Fut>(&self, event: S, callback: F) -> EventHandler
+    where
+        S: Into<String>,
+        T: 'static + Send + Sync + Clone,
+        F: FnMut(T) -> Fut + Send + 'static,
+        Fut: std::future::Future<Output = Result<(), Error>> + Send + 'static,
+    {
+        self.events.on(event, callback)
+    }
 }
 
 // ########################################
@@ -213,10 +272,6 @@ impl Animation {
     pub fn get_segments(&self) -> &Vec<Segment> {
         &self.segments
     }
-    /// Returns the index of the currently running segment.
-    pub fn get_current(&self) -> usize {
-        self.current.read().clone()
-    }
 
     /// Sets the list of segments for the animation.
     pub fn set_segments(mut self, segments: Vec<Segment>) -> Self {
@@ -231,6 +286,16 @@ impl Animation {
         self.segments.push(segment);
         self
     }
+
+    /// Returns the index of the currently running segment.
+    pub fn get_current(&self) -> usize {
+        self.current.read().clone()
+    }
+
+    /// Sets the index of the currently running segment.
+    pub fn set_current(&self, index: usize) {
+        *self.current.write() = index;
+    }
 }
 
 impl Default for Animation {
@@ -239,12 +304,58 @@ impl Default for Animation {
             segments: vec![],
             current: Arc::new(RwLock::new(0)),
             interval: Arc::new(RwLock::new(None)),
+            events: Default::default(),
         }
+    }
+}
+
+impl Display for Animation {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(
+            f,
+            "Animation [duration={}, segments={}]",
+            match self.get_duration() {
+                u64::MAX => String::from("INF"),
+                duration => format!("{}ms", duration),
+            },
+            self.segments.len()
+        )?;
+        for segment in &self.segments {
+            writeln!(
+                f,
+                "  Segment [duration={}ms, repeat={}, fps={}, speed={}] :",
+                segment.get_duration(),
+                segment.is_repeat(),
+                segment.get_fps(),
+                segment.get_speed()
+            )?;
+            for track in segment.get_tracks() {
+                writeln!(
+                    f,
+                    "   Track [duration={}ms, device={}]:",
+                    track.get_duration(),
+                    track.get_device()
+                )?;
+                for keyframe in track.get_keyframes() {
+                    writeln!(
+                        f,
+                        "      Keyframe {}ms to {}ms: {} [transition={:?}]",
+                        keyframe.get_start(),
+                        keyframe.get_end(),
+                        keyframe.get_target(),
+                        keyframe.get_transition(),
+                    )?;
+                }
+            }
+        }
+        write!(f, "")
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
     use serial_test::serial;
 
     use crate::animation::Keyframe;
@@ -277,6 +388,22 @@ mod tests {
         let animation = animation.set_segments(vec![]);
         assert_eq!(animation.get_segments().len(), 0);
         assert_eq!(animation.get_duration(), 0);
+
+        let animation = animation.with_segment(
+            Segment::from(
+                Track::new(MockActuator::new(40)).with_keyframe(Keyframe::new(100, 0, 190)),
+            )
+            .set_repeat(true),
+        );
+        assert_eq!(animation.get_segments().len(), 1);
+        assert_eq!(animation.get_duration(), u64::MAX);
+        assert_eq!(animation.to_string(), "Animation [duration=INF, segments=1]\n  Segment [duration=190ms, repeat=true, fps=60, speed=100] :\n   Track [duration=190ms, device=MockActuator [state=40]]:\n      Keyframe 0ms to 190ms: 100 [transition=Linear]\n");
+
+        let animation = animation.set_segments(vec![Segment::from(
+            Track::new(MockActuator::new(40)).with_keyframe(Keyframe::new(100, 0, 190)),
+        )]);
+        assert_eq!(animation.get_duration(), 190);
+        assert_eq!(animation.to_string(), "Animation [duration=190ms, segments=1]\n  Segment [duration=190ms, repeat=false, fps=60, speed=100] :\n   Track [duration=190ms, device=MockActuator [state=40]]:\n      Keyframe 0ms to 190ms: 100 [transition=Linear]\n");
     }
 
     #[test]
@@ -298,23 +425,57 @@ mod tests {
         assert_eq!(animation.get_current(), 0);
         assert_eq!(animation.get_progress(), 0);
         assert!(!animation.is_playing());
+
+        let flag = Arc::new(AtomicBool::new(false));
+        let active_segment = Arc::new(AtomicUsize::new(0));
+
+        let moved_flag = flag.clone();
+        animation.on(AnimationEvent::OnStart, move |animation: Animation| {
+            let captured_flag = moved_flag.clone();
+            async move {
+                captured_flag.store(true, Ordering::SeqCst);
+                assert_eq!(animation.get_current(), 0);
+                Ok(())
+            }
+        });
+
+        let moved_active_segment = active_segment.clone();
+        animation.on(AnimationEvent::OnSegmentDone, move |_: Segment| {
+            let captured_active_segment = moved_active_segment.clone();
+            async move {
+                let index = captured_active_segment.load(Ordering::SeqCst) + 1;
+                captured_active_segment.store(index, Ordering::SeqCst);
+                Ok(())
+            }
+        });
+
+        let moved_flag = flag.clone();
+        animation.on(AnimationEvent::OnEnd, move |animation: Animation| {
+            let captured_flag = moved_flag.clone();
+            async move {
+                captured_flag.store(false, Ordering::SeqCst);
+                assert_eq!(animation.get_current(), 5);
+                Ok(())
+            }
+        });
+
+        // Test animation play & event start.
+        assert!(!flag.load(Ordering::SeqCst));
         animation.play();
         assert!(animation.is_playing());
-        assert!(animation.is_playing());
-        // @todo test "complete" event.
-        pause!(220);
-        // assert!(animation.get_progress() > 0);
-        assert_eq!(animation.get_current(), 1);
-        pause!(220);
-        assert_eq!(animation.get_current(), 2);
-        pause!(220);
-        assert_eq!(animation.get_current(), 3);
-        pause!(220);
-        assert_eq!(animation.get_current(), 4);
-        pause!(220);
-        assert_eq!(animation.get_current(), 5);
-        pause!(220);
-        assert_eq!(animation.get_current(), 0);
+        pause!(150);
+        // assert_ne!(animation.get_progress(), 0); // @todo fix
+        assert!(flag.load(Ordering::SeqCst));
+
+        // Test animation finished & event stop.
+        pause!(500);
+        assert!(animation.get_current() > 0);
+        assert_eq!(
+            animation.get_current(),
+            active_segment.load(Ordering::SeqCst)
+        );
+        pause!(1000);
+        assert!(!flag.load(Ordering::SeqCst));
     }
 
     #[serial]

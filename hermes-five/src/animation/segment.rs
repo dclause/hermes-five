@@ -101,20 +101,23 @@ impl From<Track> for Segment {
 
 impl Segment {
     /// Plays the segment. If `repeat` is true, the segment will loop indefinitely.
-    pub(crate) async fn play(&mut self) -> Result<(), Error> {
-        match self.is_repeat() {
-            true => loop {
-                self.play_once().await?;
-                self.current_time = self.loopback;
-            },
-            false => self.play_once().await?,
-        };
+    pub async fn play(&mut self) -> Result<(), Error> {
+        if self.get_duration() > 0 {
+            match self.is_repeat() {
+                true => loop {
+                    self.play_once().await?;
+                    self.current_time = self.loopback;
+                },
+                false => self.play_once().await?,
+            };
+        }
+
         self.reset();
         Ok(())
     }
 
     /// Plays all tracks once only.
-    pub async fn play_once(&mut self) -> Result<(), Error> {
+    pub(crate) async fn play_once(&mut self) -> Result<(), Error> {
         let start_time = SystemTime::now();
 
         let total_duration = self.get_duration();
