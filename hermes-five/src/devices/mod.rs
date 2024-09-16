@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 
 use dyn_clone::DynClone;
 
@@ -6,6 +6,7 @@ pub use crate::devices::led::Led;
 pub use crate::devices::servo::Servo;
 pub use crate::devices::servo::ServoType;
 use crate::errors::Error;
+use crate::utils::Easing;
 
 mod led;
 mod servo;
@@ -19,7 +20,7 @@ mod servo;
 /// Implementors of this trait are required to be `Debug`, `DynClone`, `Send`, and `Sync`.
 /// This ensures that devices can be cloned and used safely in multithreaded and async environments.
 #[cfg_attr(feature = "serde", typetag::serde(tag = "type"))]
-pub trait Device: Debug + DynClone + Send + Sync {}
+pub trait Device: Debug + Display + DynClone + Send + Sync {}
 dyn_clone::clone_trait_object!(Device);
 
 /// A trait for devices that can act on the world, such as adjusting state.
@@ -34,6 +35,7 @@ dyn_clone::clone_trait_object!(Device);
 ///     - Retrieves the current internal state of the device.
 #[cfg_attr(feature = "serde", typetag::serde(tag = "type"))]
 pub trait Actuator: Device {
+    fn animate(&mut self, state: u16, duration: u64, transition: Easing);
     /// Internal only.
     fn set_state(&mut self, state: u16) -> Result<u16, Error>;
     /// Retrieves the actuator current state.
@@ -42,6 +44,10 @@ pub trait Actuator: Device {
     fn get_default(&self) -> u16;
     /// Indicates the busy status, ie if the device is running an animation.
     fn is_busy(&self) -> bool;
+    /// Resets the actuator to default (or neutral) state.
+    fn reset(&mut self) -> Result<u16, Error> {
+        self.set_state(self.get_default())
+    }
 }
 dyn_clone::clone_trait_object!(Actuator);
 
@@ -52,3 +58,29 @@ dyn_clone::clone_trait_object!(Actuator);
 #[cfg_attr(feature = "serde", typetag::serde(tag = "type"))]
 pub trait Sensor: Device {}
 dyn_clone::clone_trait_object!(Sensor);
+
+#[cfg(feature = "serde")]
+pub mod arc_rwlock_serde {
+    use std::sync::Arc;
+
+    use parking_lot::RwLock;
+    use serde::{Deserialize, Serialize};
+    use serde::de::Deserializer;
+    use serde::ser::Serializer;
+
+    pub fn serialize<S, T>(val: &Arc<RwLock<T>>, s: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+        T: Serialize,
+    {
+        T::serialize(&*val.read(), s)
+    }
+
+    pub fn deserialize<'de, D, T>(d: D) -> Result<Arc<RwLock<T>>, D::Error>
+    where
+        D: Deserializer<'de>,
+        T: Deserialize<'de>,
+    {
+        Ok(Arc::new(RwLock::new(T::deserialize(d)?)))
+    }
+}

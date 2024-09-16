@@ -1,3 +1,4 @@
+use std::fmt::{Display, Formatter};
 use std::sync::Arc;
 
 use parking_lot::RwLock;
@@ -69,6 +70,13 @@ pub struct Servo {
 
 impl Servo {
     pub fn new(board: &Board, pin: u16, default: u16) -> Result<Self, Error> {
+        Self::create(board, pin, default, false)
+    }
+    pub fn new_inverted(board: &Board, pin: u16, default: u16) -> Result<Self, Error> {
+        Self::create(board, pin, default, true)
+    }
+
+    pub fn create(board: &Board, pin: u16, default: u16, inverted: bool) -> Result<Self, Error> {
         let pwm_range = Range::from([600, 2400]);
 
         let mut servo = Self {
@@ -79,8 +87,8 @@ impl Servo {
             range: Range::from([0, 180]),
             pwm_range,
             degree_range: Range::from([0, 180]),
-            inverted: false,
-            previous: default,
+            inverted,
+            previous: u16::MAX, // Ensure previous out-of-range: forces default at start
             protocol: board.get_protocol(),
             interval: Arc::new(None),
             animation: Arc::new(None),
@@ -269,6 +277,20 @@ impl Servo {
     }
 }
 
+impl Display for Servo {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "SERVO (pin={}) [state={}, default={}, range={}-{}]",
+            self.pin,
+            self.state.read(),
+            self.default,
+            self.range.start,
+            self.range.end
+        )
+    }
+}
+
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl Device for Servo {}
 
@@ -288,30 +310,31 @@ impl Actuator for Servo {
         // Clamp the request within the Servo range.
         let state: u16 = state.clamp(self.range.start, self.range.end);
         // No need to move if last move was already that one.
-        if state == self.previous {
-            return Ok(state);
-        }
+        // if state == self.previous {
+        //     return Ok(state);
+        // }
 
-        let state: f64 = match self.inverted {
-            true => state.scale(
-                self.degree_range.end,
-                self.degree_range.start,
-                self.pwm_range.start,
-                self.pwm_range.end,
-            ),
+        let pwm: f64 = match self.inverted {
             false => state.scale(
                 self.degree_range.start,
                 self.degree_range.end,
                 self.pwm_range.start,
                 self.pwm_range.end,
             ),
+            true => state.scale(
+                self.degree_range.end,
+                self.degree_range.start,
+                self.pwm_range.start,
+                self.pwm_range.end,
+            ),
         };
 
-        self.protocol.analog_write(self.pin, state as u16)?;
-        self.previous = self.state.read().clone();
+        self.protocol.analog_write(self.pin, pwm as u16)?;
 
-        *self.state.write() = state as u16;
-        Ok(state as u16)
+        let current = self.state.read().clone();
+        self.previous = current;
+        *self.state.write() = state;
+        Ok(state)
     }
 
     /// Retrieves the actuator current state.
