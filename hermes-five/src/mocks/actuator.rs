@@ -1,5 +1,8 @@
+use std::fmt::{Display, Formatter};
+
 use crate::devices::{Actuator, Device};
 use crate::errors::Error;
+use crate::utils::Easing;
 
 /// Mock [`Actuator`] for testing purposes.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -14,11 +17,21 @@ impl MockActuator {
     }
 }
 
+impl Display for MockActuator {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "MockActuator [state={}]", self.state)
+    }
+}
+
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl Device for MockActuator {}
 
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl Actuator for MockActuator {
+    fn animate(&mut self, _: u16, _: u64, _: Easing) {
+        todo!()
+    }
+
     fn set_state(&mut self, state: u16) -> Result<u16, Error> {
         self.state = state;
         Ok(state)
