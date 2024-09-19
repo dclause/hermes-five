@@ -32,7 +32,7 @@ impl Into<String> for BoardEvent {
 /// Represents a physical board where devices can be attached and control through this API.
 /// The board gives access to [`Hardware`] through a communication [`Protocol`].
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Board {
     /// The event manager for the board.
     #[cfg_attr(feature = "serde", serde(skip))]
@@ -109,7 +109,7 @@ impl Board {
     /// NOTE: this is private to the crate since board already gives access to protocol methods via Deref.
     /// This method is only used internally in all [`Device::new()`] methods to clone the protocol into the
     /// device.
-    pub(crate) fn get_protocol(&self) -> Box<dyn Protocol> {
+    pub fn get_protocol(&self) -> Box<dyn Protocol> {
         self.protocol.clone()
     }
 
