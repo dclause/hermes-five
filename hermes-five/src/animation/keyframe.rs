@@ -1,4 +1,4 @@
-use crate::utils::Easing;
+use crate::utils::{Easing, State};
 use crate::utils::scale::Scalable;
 
 /// Represents a keyframe in an animation sequence.
@@ -34,7 +34,7 @@ use crate::utils::scale::Scalable;
 pub struct Keyframe {
     /// The target value of the keyframe: will be applied as a state for the [`Actuator`] of the
     /// [`Track`] this keyframe belong to.
-    target: u16,
+    target: State,
     /// The start time of the keyframe in milliseconds.
     start: u64,
     /// The end time of the keyframe in milliseconds.
@@ -63,14 +63,14 @@ impl Keyframe {
     ///
     /// let keyframe = Keyframe::new(100, 0, 1000);
     /// ```
-    pub fn new(target: u16, start: u64, end: u64) -> Keyframe {
+    pub fn new<S: Into<State>>(target: S, start: u64, end: u64) -> Keyframe {
         assert!(
             start <= end,
             "Start time must be less than or equal to end time."
         );
 
         Keyframe {
-            target,
+            target: target.into(),
             start,
             end,
             transition: Easing::default(),
@@ -132,8 +132,8 @@ impl Keyframe {
     ///
     /// # Returns
     /// The target state value.
-    pub fn get_target(&self) -> u16 {
-        self.target
+    pub fn get_target(&self) -> State {
+        self.target.clone()
     }
 
     /// Retrieves the start time of the keyframe.
@@ -180,7 +180,7 @@ mod tests {
     #[test]
     fn test_keyframe_new() {
         let keyframe = Keyframe::new(100, 0, 1000);
-        assert_eq!(keyframe.get_target(), 100);
+        assert_eq!(keyframe.get_target().as_integer(), 100);
         assert_eq!(keyframe.get_start(), 0);
         assert_eq!(keyframe.get_end(), 1000);
         assert_eq!(keyframe.get_duration(), 1000);

@@ -3,8 +3,7 @@ use std::fmt::{Display, Formatter};
 use crate::animation::Keyframe;
 use crate::devices::Actuator;
 use crate::errors::Error;
-use crate::utils::Range;
-use crate::utils::scale::Scalable;
+use crate::utils::{Range, State};
 
 /// Represents an animation track within a [`Sequence`] for a given [`Actuator`].
 ///
@@ -58,9 +57,9 @@ pub struct Track {
     // ########################################
     // # Volatile utility data.
     #[cfg_attr(feature = "serde", serde(skip))]
-    previous: u16,
+    previous: State,
     #[cfg_attr(feature = "serde", serde(skip))]
-    current: u16,
+    current: State,
 }
 
 impl Track {
@@ -77,7 +76,7 @@ impl Track {
         Self {
             device: Box::new(device),
             keyframes: vec![],
-            previous: history,
+            previous: history.clone(),
             current: history,
         }
     }
@@ -117,8 +116,10 @@ impl Track {
             Some(keyframe) => {
                 self.update_history(keyframe.get_target());
                 let progress = keyframe.compute_target_coefficient(timeframe.end);
-                let value: u16 = progress.scale(0, 1, self.previous, keyframe.get_target());
-                self.device.set_state(value)?;
+                let state =
+                    self.device
+                        .scale_state(self.previous.clone(), keyframe.get_target(), progress);
+                self.device.set_state(state)?;
             }
         };
 
@@ -164,9 +165,9 @@ impl Track {
     ///
     /// # Arguments
     /// * `new_state` - The new state to be added in history.
-    fn update_history(&mut self, new_state: u16) {
+    fn update_history(&mut self, new_state: State) {
         if self.current != new_state {
-            self.previous = self.current;
+            self.previous = self.current.clone();
             self.current = new_state;
         }
     }
@@ -221,8 +222,8 @@ mod tests {
         let track = Track::new(actuator);
 
         assert_eq!(track.get_keyframes().len(), 0);
-        assert_eq!(track.previous, 5);
-        assert_eq!(track.current, 5);
+        assert_eq!(track.previous.as_integer(), 5);
+        assert_eq!(track.current.as_integer(), 5);
 
         let track = track.with_keyframe(Keyframe::new(50, 0, 2000));
         assert_eq!(track.get_keyframes().len(), 1);
@@ -254,17 +255,17 @@ mod tests {
     fn test_update_history() {
         let actuator = MockActuator::new(5);
         let mut track = Track::new(actuator);
-        assert_eq!(track.previous, 5);
-        assert_eq!(track.current, 5);
+        assert_eq!(track.previous.as_integer(), 5);
+        assert_eq!(track.current.as_integer(), 5);
 
-        track.update_history(75);
+        track.update_history(75.into());
 
-        assert_eq!(track.previous, 5); // Initial state was 5
-        assert_eq!(track.current, 75); // updated to 75
+        assert_eq!(track.previous.as_integer(), 5); // Initial state was 5
+        assert_eq!(track.current.as_integer(), 75); // updated to 75
 
-        track.update_history(100);
-        assert_eq!(track.previous, 75); // Previous update was 75
-        assert_eq!(track.current, 100); // updated to 100
+        track.update_history(100.into());
+        assert_eq!(track.previous.as_integer(), 75); // Previous update was 75
+        assert_eq!(track.current.as_integer(), 100); // updated to 100
     }
 
     #[test]
@@ -276,15 +277,15 @@ mod tests {
 
         let keyframe = track.get_best_keyframe([0, 100]);
         assert!(keyframe.is_some());
-        assert_eq!(keyframe.unwrap().get_target(), 60);
+        assert_eq!(keyframe.unwrap().get_target().as_integer(), 60);
 
         let keyframe = track.get_best_keyframe([300, 400]);
         assert!(keyframe.is_some());
-        assert_eq!(keyframe.unwrap().get_target(), 80);
+        assert_eq!(keyframe.unwrap().get_target().as_integer(), 80);
 
         let keyframe = track.get_best_keyframe([600, 800]);
         assert!(keyframe.is_some());
-        assert_eq!(keyframe.unwrap().get_target(), 70);
+        assert_eq!(keyframe.unwrap().get_target().as_integer(), 70);
 
         let keyframe = track.get_best_keyframe([3000, 3200]);
         assert!(keyframe.is_none());
@@ -310,8 +311,8 @@ mod tests {
         // Don't fail with no keyframe.
         let result = track.play_frame([500, 1500]);
         assert!(result.is_ok());
-        assert_eq!(track.previous, 0);
-        assert_eq!(track.current, 0);
+        assert_eq!(track.previous.as_integer(), 0);
+        assert_eq!(track.current.as_integer(), 0);
 
         // Play a within a timeframe updates the history and the device accordingly.
         let mut track = track
@@ -321,9 +322,9 @@ mod tests {
 
         let result = track.play_frame([500, 1500]); // 1500ms is the middle of the second keyframe.
         assert!(result.is_ok());
-        assert_eq!(track.previous, 0);
-        assert_eq!(track.current, 70); // Second keyframe target is 70
-        assert_eq!(track.get_device().get_state(), 35); // But at 50% it has a 70/2=35 value (Easing::Linear by default)
+        assert_eq!(track.previous.as_integer(), 0);
+        assert_eq!(track.current.as_integer(), 70); // Second keyframe target is 70
+        assert_eq!(track.get_device().get_state().as_integer(), 35); // But at 50% it has a 70/2=35 value (Easing::Linear by default)
     }
 
     #[test]

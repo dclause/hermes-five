@@ -2,7 +2,7 @@ use std::fmt::{Display, Formatter};
 
 use crate::devices::{Actuator, Device};
 use crate::errors::Error;
-use crate::utils::Easing;
+use crate::utils::{Easing, State};
 
 /// Mock [`Actuator`] for testing purposes.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -28,22 +28,22 @@ impl Device for MockActuator {}
 
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl Actuator for MockActuator {
-    fn animate(&mut self, _: u16, _: u64, _: Easing) {
+    fn animate<S: Into<State>>(&mut self, _: S, _: u64, _: Easing) {
         todo!()
     }
 
-    fn set_state(&mut self, state: u16) -> Result<u16, Error> {
-        self.state = state;
+    fn set_state(&mut self, state: State) -> Result<State, Error> {
+        self.state = state.as_integer() as u16;
         Ok(state)
     }
 
-    fn get_state(&self) -> u16 {
-        self.state
+    fn get_state(&self) -> State {
+        self.state.into()
     }
 
     /// Retrieves the actuator default (or neutral) state.
-    fn get_default(&self) -> u16 {
-        0
+    fn get_default(&self) -> State {
+        0.into()
     }
 
     /// Indicates the busy status, ie if the device is running an animation.

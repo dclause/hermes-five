@@ -12,6 +12,8 @@ use crate::protocols::PinModeId;
 pub enum Error {
     /// Runtime error: Are you sure your code runs inside #[hermes_five::runtime]?
     RuntimeError,
+    /// State error: uncompatible type provided.
+    StateError,
     /// Protocol error: {source}.
     ProtocolError { source: ProtocolError },
     /// Hardware error: {source}.

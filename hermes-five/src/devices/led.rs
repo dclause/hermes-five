@@ -6,11 +6,11 @@ use parking_lot::RwLock;
 use crate::animation::{Animation, Keyframe, Track};
 use crate::board::Board;
 use crate::devices::{Actuator, Device};
-use crate::errors::Error;
+use crate::errors::{Error, StateError};
 use crate::errors::HardwareError::IncompatibleMode;
 use crate::pause;
 use crate::protocols::{Pin, PinMode, PinModeId, Protocol};
-use crate::utils::{Easing, task};
+use crate::utils::{Easing, State, task};
 use crate::utils::scale::Scalable;
 use crate::utils::task::TaskHandler;
 
@@ -78,13 +78,13 @@ impl Led {
 
     /// Turn the LED on.
     pub fn on(&mut self) -> Result<&Self, Error> {
-        self.set_state(self.intensity)?;
+        self.set_state(State::Integer(self.intensity as u64))?;
         Ok(self)
     }
 
     /// Turn the LED off.
     pub fn off(&mut self) -> Result<&Self, Error> {
-        self.set_state(0)?;
+        self.set_state(State::Integer(0))?;
         Ok(self)
     }
 
@@ -186,7 +186,7 @@ impl Led {
 
         // If the value is higher than the intensity, we update it on the spot.
         if self.state.read().gt(&intensity) {
-            self.set_state(intensity)?;
+            self.set_state(State::Integer(intensity as u64))?;
         }
 
         Ok(self)
@@ -216,7 +216,7 @@ impl Device for Led {}
 
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl Actuator for Led {
-    fn animate(&mut self, state: u16, duration: u64, transition: Easing) {
+    fn animate<S: Into<State>>(&mut self, state: S, duration: u64, transition: Easing) {
         let mut animation = Animation::from(
             Track::new(self.clone())
                 .with_keyframe(Keyframe::new(state, 0, duration).set_transition(transition)),
@@ -227,30 +227,39 @@ impl Actuator for Led {
 
     /// Internal only: Update the LED to the target state.
     /// /!\ No checks are made on the state validity.
-    fn set_state(&mut self, state: u16) -> Result<u16, Error> {
+    fn set_state(&mut self, state: State) -> Result<State, Error> {
+        let value = match state {
+            State::Boolean(value) => match value {
+                true => Ok(self.intensity),
+                false => Ok(0),
+            },
+            State::Integer(value) => Ok(value as u16),
+            _ => Err(Error::from(StateError)),
+        }?;
+
         match self.get_pin_info()?.mode.id {
             // on/off digital operation.
-            PinModeId::OUTPUT => self.protocol.digital_write(self.pin, state > 0),
+            PinModeId::OUTPUT => self.protocol.digital_write(self.pin, value > 0),
             // pwm (brightness) mode.
-            PinModeId::PWM => self.protocol.analog_write(self.pin, state),
+            PinModeId::PWM => self.protocol.analog_write(self.pin, value),
             id => Err(Error::from(IncompatibleMode {
                 mode: id,
                 pin: self.pin,
                 context: "update LED",
             })),
         }?;
-        *self.state.write() = state;
-        Ok(state)
+        *self.state.write() = value;
+        Ok(value.into())
     }
 
     /// Retrieves the actuator current state.
-    fn get_state(&self) -> u16 {
-        self.state.read().clone()
+    fn get_state(&self) -> State {
+        self.state.read().clone().into()
     }
 
     /// Retrieves the actuator default (or neutral) state.
-    fn get_default(&self) -> u16 {
-        self.default
+    fn get_default(&self) -> State {
+        self.default.into()
     }
 
     /// Indicates the busy status, ie if the device is running an animation.

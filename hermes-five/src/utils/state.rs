@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt::{Display, Formatter};
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub enum State {
@@ -11,6 +12,35 @@ pub enum State {
     String(String),
     Array(Vec<State>),
     Object(HashMap<String, State>),
+}
+
+impl Display for State {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            State::Null => write!(f, "Null"),
+            State::Boolean(b) => write!(f, "{}", b),
+            State::Integer(i) => write!(f, "{}", i),
+            State::Signed(s) => write!(f, "{}", s),
+            State::Float(fl) => write!(f, "{}", fl),
+            State::String(s) => write!(f, "\"{}\"", s),
+            State::Array(arr) => {
+                let elements = arr
+                    .iter()
+                    .map(|e| e.to_string())
+                    .collect::<Vec<String>>()
+                    .join(", ");
+                write!(f, "[{}]", elements)
+            }
+            State::Object(obj) => {
+                let entries = obj
+                    .iter()
+                    .map(|(key, value)| format!("\"{}\": {}", key, value))
+                    .collect::<Vec<String>>()
+                    .join(", ");
+                write!(f, "{{{}}}", entries)
+            }
+        }
+    }
 }
 
 // **********************************************
@@ -437,6 +467,71 @@ mod tests {
             state,
             State::Array(vec![State::Signed(1), State::Signed(2)])
         );
+    }
+
+    #[test]
+    fn test_display_null() {
+        let state = State::Null;
+        assert_eq!(state.to_string(), "Null");
+    }
+
+    #[test]
+    fn test_display_boolean() {
+        let state_true = State::Boolean(true);
+        let state_false = State::Boolean(false);
+        assert_eq!(state_true.to_string(), "true");
+        assert_eq!(state_false.to_string(), "false");
+    }
+
+    #[test]
+    fn test_display_integer() {
+        let state = State::Integer(42);
+        assert_eq!(state.to_string(), "42");
+    }
+
+    #[test]
+    fn test_display_signed() {
+        let state_positive = State::Signed(42);
+        let state_negative = State::Signed(-42);
+        assert_eq!(state_positive.to_string(), "42");
+        assert_eq!(state_negative.to_string(), "-42");
+    }
+
+    #[test]
+    fn test_display_float() {
+        let state = State::Float(3.14);
+        assert_eq!(state.to_string(), "3.14");
+    }
+
+    #[test]
+    fn test_display_string() {
+        let state = State::String("Hello".to_string());
+        assert_eq!(state.to_string(), "\"Hello\"");
+    }
+
+    #[test]
+    fn test_display_array() {
+        let state = State::Array(vec![
+            State::Integer(1),
+            State::Boolean(false),
+            State::String("test".to_string()),
+        ]);
+        assert_eq!(state.to_string(), "[1, false, \"test\"]");
+    }
+
+    #[test]
+    fn test_display_object() {
+        let mut obj = HashMap::new();
+        obj.insert("key1".to_string(), State::Integer(10));
+        obj.insert("key2".to_string(), State::Boolean(true));
+
+        let state = State::Object(obj);
+        // Since HashMap does not guarantee ordering, we'll check both possible orderings
+        let result = state.to_string();
+        let expected1 = "{\"key1\": 10, \"key2\": true}";
+        let expected2 = "{\"key2\": true, \"key1\": 10}";
+
+        assert!(result == expected1 || result == expected2);
     }
 
     #[cfg(feature = "serde")]

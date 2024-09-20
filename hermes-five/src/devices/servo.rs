@@ -6,11 +6,11 @@ use parking_lot::RwLock;
 use crate::animation::{Animation, Keyframe, Track};
 use crate::board::Board;
 use crate::devices::{Actuator, Device};
-use crate::errors::Error;
+use crate::errors::{Error, StateError};
 use crate::errors::HardwareError::IncompatibleMode;
 use crate::pause_sync;
 use crate::protocols::{Pin, PinModeId, Protocol};
-use crate::utils::{Easing, Range};
+use crate::utils::{Easing, Range, State};
 use crate::utils::scale::Scalable;
 use crate::utils::task::TaskHandler;
 
@@ -118,7 +118,7 @@ impl Servo {
         // Stops any animation running.
         self.stop();
 
-        self.set_state(to)?;
+        self.set_state(to.into())?;
         Ok(self)
     }
 
@@ -296,7 +296,7 @@ impl Device for Servo {}
 
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl Actuator for Servo {
-    fn animate(&mut self, state: u16, duration: u64, transition: Easing) {
+    fn animate<S: Into<State>>(&mut self, state: S, duration: u64, transition: Easing) {
         let mut animation = Animation::from(
             Track::new(self.clone())
                 .with_keyframe(Keyframe::new(state, 0, duration).set_transition(transition)),
@@ -306,22 +306,32 @@ impl Actuator for Servo {
     }
 
     /// Update the Servo position.
-    fn set_state(&mut self, state: u16) -> Result<u16, Error> {
+    fn set_state(&mut self, state: State) -> Result<State, Error> {
+        // Convert from state.
+        let value = match state {
+            State::Integer(value) => Ok(value as u16),
+            State::Signed(value) => match value >= 0 {
+                true => Ok(value as u16),
+                false => Err(Error::from(StateError)),
+            },
+            _ => Err(Error::from(StateError)),
+        }?;
+
         // Clamp the request within the Servo range.
-        let state: u16 = state.clamp(self.range.start, self.range.end);
+        let value: u16 = value.clamp(self.range.start, self.range.end);
         // No need to move if last move was already that one.
         // if state == self.previous {
         //     return Ok(state);
         // }
 
         let pwm: f64 = match self.inverted {
-            false => state.scale(
+            false => value.scale(
                 self.degree_range.start,
                 self.degree_range.end,
                 self.pwm_range.start,
                 self.pwm_range.end,
             ),
-            true => state.scale(
+            true => value.scale(
                 self.degree_range.end,
                 self.degree_range.start,
                 self.pwm_range.start,
@@ -333,18 +343,18 @@ impl Actuator for Servo {
 
         let current = self.state.read().clone();
         self.previous = current;
-        *self.state.write() = state;
-        Ok(state)
+        *self.state.write() = value;
+        Ok(value.into())
     }
 
     /// Retrieves the actuator current state.
-    fn get_state(&self) -> u16 {
-        self.state.read().clone()
+    fn get_state(&self) -> State {
+        self.state.read().clone().into()
     }
 
     /// Retrieves the actuator default (or neutral) state.
-    fn get_default(&self) -> u16 {
-        self.default
+    fn get_default(&self) -> State {
+        self.default.into()
     }
 
     /// Indicates the busy status, ie if the device is running an animation.
