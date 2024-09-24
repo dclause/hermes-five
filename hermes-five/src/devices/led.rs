@@ -147,13 +147,13 @@ impl Led {
 
     /// Retrieves the LED current intensity in percentage (0-100%).
     pub fn get_intensity(&self) -> u8 {
-        // Compute the intensity percentage (depending on resolution (255 on arduino for instance))
-        self.intensity.scale(
-            0,
-            2u16.pow(self.pwm_mode.unwrap().resolution as u32),
-            0,
-            100,
-        )
+        match self.pwm_mode {
+            None => 100,
+            // Compute the intensity percentage (depending on resolution (255 on arduino for instance)).
+            Some(pwm_mode) => self
+                .intensity
+                .scale(0, 2u16.pow(pwm_mode.resolution as u32), 0, 100),
+        }
     }
 
     /// Set the LED intensity (integer between 0-100) in percent of the max brightness. If a number

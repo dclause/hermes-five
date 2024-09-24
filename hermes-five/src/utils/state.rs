@@ -104,6 +104,20 @@ impl From<serde_json::Value> for State {
     }
 }
 
+#[cfg(feature = "serde")]
+impl State {
+    pub fn into_state<T: serde::Serialize>(value: T) -> State {
+        serde_json::to_value(value).unwrap().into()
+    }
+}
+
+// #[cfg(feature = "serde")]
+// impl<T: serde::Serialize> From<T> for State {
+//     fn from(value: T) -> Self {
+//         serde_json::to_value(value).into()
+//     }
+// }
+
 // **********************************************
 // Extractors: get the value inside State.
 // **********************************************

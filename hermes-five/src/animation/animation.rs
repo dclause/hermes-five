@@ -232,7 +232,7 @@ impl Animation {
     // ########################################
     // Event related functions
 
-    /// Registers a callback to be executed on a given event on the board. To use it, register though the [`Self::on()`] method.
+    /// Registers a callback to be executed on a given event. To use it, register though the [`Self::on()`] method.
     ///
     /// Available events for an animation are:
     /// * `OnSegmentDone` | `segment_done`: Triggered when a segment is done. To use it, register though the [`Self::on()`] method.
