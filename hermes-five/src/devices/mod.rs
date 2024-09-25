@@ -39,6 +39,7 @@ pub trait Actuator: Device {
     fn animate<S: Into<State>>(&mut self, state: S, duration: u64, transition: Easing)
     where
         Self: Sized;
+    fn stop(&self);
     /// Internal only.
     fn scale_state(&mut self, previous: State, target: State, progress: f32) -> State {
         match target {

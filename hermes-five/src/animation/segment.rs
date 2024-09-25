@@ -169,6 +169,9 @@ impl Segment {
     /// Resets the segment's current time to 0.
     pub(crate) fn reset(&mut self) {
         self.current_time = 0;
+        for track in &mut self.tracks {
+            track.get_device().stop()
+        }
     }
 
     /// Gets the total duration of the segment.

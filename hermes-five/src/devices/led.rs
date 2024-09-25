@@ -121,16 +121,6 @@ impl Led {
     // @todo
     // pub async fn pulse(&mut self, ms: u64) -> &Self {}
 
-    /// Stops the current animation. This does not necessarily turn off the LED;
-    /// it will remain in its current state when stopped.
-    pub fn stop(&self) -> &Self {
-        match &self.interval.as_ref() {
-            None => {}
-            Some(handler) => handler.abort(),
-        }
-        self
-    }
-
     // ########################################
     // Setters and Getters.
 
@@ -223,6 +213,15 @@ impl Actuator for Led {
         );
         animation.play();
         self.animation = Arc::new(Some(animation));
+    }
+
+    /// Stops the current animation. This does not necessarily turn off the LED;
+    /// it will remain in its current state when stopped.
+    fn stop(&self) {
+        match &self.interval.as_ref() {
+            None => {}
+            Some(handler) => handler.abort(),
+        };
     }
 
     /// Internal only: Update the LED to the target state.
