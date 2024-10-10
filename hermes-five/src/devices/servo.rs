@@ -1,16 +1,18 @@
 use std::fmt::{Display, Formatter};
 use std::sync::Arc;
+use std::time::SystemTime;
 
+use log::{debug, trace};
 use parking_lot::RwLock;
 
+use crate::{pause, pause_sync};
 use crate::animation::{Animation, Keyframe, Track};
 use crate::board::Board;
 use crate::devices::{Actuator, Device};
 use crate::errors::{Error, StateError};
 use crate::errors::HardwareError::IncompatibleMode;
-use crate::pause_sync;
 use crate::protocols::{Pin, PinModeId, Protocol};
-use crate::utils::{Easing, Range, State};
+use crate::utils::{Easing, Range, State, task};
 use crate::utils::scale::Scalable;
 use crate::utils::task::TaskHandler;
 
@@ -45,13 +47,27 @@ pub struct Servo {
     pwm_range: Range<u16>,
     /// The servo theoretical degree of movement  (default: [0, 180]).
     degree_range: Range<u16>,
-    /// Specifies is the servo command is inverted.
+    /// Specifies if the servo command is inverted (default: false).
     #[cfg_attr(
         feature = "serde",
         serde(skip_serializing_if = "crate::utils::is_default")
     )]
     #[cfg_attr(feature = "serde", serde(default))]
     inverted: bool,
+    /// Specifies if the servo should auto detach itself after a given delay (default: false).
+    #[cfg_attr(
+        feature = "serde",
+        serde(skip_serializing_if = "crate::utils::is_default")
+    )]
+    #[cfg_attr(feature = "serde", serde(default))]
+    auto_detach: bool,
+    /// The delay in ms before the servo can detach itself in auto-detach mode (default: 20000ms).
+    #[cfg_attr(
+        feature = "serde",
+        serde(skip_serializing_if = "crate::utils::is_default")
+    )]
+    #[cfg_attr(feature = "serde", serde(default))]
+    detach_delay: usize,
 
     // ########################################
     // # Volatile utility data.
@@ -66,6 +82,8 @@ pub struct Servo {
     /// Inner handler to the task running the animation.
     #[cfg_attr(feature = "serde", serde(skip))]
     animation: Arc<Option<Animation>>,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    last_move: Arc<RwLock<Option<SystemTime>>>,
 }
 
 impl Servo {
@@ -88,10 +106,13 @@ impl Servo {
             pwm_range,
             degree_range: Range::from([0, 180]),
             inverted,
+            auto_detach: false,
+            detach_delay: 20000,
             previous: u16::MAX, // Ensure previous out-of-range: forces default at start
             protocol: board.get_protocol(),
             interval: Arc::new(None),
             animation: Arc::new(None),
+            last_move: Arc::new(RwLock::new(None)),
         };
 
         // --
@@ -120,16 +141,6 @@ impl Servo {
 
         self.set_state(to.into())?;
         Ok(self)
-    }
-
-    /// Stops the servo.
-    /// Any animation running will be stopped after the current running step is executed.
-    /// Any simple move running will be stopped at end position.
-    pub fn stop(&self) {
-        match &self.interval.as_ref() {
-            None => {}
-            Some(handler) => handler.abort(),
-        }
     }
 
     pub fn sweep() {
@@ -275,6 +286,47 @@ impl Servo {
         self.inverted = inverted;
         self
     }
+
+    /// Retrieves if the servo command is set to be auto_detach itself.
+    pub fn is_auto_detach(&self) -> bool {
+        self.auto_detach
+    }
+
+    /// Sets the servo to auto-detach itself after a given delay.
+    pub fn set_auto_detach(mut self, auto_detach: bool) -> Self {
+        self.auto_detach = match auto_detach {
+            false => false,
+            true => {
+                match self.last_move.read().as_ref() {
+                    None => {
+                        self.protocol
+                            .set_pin_mode(self.pin, PinModeId::OUTPUT)
+                            .unwrap();
+                    }
+                    Some(last_move) => {
+                        if last_move.elapsed().unwrap().as_millis() > (self.detach_delay as u128) {
+                            self.protocol
+                                .set_pin_mode(self.pin, PinModeId::OUTPUT)
+                                .unwrap();
+                        }
+                    }
+                }
+                true
+            }
+        };
+        self
+    }
+
+    /// Retrieves the delay (in ms) before the servo is auto-detach (if enabled).
+    pub fn get_detach_delay(&self) -> usize {
+        self.detach_delay
+    }
+
+    /// Sets the delay (in ms) before the servo is auto-detach (if enabled).
+    pub fn set_detach_delay(mut self, detach_delay: usize) -> Self {
+        self.detach_delay = detach_delay;
+        self
+    }
 }
 
 impl Display for Servo {
@@ -303,6 +355,16 @@ impl Actuator for Servo {
         );
         animation.play();
         self.animation = Arc::new(Some(animation));
+    }
+
+    /// Stops the servo.
+    /// Any animation running will be stopped after the current running step is executed.
+    /// Any simple move running will be stopped at end position.
+    fn stop(&self) {
+        match &self.interval.as_ref() {
+            None => {}
+            Some(handler) => handler.abort(),
+        };
     }
 
     /// Update the Servo position.
@@ -339,8 +401,39 @@ impl Actuator for Servo {
             ),
         };
 
-        self.protocol.analog_write(self.pin, pwm as u16)?;
-
+        // Attach the pinMode if we are auto-detach mode.
+        match self.auto_detach {
+            false => self.protocol.analog_write(self.pin, pwm as u16)?,
+            true => {
+                self.protocol.set_pin_mode(self.pin, PinModeId::SERVO)?;
+                self.protocol.analog_write(self.pin, pwm as u16)?;
+                *self.last_move.write() = Some(SystemTime::now());
+                let mut self_clone = self.clone();
+                task::run(async move {
+                    pause!(self_clone.detach_delay);
+                    match self_clone.last_move.read().as_ref() {
+                        None => {
+                            debug!("Detach servo pin: {}", self_clone.pin);
+                            self_clone
+                                .protocol
+                                .set_pin_mode(self_clone.pin, PinModeId::OUTPUT)
+                                .unwrap();
+                        }
+                        Some(last_move) => {
+                            if last_move.elapsed().unwrap().as_millis()
+                                > (self_clone.detach_delay as u128)
+                            {
+                                debug!("Detach servo pin: {}", self_clone.pin);
+                                self_clone
+                                    .protocol
+                                    .set_pin_mode(self_clone.pin, PinModeId::OUTPUT)
+                                    .unwrap();
+                            }
+                        }
+                    }
+                })?;
+            }
+        }
         let current = self.state.read().clone();
         self.previous = current;
         *self.state.write() = value;
