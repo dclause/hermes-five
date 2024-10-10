@@ -2,7 +2,7 @@ use std::fmt::{Display, Formatter};
 use std::sync::Arc;
 use std::time::SystemTime;
 
-use log::{debug, trace};
+use log::debug;
 use parking_lot::RwLock;
 
 use crate::{pause, pause_sync};

@@ -18,18 +18,18 @@ mocks = []
 [dependencies]
 hermes-macros = { path = "../hermes-macros" }
 dyn-clone = "1.0.17"
-futures = "0.3.30"
+futures = "0.3.31"
 log = "0.4.22"
 parking_lot = "0.12.3"
 simple-easing = "1.0.1"
-snafu = "0.8.4"
-tokio = { version = "1.38.0", features = ["macros", "rt-multi-thread", "signal", "sync", "time"] }
+snafu = "0.8.5"
+tokio = { version = "1.40.0", features = ["macros", "rt-multi-thread", "signal", "sync", "time"] }
 # Protocol(s)
-serialport = { version = "4.4.0", default-features = false }
+serialport = { version = "4.5.1", default-features = false }
 # Feature dependent
-serde = { version = "1.0.203", optional = true }
-serde_json = { version = "1.0.120", optional = true }
-typetag = { version = "0.2.17", optional = true }
+serde = { version = "1.0.210", optional = true }
+serde_json = { version = "1.0.128", optional = true }
+typetag = { version = "0.2.18", optional = true }
 
 [dev-dependencies]
 serial_test = "3.1.1"

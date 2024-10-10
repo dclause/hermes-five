@@ -25,7 +25,6 @@ pub(crate) fn is_default<T: Default + PartialEq>(t: &T) -> bool {
 #[cfg(test)]
 mod tests {
     use crate::utils::is_default;
-    use crate::utils::State::Boolean;
 
     #[test]
     fn test_is_default() {

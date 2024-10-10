@@ -32,9 +32,7 @@ impl Actuator for MockActuator {
         todo!()
     }
 
-    fn stop(&self) {
-        todo!()
-    }
+    fn stop(&self) {}
 
     fn set_state(&mut self, state: State) -> Result<State, Error> {
         self.state = state.as_integer() as u16;
