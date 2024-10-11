@@ -1,4 +1,7 @@
 use std::fmt::{Display, Formatter};
+use std::sync::Arc;
+
+use parking_lot::RwLock;
 
 use crate::devices::{Actuator, Device};
 use crate::errors::Error;
@@ -9,11 +12,20 @@ use crate::utils::{Easing, State};
 #[derive(Clone, Debug)]
 pub struct MockActuator {
     state: u16,
+    #[cfg_attr(feature = "serde", serde(with = "crate::devices::arc_rwlock_serde"))]
+    lock: Arc<RwLock<u16>>,
 }
 
 impl MockActuator {
-    pub(crate) fn new(state: u16) -> Self {
-        Self { state }
+    pub fn new(state: u16) -> Self {
+        Self {
+            state,
+            lock: Arc::new(RwLock::new(42)),
+        }
+    }
+
+    pub fn get_locked_value(&self) -> u16 {
+        self.lock.read().clone()
     }
 }
 

@@ -50,7 +50,10 @@ pub trait Actuator: Device {
                 State::Signed(progress.scale(0, 1, previous.as_signed_integer(), value))
             }
             State::Float(value) => State::Float(progress.scale(0, 1, previous.as_float(), value)),
-            _ => target,
+            _ => match progress {
+                0.0 => previous,
+                _ => target,
+            },
         }
     }
     /// Internal only.
@@ -99,5 +102,109 @@ pub mod arc_rwlock_serde {
         T: Deserialize<'de>,
     {
         Ok(Arc::new(RwLock::new(T::deserialize(d)?)))
+    }
+
+    #[cfg(test)]
+    mod arc_rwlock_serde_tests {
+        use serde_json;
+
+        use crate::mocks::actuator::MockActuator;
+
+        #[test]
+        fn test_serialize() {
+            let test = MockActuator::new(20);
+
+            let serialized = serde_json::to_string(&test);
+            assert!(serialized.is_ok());
+
+            let expected_json = r#"{"state":20,"lock":42}"#;
+            assert_eq!(serialized.unwrap(), expected_json);
+        }
+
+        #[test]
+        fn test_deserialize() {
+            let json_data = r#"{"state":20,"lock":42}"#;
+            let deserialized = serde_json::from_str::<MockActuator>(json_data);
+
+            assert!(deserialized.is_ok());
+            assert_eq!(deserialized.unwrap().get_locked_value(), 42);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::mocks::actuator::MockActuator;
+
+    use super::*;
+
+    #[test]
+    fn test_scale_state_integer() {
+        let mut device = MockActuator::new(0);
+
+        // Halfway between 10 and 20
+        let result = device.scale_state(State::Integer(10), State::Integer(20), 0.5);
+        assert_eq!(result, State::Integer(15));
+
+        // 75% between 10 and 20
+        let result = device.scale_state(State::Integer(10), State::Integer(20), 0.75);
+        assert_eq!(result, State::Integer(17));
+
+        // 120% between 10 and 20
+        let result = device.scale_state(State::Integer(10), State::Integer(20), 1.2);
+        assert_eq!(result, State::Integer(22));
+    }
+
+    #[test]
+    fn test_scale_state_signed() {
+        let mut device = MockActuator::new(0);
+
+        // Halfway between 10 and 20
+        let result = device.scale_state(State::Signed(-10), State::Signed(10), 0.5);
+        assert_eq!(result, State::Signed(0));
+
+        // 75% between 10 and 20
+        let result = device.scale_state(State::Signed(-10), State::Signed(10), 0.75);
+        assert_eq!(result, State::Signed(5));
+
+        // 120% between 10 and 20
+        let result = device.scale_state(State::Signed(-10), State::Signed(10), 1.2);
+        assert_eq!(result, State::Signed(14));
+    }
+
+    #[test]
+    fn test_scale_state_float() {
+        let mut device = MockActuator::new(0);
+
+        // Halfway between 10 and 20
+        let result = device.scale_state(State::Float(1.0), State::Float(2.0), 0.5);
+        assert_eq!(result, State::Float(1.5));
+
+        // 75% between 10 and 20
+        let result = device.scale_state(State::Float(1.0), State::Float(2.0), 0.75);
+        assert_eq!(result, State::Float(1.75));
+
+        // 120% between 10 and 20
+        let result = device.scale_state(State::Float(1.0), State::Float(2.0), 1.2);
+        assert_eq!(result, State::Float(2.200000047683716));
+    }
+
+    #[test]
+    fn test_scale_state_non_numeric() {
+        let mut device = MockActuator::new(0);
+
+        let result = device.scale_state(State::Boolean(false), State::Boolean(true), 0.0);
+        assert_eq!(result, State::Boolean(false));
+
+        let result = device.scale_state(State::Boolean(false), State::Boolean(true), 0.5);
+        assert_eq!(result, State::Boolean(true));
+    }
+
+    #[test]
+    fn test_reset() {
+        let mut device = MockActuator::new(42);
+        assert_eq!(device.get_state(), State::Integer(42));
+        assert!(device.reset().is_ok());
+        assert_eq!(device.get_state(), State::Integer(0))
     }
 }

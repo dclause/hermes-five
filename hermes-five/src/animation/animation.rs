@@ -15,8 +15,8 @@ pub enum AnimationEvent {
     OnSegmentDone,
     /// Triggered when the animation starts.
     OnStart,
-    /// Triggered when the animation stops.
-    OnEnd,
+    /// Triggered when the animation finishes.
+    OnComplete,
 }
 
 /// Convert events to string to facilitate usage with [`EventManager`].
@@ -25,7 +25,7 @@ impl Into<String> for AnimationEvent {
         let event = match self {
             AnimationEvent::OnSegmentDone => "segment_done",
             AnimationEvent::OnStart => "start",
-            AnimationEvent::OnEnd => "end",
+            AnimationEvent::OnComplete => "complete",
         };
         event.into()
     }
@@ -123,7 +123,7 @@ impl Animation {
 
                 *self_clone.current.write() = 0; // reset to the beginning
                 *self_clone.interval.write() = None;
-                events_clone.emit(AnimationEvent::OnEnd, self_clone);
+                events_clone.emit(AnimationEvent::OnComplete, self_clone);
                 Ok(())
             })
             .unwrap();
@@ -237,7 +237,7 @@ impl Animation {
     /// Available events for an animation are:
     /// * `OnSegmentDone` | `segment_done`: Triggered when a segment is done. To use it, register though the [`Self::on()`] method.
     /// * `OnStart` | `start`: Triggered when the animation starts. To use it, register though the [`Self::on()`] method.
-    /// * `OnEnd` | `end`: Triggered when the animation ends. To use it, register though the [`Self::on()`] method.
+    /// * `OnComplete` | `complete`: Triggered when the animation ends. To use it, register though the [`Self::on()`] method.
     ///
     /// # Example
     /// ```
@@ -254,7 +254,7 @@ impl Animation {
     ///         let mut led = Led::new(&board, 11, false)?;
     ///         // Fade the LED to 50% brightness in 500ms.
     ///         let animation = led.animate(50, 500, Easing::Linear);
-    ///         animation.on(AnimationEvent::OnEnd, |_: Animation| {
+    ///         animation.on(AnimationEvent::OnComplete, |_: Animation| {
     ///             println!("Animation done");
     ///         });
     ///
@@ -474,7 +474,7 @@ mod tests {
         });
 
         let moved_flag = flag.clone();
-        animation.on(AnimationEvent::OnEnd, move |animation: Animation| {
+        animation.on(AnimationEvent::OnComplete, move |animation: Animation| {
             let captured_flag = moved_flag.clone();
             async move {
                 captured_flag.store(false, Ordering::SeqCst);

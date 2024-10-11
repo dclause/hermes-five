@@ -455,9 +455,3 @@ impl Actuator for Servo {
         self.interval.is_some()
     }
 }
-
-// impl Drop for Servo {
-//     fn drop(&mut self) {
-//         let _ = self.set_state(self.get_default());
-//     }
-// }

@@ -86,6 +86,10 @@ path = "examples/led/pulse.rs"
 name = "led_brightness"
 path = "examples/led/brightness.rs"
 
+[[example]]
+name = "led_animate"
+path = "examples/led/animate.rs"
+
 # ########################################
 # SERVO examples
 

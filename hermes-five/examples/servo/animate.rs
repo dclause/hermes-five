@@ -6,7 +6,7 @@ use hermes_five::utils::Easing;
 async fn main() {
     let board = Board::run();
 
-    board.on("ready", |board: Board| async move {
+    board.on(BoardEvent::Ready, |board: Board| async move {
         // Register a Servo on pin 9.
         let mut servo = Servo::new(&board, 9, 0).expect("Servo is instantiated");
         println!("{:?}", servo.pin());

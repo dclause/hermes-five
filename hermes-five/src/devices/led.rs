@@ -255,7 +255,7 @@ impl Actuator for Led {
 
     /// Internal only: Update the LED to the target state.
     ///
-    /// /!\ You should rather use `Led::on()`, `Led::off()`, `Led::set_brightness()` functions.`
+    /// /!\ You should rather use [`Led::on()`], [`Led::off()`], [`Led::set_brightness()`]` functions.`
     fn set_state(&mut self, state: State) -> Result<State, Error> {
         let value = match state {
             State::Boolean(value) => match value {
