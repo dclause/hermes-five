@@ -199,6 +199,7 @@ pub fn create_test_hardware() -> Hardware {
             (13, create_digital_pin(13, 13)),
             (14, create_analog_pin(14, 100)),
             (15, create_analog_pin(15, 100)),
+            (22, create_analog_pin(22, 100)),
         ]),
         i2c_data: vec![],
         protocol_version: "fake.1.0".to_string(),

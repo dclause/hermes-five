@@ -524,6 +524,7 @@ impl Display for Box<dyn Protocol> {
     }
 }
 
+#[cfg(not(tarpaulin_include))]
 impl Default for Box<dyn Protocol> {
     fn default() -> Self {
         Box::new(SerialProtocol::default())
@@ -563,7 +564,7 @@ mod tests {
     }
 
     #[test]
-    fn test_analog_write() {
+    fn test_simple_analog_write() {
         let mut protocol = MockProtocol::default();
         let result = protocol.analog_write(0, 170);
         assert!(result.is_ok(), "{:?}", result);
@@ -583,6 +584,34 @@ mod tests {
         assert_eq!(
             result.err().unwrap().to_string(),
             "Hardware error: Unknown pin 5."
+        );
+    }
+
+    #[test]
+    fn test_extended_analog_write() {
+        let mut protocol = MockProtocol::default();
+        // Note1: the pin to use is over 15, so we use extended protocol.
+        // Note2: the value sent is over 16384 (0x00004000) so we use multibyte sending.
+        let result = protocol.analog_write(22, 17000);
+        assert!(result.is_ok(), "{:?}", result);
+        assert!(
+            protocol
+                .buf
+                .starts_with(&[0xF0, 0x6F, 0x16, 0x68, 0x04, 0x01, 0xF7]),
+            "Buffer data has been sent [{:?}]",
+            format_as_hex(&protocol.buf[..7])
+        );
+        {
+            let lock = protocol.get_hardware().read();
+            let pin = lock.get_pin(22).unwrap();
+            assert_eq!(pin.value, 17000, "Pin value updated");
+        }
+
+        let result = protocol.analog_write(42, 0);
+        assert!(result.is_err(), "{:?}", result);
+        assert_eq!(
+            result.err().unwrap().to_string(),
+            "Hardware error: Unknown pin 42."
         );
     }
 
