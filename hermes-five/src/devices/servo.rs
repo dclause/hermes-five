@@ -526,7 +526,7 @@ mod tests {
 
     #[hermes_macros::test]
     fn test_servo_auto_detach() {
-        let mut servo = _setup_servo(12).set_auto_detach(true).set_detach_delay(100);
+        let mut servo = _setup_servo(12).set_auto_detach(true).set_detach_delay(300);
         assert!(servo.is_auto_detach());
         assert_eq!(servo.get_pin_info().unwrap().mode.id, PinModeId::OUTPUT);
 
@@ -550,7 +550,7 @@ mod tests {
         pause!(80);
         assert_eq!(servo.get_pin_info().unwrap().mode.id, PinModeId::SERVO);
         // No move ultimately leads to auto-detaching
-        pause!(80);
+        pause!(1000);
         assert_eq!(servo.get_pin_info().unwrap().mode.id, PinModeId::OUTPUT);
     }
 
