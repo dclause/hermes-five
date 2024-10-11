@@ -238,6 +238,30 @@ impl Animation {
     /// * `OnSegmentDone` | `segment_done`: Triggered when a segment is done. To use it, register though the [`Self::on()`] method.
     /// * `OnStart` | `start`: Triggered when the animation starts. To use it, register though the [`Self::on()`] method.
     /// * `OnEnd` | `end`: Triggered when the animation ends. To use it, register though the [`Self::on()`] method.
+    ///
+    /// # Example
+    /// ```
+    /// use hermes_five::Board;
+    /// use hermes_five::BoardEvent;
+    /// use hermes_five::devices::{Actuator, Led};
+    /// use hermes_five::animation::{Animation, AnimationEvent};
+    /// use hermes_five::utils::Easing;
+    ///
+    /// #[hermes_five::runtime]
+    /// async fn main() {
+    ///     let board = Board::run();
+    ///     board.on(BoardEvent::OnReady, |board: Board| async move {
+    ///         let mut led = Led::new(&board, 11, false)?;
+    ///         // Fade the LED to 50% brightness in 500ms.
+    ///         let animation = led.animate(50, 500, Easing::Linear);
+    ///         animation.on(AnimationEvent::OnEnd, |_: Animation| {
+    ///             println!("Animation done");
+    ///         });
+    ///
+    ///         // Here, you know the board to be connected and ready to receive data.
+    ///         Ok(())
+    ///     });
+    /// }
     /// ```
     pub fn on<S, F, T, Fut>(&self, event: S, callback: F) -> EventHandler
     where
@@ -504,6 +528,10 @@ mod tests {
         animation.next();
         animation.next();
         assert_eq!(animation.get_current(), 4);
+
+        // Animation jump to given segment
+        animation.set_current(5);
+        assert_eq!(animation.get_current(), 5);
 
         // Animation stopped
         animation.stop();

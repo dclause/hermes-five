@@ -10,7 +10,10 @@ async fn main() {
 
     board.on("ready", |board: Board| async move {
         let servo = Servo::new(&board, 9, 0).unwrap();
-        let led = Led::new(&board, 11).unwrap().set_intensity(100).unwrap();
+        let led = Led::new(&board, 11, false)
+            .unwrap()
+            .set_brightness(100)
+            .unwrap();
 
         let mut animation_servo = Animation::from(
             Segment::from(

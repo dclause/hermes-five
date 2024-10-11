@@ -1,24 +1,24 @@
-use hermes_five::{Board, pause};
+use hermes_five::{Board, BoardEvent, pause};
 use hermes_five::devices::{Actuator, Led};
 
 #[hermes_five::runtime]
 async fn main() {
     let board = Board::run();
 
-    board.on("ready", |board: Board| async move {
+    board.on(BoardEvent::OnReady, |board: Board| async move {
         // Register a LED on pin 13 (default arduino led).
-        let mut led = Led::new(&board, 13)?;
+        let mut led = Led::new(&board, 13, false)?;
 
         // Blinks the LED every 100ms.
         led.blink(100);
 
         // Notice how blink is not blocker for the current thread, yet it is for the runtime
         println!("This will print immediately");
-        pause!(3000);
-        println!("This will print 3 seconds later");
 
         // Stops the LED animation.
+        pause!(5000);
         led.stop();
+        println!("Animation stopped after 5 seconds.");
 
         Ok(())
     });

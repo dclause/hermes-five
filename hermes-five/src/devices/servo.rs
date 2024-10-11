@@ -360,7 +360,7 @@ impl Actuator for Servo {
     /// Stops the servo.
     /// Any animation running will be stopped after the current running step is executed.
     /// Any simple move running will be stopped at end position.
-    fn stop(&self) {
+    fn stop(&mut self) {
         match &self.interval.as_ref() {
             None => {}
             Some(handler) => handler.abort(),

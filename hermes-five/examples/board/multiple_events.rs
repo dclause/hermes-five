@@ -1,4 +1,4 @@
-use hermes_five::{Board, pause};
+use hermes_five::{Board, BoardEvent, pause};
 
 #[hermes_five::runtime]
 async fn main() {
@@ -7,7 +7,7 @@ async fn main() {
     // Something long happening before we can register our events.
     pause!(1000);
 
-    board.on("ready", |_: Board| async move {
+    board.on(BoardEvent::OnReady, |_: Board| async move {
         for i in 1..5 {
             println!("Callback 1: do something #{}", i);
             pause!(500);
@@ -16,7 +16,7 @@ async fn main() {
         Ok(())
     });
 
-    board.on("ready", |_: Board| async move {
+    board.on(BoardEvent::OnReady, |_: Board| async move {
         for i in 1..5 {
             println!("Callback 2: do another #{}", i);
             pause!(500);
@@ -25,7 +25,7 @@ async fn main() {
         Ok(())
     });
 
-    board.on("ready", |board: Board| async move {
+    board.on(BoardEvent::OnReady, |board: Board| async move {
         println!("Callback 3: close board in 1sec");
         pause!(1000);
         board.close();
@@ -33,7 +33,7 @@ async fn main() {
         Ok(())
     });
 
-    board.on("close", |_: Board| async move {
+    board.on(BoardEvent::OnClose, |_: Board| async move {
         println!("Connection closed on board.");
         Ok(())
     });

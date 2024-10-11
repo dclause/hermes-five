@@ -5,10 +5,10 @@ use hermes_five::devices::Led;
 async fn main() {
     let board = Board::run();
 
-    board.on("ready", |board: Board| async move {
-        let mut led = Led::new(&board, 11)?;
+    board.on(BoardEvent::, |board: Board| async move {
+        let mut led = Led::new(&board, 11, false)?;
 
-        // Fade the led to 50% intensity in 500ms.
+        // Fade the led to 50% brightness in 500ms.
         led.animate(50, 500, Easing::Linear);
 
         Ok(())

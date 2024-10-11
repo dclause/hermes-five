@@ -1,4 +1,4 @@
-use hermes_five::Board;
+use hermes_five::{Board, BoardEvent};
 use hermes_five::protocols::PinModeId;
 
 #[hermes_five::runtime]
@@ -6,7 +6,7 @@ async fn main() {
     // Default board: uses SerialProtocol communication via the first available port.
     let board = Board::run();
 
-    board.on("ready", |mut board: Board| async move {
+    board.on(BoardEvent::OnReady, |mut board: Board| async move {
         println!("Board connected: {}", board);
         println!("Pins {:#?}", board.get_hardware().pins);
 
