@@ -6,7 +6,7 @@ use log::debug;
 use parking_lot::RwLock;
 
 use crate::{pause, pause_sync};
-use crate::animation::{Animation, Keyframe, Track};
+use crate::animation::{Animation, Keyframe, Segment, Track};
 use crate::board::Board;
 use crate::devices::{Actuator, Device};
 use crate::errors::{Error, StateError};
@@ -14,14 +14,13 @@ use crate::errors::HardwareError::IncompatibleMode;
 use crate::protocols::{Pin, PinModeId, Protocol};
 use crate::utils::{Easing, Range, State, task};
 use crate::utils::scale::Scalable;
-use crate::utils::task::TaskHandler;
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Default, Clone, Copy, Debug)]
+#[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ServoType {
     #[default]
     Standard,
-    // Continuous,
+    Continuous,
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -78,9 +77,6 @@ pub struct Servo {
     protocol: Box<dyn Protocol>,
     /// Inner handler to the task running the animation.
     #[cfg_attr(feature = "serde", serde(skip))]
-    interval: Arc<Option<TaskHandler>>,
-    /// Inner handler to the task running the animation.
-    #[cfg_attr(feature = "serde", serde(skip))]
     animation: Arc<Option<Animation>>,
     #[cfg_attr(feature = "serde", serde(skip))]
     last_move: Arc<RwLock<Option<SystemTime>>>,
@@ -110,7 +106,6 @@ impl Servo {
             detach_delay: 20000,
             previous: u16::MAX, // Ensure previous out-of-range: forces default at start
             protocol: board.get_protocol(),
-            interval: Arc::new(None),
             animation: Arc::new(None),
             last_move: Arc::new(RwLock::new(None)),
         };
@@ -143,14 +138,24 @@ impl Servo {
         Ok(self)
     }
 
-    pub fn sweep() {
-        // // Swipe the servo.
-        // loop {
-        //     servo.to(0).unwrap();
-        //     pause!(1000);
-        //     servo.to(180).unwrap();
-        //     pause!(1000);
-        // }
+    /// Sweep the servo in phases of ms (milliseconds) duration.
+    /// This is an animation and can be stopped by calling [`Led::stop()`].
+    ///
+    /// # Parameters
+    /// * `ms`: the blink duration in milliseconds
+    pub fn sweep(&mut self, ms: u64) -> &Self {
+        let mut animation = Animation::from(
+            Segment::from(
+                Track::new(self.clone())
+                    .with_keyframe(Keyframe::new(self.range.end, 0, ms))
+                    .with_keyframe(Keyframe::new(self.range.start, ms, ms * 2)),
+            )
+            .set_repeat(true),
+        );
+        animation.play();
+        self.animation = Arc::new(Some(animation));
+
+        self
     }
 
     // ########################################
@@ -295,22 +300,16 @@ impl Servo {
     /// Sets the servo to auto-detach itself after a given delay.
     pub fn set_auto_detach(mut self, auto_detach: bool) -> Self {
         self.auto_detach = match auto_detach {
-            false => false,
+            false => {
+                self.protocol
+                    .set_pin_mode(self.pin, PinModeId::SERVO)
+                    .unwrap();
+                false
+            }
             true => {
-                match self.last_move.read().as_ref() {
-                    None => {
-                        self.protocol
-                            .set_pin_mode(self.pin, PinModeId::OUTPUT)
-                            .unwrap();
-                    }
-                    Some(last_move) => {
-                        if last_move.elapsed().unwrap().as_millis() > (self.detach_delay as u128) {
-                            self.protocol
-                                .set_pin_mode(self.pin, PinModeId::OUTPUT)
-                                .unwrap();
-                        }
-                    }
-                }
+                self.protocol
+                    .set_pin_mode(self.pin, PinModeId::OUTPUT)
+                    .unwrap();
                 true
             }
         };
@@ -357,14 +356,14 @@ impl Actuator for Servo {
         self.animation = Arc::new(Some(animation));
     }
 
-    /// Stops the servo.
+    /// Stops the current animation.
     /// Any animation running will be stopped after the current running step is executed.
-    /// Any simple move running will be stopped at end position.
+    /// Any simple move running will be stopped at current position with no reset.
     fn stop(&mut self) {
-        match &self.interval.as_ref() {
-            None => {}
-            Some(handler) => handler.abort(),
-        };
+        if let Some(animation) = Arc::get_mut(&mut self.animation).and_then(Option::as_mut) {
+            animation.stop();
+        }
+        self.animation = Arc::new(None);
     }
 
     /// Update the Servo position.
@@ -373,6 +372,10 @@ impl Actuator for Servo {
         let value = match state {
             State::Integer(value) => Ok(value as u16),
             State::Signed(value) => match value >= 0 {
+                true => Ok(value as u16),
+                false => Err(Error::from(StateError)),
+            },
+            State::Float(value) => match value >= 0.0 {
                 true => Ok(value as u16),
                 false => Err(Error::from(StateError)),
             },
@@ -411,24 +414,15 @@ impl Actuator for Servo {
                 let mut self_clone = self.clone();
                 task::run(async move {
                     pause!(self_clone.detach_delay);
-                    match self_clone.last_move.read().as_ref() {
-                        None => {
+                    if let Some(last_move) = self_clone.last_move.read().as_ref() {
+                        if last_move.elapsed().unwrap().as_millis()
+                            > (self_clone.detach_delay as u128)
+                        {
                             debug!("Detach servo pin: {}", self_clone.pin);
                             self_clone
                                 .protocol
                                 .set_pin_mode(self_clone.pin, PinModeId::OUTPUT)
                                 .unwrap();
-                        }
-                        Some(last_move) => {
-                            if last_move.elapsed().unwrap().as_millis()
-                                > (self_clone.detach_delay as u128)
-                            {
-                                debug!("Detach servo pin: {}", self_clone.pin);
-                                self_clone
-                                    .protocol
-                                    .set_pin_mode(self_clone.pin, PinModeId::OUTPUT)
-                                    .unwrap();
-                            }
                         }
                     }
                 })?;
@@ -452,6 +446,197 @@ impl Actuator for Servo {
 
     /// Indicates the busy status, ie if the device is running an animation.
     fn is_busy(&self) -> bool {
-        self.interval.is_some()
+        self.animation.is_some()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use hermes_five::devices::ServoType;
+
+    use crate::board::Board;
+    use crate::devices::{Actuator, Servo};
+    use crate::mocks::protocol::MockProtocol;
+    use crate::pause;
+    use crate::protocols::PinModeId;
+    use crate::utils::{Easing, Range, State};
+
+    fn _setup_servo(pin: u16) -> Servo {
+        let board = Board::from(MockProtocol::default()); // Assuming a mock Board implementation
+        Servo::new(&board, pin, 90).unwrap()
+    }
+
+    #[test]
+    fn test_servo_creation() {
+        let board = Board::from(MockProtocol::default());
+
+        let servo = Servo::new(&board, 12, 90).unwrap();
+        assert_eq!(servo.get_pin(), 12);
+        assert_eq!(*servo.state.read(), 90);
+        assert!(!servo.is_inverted());
+
+        let inverted_servo = Servo::new_inverted(&board, 12, 90).unwrap();
+        assert!(inverted_servo.is_inverted());
+
+        let servo = Servo::new(&board, 12, 66).unwrap();
+        assert_eq!(servo.get_default(), State::Integer(66));
+        assert_eq!(servo.get_state(), State::Integer(66));
+    }
+
+    #[test]
+    fn test_servo_move() {
+        let mut servo = _setup_servo(12);
+        let result = servo.to(150); // Move the servo to position 150.
+        assert!(result.is_ok());
+        assert_eq!(*servo.state.read(), 150); // Servo state should be updated to 150.
+    }
+
+    #[test]
+    fn test_servo_range_setting() {
+        let mut servo = _setup_servo(12);
+        servo = servo.set_range([100, 200]); // Setting new range.
+        assert_eq!(servo.get_range(), Range::from([100, 180])); // Ensure the range is updated but clamp in the theoretical degree_range.
+        assert_eq!(servo.default, 100); // Default remains within the range.
+    }
+
+    #[test]
+    fn test_servo_degree_range_setting() {
+        let mut servo = _setup_servo(12);
+        servo = servo.set_degree_range([100, 200]); // Setting new range.
+        assert_eq!(servo.get_degree_range(), Range::from([100, 200]));
+        assert_eq!(servo.get_range(), Range::from([100, 180])); // Ensure the range is updated/clamped in the theoretical degree_range.
+        assert_eq!(servo.default, 100); // Default remains within the range.
+    }
+
+    #[test]
+    fn test_servo_pwm_range_setting() {
+        let servo = _setup_servo(12);
+        let result = servo.set_pwn_range([999, 9999]);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().get_pwn_range(), Range::from([999, 9999]));
+    }
+
+    #[test]
+    fn test_servo_detach_delay() {
+        let mut servo = _setup_servo(12);
+        assert_eq!(servo.get_detach_delay(), 20000);
+        servo = servo.set_detach_delay(100);
+        assert_eq!(servo.get_detach_delay(), 100);
+    }
+
+    #[hermes_macros::test]
+    fn test_servo_auto_detach() {
+        let mut servo = _setup_servo(12).set_auto_detach(true).set_detach_delay(100);
+        assert!(servo.is_auto_detach());
+        assert_eq!(servo.get_pin_info().unwrap().mode.id, PinModeId::OUTPUT);
+
+        // Do not auto-detach: should reset pinMode to SERVO for proper use.
+        servo = servo.set_auto_detach(false);
+        assert!(!servo.is_auto_detach());
+        assert_eq!(servo.get_pin_info().unwrap().mode.id, PinModeId::SERVO);
+        let _ = servo.to(180);
+
+        // Auto-detach unmoved servo: it should detach right away.
+        servo = servo.set_auto_detach(true);
+        assert_eq!(servo.get_pin_info().unwrap().mode.id, PinModeId::OUTPUT);
+        assert!(servo.is_auto_detach());
+
+        // Moving should auto-reattach.
+        servo.to(180).expect("");
+        assert_eq!(servo.get_pin_info().unwrap().mode.id, PinModeId::SERVO);
+        pause!(80);
+        // Continue moving should reset detach timer
+        servo.to(180).expect("");
+        pause!(80);
+        assert_eq!(servo.get_pin_info().unwrap().mode.id, PinModeId::SERVO);
+        // No move ultimately leads to auto-detaching
+        pause!(80);
+        assert_eq!(servo.get_pin_info().unwrap().mode.id, PinModeId::OUTPUT);
+    }
+
+    #[test]
+    fn test_servo_type() {
+        let mut servo = _setup_servo(12);
+        assert_eq!(servo.get_type(), ServoType::Standard);
+        servo = servo.set_type(ServoType::Continuous);
+        assert_eq!(servo.get_type(), ServoType::Continuous);
+    }
+
+    #[test]
+    fn test_servo_state() {
+        let mut buf = [0; 8];
+        let mut servo = _setup_servo(12);
+
+        // Move in range
+        assert!(servo.set_state(State::Integer(66)).is_ok());
+        assert!(servo.protocol.read_exact(&mut buf).is_ok());
+        println!("{:02X?}", buf.as_slice());
+        assert_eq!(
+            buf.as_slice(),
+            [0xEC, 0x6C, 0x09, 0x58, 0x04, 0x60, 0x12, 0xF7]
+        );
+        assert_eq!(servo.get_state(), State::Integer(66));
+
+        // Move outside range
+        assert!(servo.set_state(State::Integer(666)).is_ok());
+        assert_eq!(servo.get_state(), State::Integer(180));
+
+        // Move signed range
+        assert!(servo.set_state(State::Signed(-12)).is_err());
+        assert!(servo.set_state(State::Signed(12)).is_ok());
+        assert_eq!(servo.get_state(), State::Integer(12));
+
+        // Move float range
+        assert!(servo.set_state(State::Float(-12.5)).is_err());
+        assert!(servo.set_state(State::Float(12.5)).is_ok());
+        assert_eq!(servo.get_state(), State::Integer(12));
+
+        // Move unknown type
+        assert!(servo.set_state(State::Boolean(true)).is_err());
+
+        // Move inverted range
+        let mut servo = _setup_servo(12).set_inverted(true);
+        assert!(servo.set_state(State::Integer(66)).is_ok());
+        assert!(servo.protocol.read_exact(&mut buf).is_ok());
+        println!("{:02X?}", buf.as_slice());
+        assert_eq!(
+            buf.as_slice(),
+            [0xEC, 0x4C, 0x0D, 0x58, 0x04, 0x60, 0x12, 0xF7]
+        );
+        assert_eq!(servo.get_state(), State::Integer(66));
+    }
+
+    #[hermes_macros::test]
+    fn test_servo_sweep() {
+        let mut servo = _setup_servo(12);
+        assert!(!servo.is_busy());
+        servo.stop();
+        servo.sweep(200);
+        pause!(100);
+        assert!(servo.is_busy()); // Animation is currently running.
+        servo.stop();
+        assert!(!servo.is_busy());
+    }
+
+    #[hermes_macros::test]
+    fn test_animation() {
+        let mut servo = _setup_servo(12);
+        assert!(!servo.is_busy());
+        // Stop something not started should not fail.
+        servo.stop();
+        // Fade in the LED to brightness
+        servo.animate(66, 500, Easing::Linear);
+        pause!(100);
+        assert!(servo.is_busy()); // Animation is currently running.
+        servo.stop();
+        assert!(!servo.is_busy());
+    }
+
+    #[test]
+    fn test_servo_display() {
+        let servo = _setup_servo(12);
+        let display_output = format!("{}", servo);
+        let expected_output = "SERVO (pin=12) [state=90, default=90, range=0-180]";
+        assert_eq!(display_output, expected_output);
     }
 }

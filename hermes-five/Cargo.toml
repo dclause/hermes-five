@@ -97,10 +97,13 @@ path = "examples/led/animate.rs"
 name = "servo_servo"
 path = "examples/servo/servo.rs"
 
-# @todo restore this example with animate helper.
-#[[example]]
-#name = "servo_animate"
-#path = "examples/servo/animate.rs"
+[[example]]
+name = "servo_sweep"
+path = "examples/servo/sweep.rs"
+
+[[example]]
+name = "servo_animate"
+path = "examples/servo/animate.rs"
 
 # ########################################
 # SYNC examples

@@ -9,15 +9,10 @@ async fn main() {
         // Register a Servo on pin 9.
         let mut servo = Servo::new(&board, 9, 90).expect("Servo is instantiated");
 
-        // Move to end
-        servo.to(180)?;
-        pause!(500);
-        // Move to start
-        servo.to(0)?;
-        pause!(500);
-        // Move to default
+        servo.sweep(500);
+        pause!(5000);
+        servo.stop();
         servo.reset()?;
-        pause!(500);
 
         Ok(())
     });

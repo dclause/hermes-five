@@ -1,5 +1,5 @@
+use hermes_five::{Board, BoardEvent};
 use hermes_five::animation::{Animation, Keyframe, Segment, Track};
-use hermes_five::Board;
 use hermes_five::devices::{Led, Servo};
 use hermes_five::utils::Easing;
 
@@ -8,7 +8,7 @@ async fn main() {
     // Default board: uses SerialProtocol communication via the first available port.
     let board = Board::run();
 
-    board.on("ready", |board: Board| async move {
+    board.on(BoardEvent::OnReady, |board: Board| async move {
         let servo = Servo::new(&board, 9, 0).unwrap();
         let led = Led::new(&board, 11, false)
             .unwrap()

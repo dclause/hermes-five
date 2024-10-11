@@ -1,25 +1,23 @@
-use hermes_five::{Board, pause};
-use hermes_five::devices::Servo;
+use hermes_five::{Board, BoardEvent, pause};
+use hermes_five::devices::{Actuator, Servo};
 use hermes_five::utils::Easing;
 
 #[hermes_five::runtime]
 async fn main() {
     let board = Board::run();
 
-    board.on(BoardEvent::Ready, |board: Board| async move {
+    board.on(BoardEvent::OnReady, |board: Board| async move {
         // Register a Servo on pin 9.
         let mut servo = Servo::new(&board, 9, 0).expect("Servo is instantiated");
-        println!("{:?}", servo.pin());
-        servo.to(180);
-        pause!(1000);
-        let duration = 2000;
-        // Swipe the servo.
-        loop {
-            servo.animate(0, duration, Easing::SineInOut);
-            servo.on("complete", |servo: Servo| async move {
-                servo.animate_sync(180, duration, Easing::SineInOut);
-            });
-            pause!(4000)
-        }
+
+        // Animate to end
+        servo.animate(180, 500, Easing::SineInOut);
+        pause!(500);
+        // Animate to start
+        servo.animate(0, 500, Easing::SineInOut);
+        pause!(500);
+        // Animate to default
+        servo.animate(servo.get_default(), 500, Easing::SineInOut);
+        pause!(500);
     });
 }

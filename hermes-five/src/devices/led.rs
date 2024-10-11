@@ -110,7 +110,7 @@ impl Led {
     }
 
     /// Blink the LED on/off in phases of ms (milliseconds) duration.
-    /// This is an interval operation and can be stopped by calling [`Led::stop()`].
+    /// This is an animation and can be stopped by calling [`Led::stop()`].
     ///
     /// # Parameters
     /// * `ms`: the blink duration in milliseconds
@@ -129,6 +129,11 @@ impl Led {
         self
     }
 
+    /// Pulses the LED on/off (using fading) in phases of ms (milliseconds) duration.
+    /// This is an animation and can be stopped by calling [`Led::stop()`].
+    ///
+    /// # Parameters
+    /// * `ms`: the blink duration in milliseconds
     pub fn pulse(&mut self, ms: u64) -> &Self {
         let mut animation = Animation::from(
             Segment::from(
@@ -249,7 +254,6 @@ impl Actuator for Led {
         if let Some(animation) = Arc::get_mut(&mut self.animation).and_then(Option::as_mut) {
             animation.stop();
         }
-        // Replace the Arc with a new Arc containing None
         self.animation = Arc::new(None);
     }
 
@@ -403,6 +407,7 @@ mod tests {
         pause!(100);
         assert!(led.is_busy()); // Animation is currently running.
         led.stop();
+        assert!(!led.is_busy());
     }
 
     #[hermes_macros::test]
@@ -414,6 +419,7 @@ mod tests {
         pause!(100);
         assert!(led.is_busy()); // Animation is currently running.
         led.stop();
+        assert!(!led.is_busy());
     }
 
     #[hermes_macros::test]
