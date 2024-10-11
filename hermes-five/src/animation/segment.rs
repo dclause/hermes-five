@@ -40,7 +40,7 @@ use crate::pause;
 ///         .with_keyframe(Keyframe::new(0, 2000, 3000).set_transition(Easing::SineInOut));
 ///
 ///     // Define a LED attached to the board on PIN 13.
-///     let led = Led::new(&board, 13).unwrap();
+///     let led = Led::new(&board, 13, false).unwrap();
 ///     // Create a track for the LED.
 ///     let led_track = Track::new(led)
 ///         // Turns the LED fully (instantly)

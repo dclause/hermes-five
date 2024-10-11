@@ -19,5 +19,7 @@ async fn main() {
         // Animate to default
         servo.animate(servo.get_default(), 500, Easing::SineInOut);
         pause!(500);
+
+        Ok(())
     });
 }

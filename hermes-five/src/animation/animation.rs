@@ -253,12 +253,7 @@ impl Animation {
     ///     board.on(BoardEvent::OnReady, |board: Board| async move {
     ///         let mut led = Led::new(&board, 11, false)?;
     ///         // Fade the LED to 50% brightness in 500ms.
-    ///         let animation = led.animate(50, 500, Easing::Linear);
-    ///         animation.on(AnimationEvent::OnComplete, |_: Animation| {
-    ///             println!("Animation done");
-    ///         });
-    ///
-    ///         // Here, you know the board to be connected and ready to receive data.
+    ///         led.animate(50, 500, Easing::Linear);
     ///         Ok(())
     ///     });
     /// }
