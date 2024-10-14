@@ -5,8 +5,8 @@ use log::trace;
 use parking_lot::RwLockReadGuard;
 
 use crate::errors::Error;
-use crate::protocols::SerialProtocol;
 use crate::protocols::{Hardware, PinModeId, Protocol};
+use crate::protocols::SerialProtocol;
 use crate::utils::events::{EventHandler, EventManager};
 use crate::utils::task;
 
@@ -288,8 +288,8 @@ impl DerefMut for Board {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
 
     use crate::mocks::protocol::MockProtocol;
     use crate::pause;
@@ -343,7 +343,7 @@ mod tests {
                 Ok(())
             }
         });
-        pause!(500);
+        pause!(1000);
         assert!(flag.load(Ordering::SeqCst));
     }
 

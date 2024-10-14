@@ -3,11 +3,12 @@
 ### The Rust Robotics & IoT Platform
 
 [![License](https://img.shields.io/github/license/dclause/hermes-five)](https://github.com/dclause/hermes-five/blob/develop/LICENSE)
+[![Documentation](https://img.shields.io/badge/documentation-_online-green)](https://dclause.github.io/hermes-five/)
 [![Build Status](https://github.com/dclause/hermes-five/workflows/Build/badge.svg)](https://github.com/dclause/hermes-five/actions/workflows/build.yml)
 [![Test Status](https://github.com/dclause/hermes-five/workflows/Test/badge.svg)](https://github.com/dclause/hermes-five/actions/workflows/test.yml)
 [![Code Coverage](https://codecov.io/gh/dclause/hermes-five/graph/badge.svg?token=KF8EFDUQ7A)](https://codecov.io/gh/dclause/hermes-five)
 
-<img align="right" style="height:200px" alt="Schema sample of blinking led using Arduino UNO" src="https://github.com/dclause/hermes-five/blob/develop/docs/misc/blink-led.gif?raw=true" />
+<img align="right" style="height:200px" alt="Schema sample of blinking led using Arduino UNO" src="https://github.com/dclause/hermes-five/blob/develop/docs/public/examples/led/led-blink.gif?raw=true" />
 
 **_Hermes-Five_ is an Open Source, [Firmata Protocol](https://github.com/firmata/protocol)-based, IoT and Robotics
 programming framework - written in Rust.**
@@ -18,12 +19,16 @@ in [my spare time](https://github.com/dclause) and
 does not intend
 to compete with any other solutions you might want to try,_
 
+## Documentation
+
+To check out docs, visit [Github Pages](https://dclause.github.io/hermes-five).
+
 ## Features
 
 **Hermes-Five** is a Rust library designed to remotely control Arduino (other supported boards to come) using Rust code.
 
 **_If you wish to control your Hermes compatible robot using a UI (no-code), please consult
-the [HermesStudio](https://github.com/dclause/HermesStudio)
+the [HermesStudio](https://github.com/dclause/hermes-studio)
 project._**
 
 ### Hello Hermes!
@@ -77,7 +82,7 @@ hermes-five = { branch = "develop", git = "https://github.com/dclause/hermes-fiv
 ```
 
 - Start by exploring the [examples](https://github.com/dclause/hermes-five/tree/develop/hermes-five/examples) code and
-  the project API
+  the [project documentation](https://dclause.github.io/hermes-five).
 
 ## Examples
 

@@ -1,0 +1,17 @@
+/* .vitepress/theme/custom.css */
+:root {
+    --vp-c-brand-1: var(--vp-c-red-1);
+    --vp-c-brand-2: var(--vp-c-red-2);
+    --vp-c-brand-3: var(--vp-c-red-3);
+}
+
+html:not(.dark) .logo,
+html:not(.dark) img#icon,
+html:not(.dark) img.icon {
+    filter: invert(22%) sepia(25%) saturate(7248%) hue-rotate(340deg) brightness(87%) contrast(97%);
+}
+.logo,
+img#icon,
+img.icon {
+    filter: invert(71%) sepia(85%) saturate(3249%) hue-rotate(309deg) brightness(99%) contrast(95%);
+}
