@@ -75,6 +75,10 @@ path = "examples/board/ready_event.rs"
 # LED examples
 
 [[example]]
+name = "led_simple"
+path = "examples/led/simple.rs"
+
+[[example]]
 name = "led_blink"
 path = "examples/led/blink.rs"
 

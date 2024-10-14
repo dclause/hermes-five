@@ -1,6 +1,9 @@
 use hermes_five::{Board, BoardEvent};
 use hermes_five::devices::Led;
 
+// /!\ Use of brightness requires a PWM compatible pin.
+// Consult your board schematics to know which ones are compatible.
+
 #[hermes_five::runtime]
 async fn main() {
     let board = Board::run();
