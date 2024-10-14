@@ -170,7 +170,7 @@ impl Led {
             // Compute the brightness percentage (depending on resolution (255 on arduino for instance)).
             Some(pwm_mode) => {
                 self.brightness
-                    .scale(0, 2u16.pow(pwm_mode.resolution as u32), 0, 100)
+                    .scale(0, pwm_mode.get_max_possible_value() as u16, 0, 100)
             }
         }
     }
@@ -186,22 +186,17 @@ impl Led {
     /// * `IncompatibleMode`: this function will bail an error if the LED pin does not support PWM.
     pub fn set_brightness(mut self, brightness: u8) -> Result<Self, Error> {
         // Brightness can only be between 0 and 100%
-        let mut brightness = brightness.clamp(0, 100) as u16;
+        let brightness = brightness.clamp(0, 100) as u16;
 
         // If the LED can use pwm mode: update the brightness
-        self.pwm_mode.ok_or(IncompatibleMode {
+        let pwm_mode = self.pwm_mode.ok_or(IncompatibleMode {
             mode: PinModeId::PWM,
             pin: self.pin,
             context: "set LED brightness",
         })?;
 
         // Compute the brightness value (depending on resolution (255 on arduino for instance))
-        brightness = brightness.scale(
-            0,
-            100,
-            0,
-            2u16.pow(self.pwm_mode.unwrap().resolution as u32),
-        );
+        let brightness = brightness.scale(0, 100, 0, pwm_mode.get_max_possible_value() as u16);
 
         // Sets the brightness.
         self.brightness = brightness;
@@ -362,12 +357,54 @@ mod tests {
     }
 
     #[test]
+    fn test_brightness_calculation() {
+        let mut led = _setup_led(8);
+
+        // Force custom pinMode on 10bits
+        led.pwm_mode = Some(PinMode {
+            id: Default::default(),
+            resolution: 10,
+        });
+
+        // Check brightness at 0%
+        let led = led.set_brightness(0).unwrap();
+        assert_eq!(led.get_brightness(), 0);
+        assert_eq!(led.brightness, 0);
+        assert_eq!(*led.state.read(), 0);
+
+        // Check brightness at 50%
+        let led = led.set_brightness(50).unwrap();
+        assert_eq!(led.get_brightness(), 50);
+        assert_eq!(led.brightness, 512);
+        assert_eq!(*led.state.read(), 512);
+
+        // Check brightness at 100%
+        let led = led.set_brightness(100).unwrap();
+        assert_eq!(led.get_brightness(), 100);
+        assert_eq!(led.brightness, 1023);
+        assert_eq!(*led.state.read(), 1023);
+
+        // Check brightness at 120%
+        let led = led.set_brightness(120).unwrap();
+        assert_eq!(led.get_brightness(), 100);
+        assert_eq!(led.brightness, 1023);
+        assert_eq!(*led.state.read(), 1023);
+    }
+
+    #[test]
     fn test_set_brightness_valid() {
         let result = _setup_led(8).set_brightness(50);
         assert!(result.is_ok()); // Set brightness to 50%
         let mut led = result.unwrap();
+
         assert_eq!(led.get_brightness(), 50); // Check the brightness is correctly set
+        assert_eq!(led.brightness, 128); // 50% of 255
         assert_eq!(*led.state.read(), 128); // State should reflect the brightness (50%)
+
+        assert_eq!(led.get_brightness(), 50); // Check the brightness is correctly set
+        assert_eq!(led.brightness, 128); // 50% of 255
+        assert_eq!(*led.state.read(), 128); // State should reflect the brightness (50%)
+
         assert!(led.set_state(State::Boolean(false)).is_ok());
         assert_eq!(*led.state.read(), 0x00);
         assert!(led.set_state(State::Boolean(true)).is_ok());

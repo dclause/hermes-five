@@ -61,6 +61,13 @@ impl Pin {
         }?;
         Ok(())
     }
+
+    /// Get the max value this pin can reach.
+    ///
+    /// This is defined by the resolution of the current pin mode.
+    pub fn get_max_possible_value(&self) -> usize {
+        self.mode.get_max_possible_value()
+    }
 }
 
 impl Debug for Pin {
@@ -96,6 +103,13 @@ pub struct PinMode {
     pub id: PinModeId,
     /// Resolution (number of bits) this mode uses.
     pub resolution: u8,
+}
+
+impl PinMode {
+    /// Get the max value this pinMode can reach according to its resolution.
+    pub fn get_max_possible_value(&self) -> usize {
+        (1 << self.resolution) - 1
+    }
 }
 
 impl Display for PinMode {
@@ -235,6 +249,16 @@ mod tests {
     }
 
     #[test]
+    fn test_pin_mode_max_value() {
+        let pin_mode = PinMode {
+            id: PinModeId::INPUT,
+            resolution: 8,
+        };
+
+        assert_eq!(pin_mode.get_max_possible_value(), 255);
+    }
+
+    #[test]
     fn test_check_current_mode_success() {
         let pin = Pin {
             mode: PinMode {
@@ -246,6 +270,7 @@ mod tests {
 
         assert!(pin.validate_current_mode(PinModeId::PWM).is_ok());
         assert!(pin.validate_current_mode(PinModeId::SHIFT).is_err());
+        assert_eq!(pin.get_max_possible_value(), 1023);
     }
 
     #[test]

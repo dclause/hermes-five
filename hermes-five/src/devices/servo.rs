@@ -452,6 +452,8 @@ impl Actuator for Servo {
 
 #[cfg(test)]
 mod tests {
+    use serial_test::serial;
+
     use hermes_five::devices::ServoType;
 
     use crate::board::Board;
@@ -550,7 +552,8 @@ mod tests {
         pause!(80);
         assert_eq!(servo.get_pin_info().unwrap().mode.id, PinModeId::SERVO);
         // No move ultimately leads to auto-detaching
-        pause!(1000);
+        pause!(3000);
+        assert!(servo.is_auto_detach());
         assert_eq!(servo.get_pin_info().unwrap().mode.id, PinModeId::OUTPUT);
     }
 

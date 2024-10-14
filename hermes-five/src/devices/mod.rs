@@ -148,7 +148,7 @@ mod tests {
 
         // 75% between 10 and 20
         let result = device.scale_state(State::Integer(10), State::Integer(20), 0.75);
-        assert_eq!(result, State::Integer(17));
+        assert_eq!(result, State::Integer(18));
 
         // 120% between 10 and 20
         let result = device.scale_state(State::Integer(10), State::Integer(20), 1.2);

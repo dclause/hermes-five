@@ -1,3 +1,5 @@
+use std::any::type_name;
+
 pub trait ToF64 {
     fn to_f64(self) -> f64;
 }
@@ -54,7 +56,10 @@ macro_rules! impl_from_scalable {
 
             impl FromF64 for $variant {
                 fn from_f64(value: f64) -> Self {
-                    value as $variant
+                    match type_name::<$variant>() {
+                        "f32" | "f64" => value as $variant,
+                        _ => value.round() as $variant
+                    }
                 }
             }
         )*
@@ -70,7 +75,7 @@ mod tests {
 
     #[test]
     fn test_scale_unsigned() {
-        assert_eq!(50.scale::<u8>(0, 100, 0, 255), 127);
+        assert_eq!(50.scale::<u8>(0, 100, 0, 255), 128);
         assert_eq!(0.scale::<u8>(0, 100, 0, 255), 0);
         assert_eq!(100.scale::<u8>(0, 100, 0, 255), 255);
 
