@@ -2,7 +2,6 @@ use std::fmt::{Display, Formatter};
 use std::sync::Arc;
 use std::time::SystemTime;
 
-use log::debug;
 use parking_lot::RwLock;
 
 use crate::{pause, pause_sync};
@@ -411,14 +410,14 @@ impl Actuator for Servo {
                 self.protocol.set_pin_mode(self.pin, PinModeId::SERVO)?;
                 self.protocol.analog_write(self.pin, pwm as u16)?;
                 *self.last_move.write() = Some(SystemTime::now());
+
                 let mut self_clone = self.clone();
                 task::run(async move {
                     pause!(self_clone.detach_delay);
                     if let Some(last_move) = self_clone.last_move.read().as_ref() {
                         if last_move.elapsed().unwrap().as_millis()
-                            > (self_clone.detach_delay as u128)
+                            >= (self_clone.detach_delay as u128)
                         {
-                            debug!("Detach servo pin: {}", self_clone.pin);
                             self_clone
                                 .protocol
                                 .set_pin_mode(self_clone.pin, PinModeId::OUTPUT)
@@ -452,8 +451,6 @@ impl Actuator for Servo {
 
 #[cfg(test)]
 mod tests {
-    use serial_test::serial;
-
     use hermes_five::devices::ServoType;
 
     use crate::board::Board;
@@ -573,7 +570,6 @@ mod tests {
         // Move in range
         assert!(servo.set_state(State::Integer(66)).is_ok());
         assert!(servo.protocol.read_exact(&mut buf).is_ok());
-        println!("{:02X?}", buf.as_slice());
         assert_eq!(
             buf.as_slice(),
             [0xEC, 0x6C, 0x09, 0x58, 0x04, 0x60, 0x12, 0xF7]
@@ -601,7 +597,6 @@ mod tests {
         let mut servo = _setup_servo(12).set_inverted(true);
         assert!(servo.set_state(State::Integer(66)).is_ok());
         assert!(servo.protocol.read_exact(&mut buf).is_ok());
-        println!("{:02X?}", buf.as_slice());
         assert_eq!(
             buf.as_slice(),
             [0xEC, 0x4C, 0x0D, 0x58, 0x04, 0x60, 0x12, 0xF7]

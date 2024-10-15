@@ -1,16 +1,16 @@
 # Hermes-Five
 
-### The Rust Robotics & IoT Platform
-
-[![License](https://img.shields.io/github/license/dclause/hermes-five)](https://github.com/dclause/hermes-five/blob/develop/LICENSE)
-[![Documentation](https://img.shields.io/badge/documentation-_online-green)](https://dclause.github.io/hermes-five/)
+[![License](https://img.shields.io/github/license/dclause/hermes-five?color=success)](https://github.com/dclause/hermes-five/blob/develop/LICENSE)
+[![Documentation](https://img.shields.io/badge/documentation-_online-success)](https://dclause.github.io/hermes-five/)
 [![Build Status](https://github.com/dclause/hermes-five/workflows/Build/badge.svg)](https://github.com/dclause/hermes-five/actions/workflows/build.yml)
 [![Test Status](https://github.com/dclause/hermes-five/workflows/Test/badge.svg)](https://github.com/dclause/hermes-five/actions/workflows/test.yml)
 [![Code Coverage](https://codecov.io/gh/dclause/hermes-five/graph/badge.svg?token=KF8EFDUQ7A)](https://codecov.io/gh/dclause/hermes-five)
 
+### The Rust Robotics & IoT Platform
+
 <img align="right" style="height:200px" alt="Schema sample of blinking led using Arduino UNO" src="https://github.com/dclause/hermes-five/blob/develop/docs/public/examples/led/led-blink.gif?raw=true" />
 
-**_Hermes-Five_ is an Open Source, [Firmata Protocol](https://github.com/firmata/protocol)-based, IoT and Robotics
+**_Hermes-Five_ is an open-source, [Firmata Protocol](https://github.com/firmata/protocol)-based, IoT and Robotics
 programming framework - written in Rust.**
 
 _The ultimate goal of this project is to mimic the functionalities of [Johnny-Five](https://johnny-five.io/) framework
@@ -115,9 +115,9 @@ All contributions are more than welcome through [PR](https://github.com/dclause/
 the [issue queue](https://github.com/dclause/hermes-five/issues).
 
 - Fork the repository
-- Create a new branch (git checkout -b feature-branch)
-- Commit your changes (git commit -am 'Add new feature')
-- Push to the branch (git push origin feature-branch)
+- Create a new branch: `git checkout -b feature-branch`
+- Commit your changes: `git commit -am 'Add new feature'`
+- Push to the branch: `git push origin feature-branch`
 - Create a new Pull Request
 
 **_The author does not claim to know everything about Rust programming or IoT, and all ideas are welcome as long as they

@@ -4,6 +4,7 @@ use parking_lot::RwLock;
 
 use crate::errors::Error;
 use crate::mocks::hardware::create_test_hardware;
+use crate::pause_sync;
 use crate::protocols::{Hardware, Protocol};
 
 /// Mock implement for [`Protocol`].
@@ -47,11 +48,13 @@ impl Protocol for MockProtocol {
     }
 
     fn open(&mut self) -> Result<(), Error> {
+        pause_sync!(100);
         self.connected = true;
         Ok(())
     }
 
     fn close(&mut self) -> Result<(), Error> {
+        pause_sync!(100);
         self.connected = false;
         Ok(())
     }

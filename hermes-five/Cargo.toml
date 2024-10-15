@@ -108,10 +108,3 @@ path = "examples/servo/sweep.rs"
 [[example]]
 name = "servo_animate"
 path = "examples/servo/animate.rs"
-
-# ########################################
-# SYNC examples
-
-[[example]]
-name = "sync_blink"
-path = "examples/sync/blink.rs"

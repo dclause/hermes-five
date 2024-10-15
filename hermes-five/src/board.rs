@@ -343,7 +343,7 @@ mod tests {
                 Ok(())
             }
         });
-        pause!(1000);
+        pause!(500);
         assert!(flag.load(Ordering::SeqCst));
     }
 
