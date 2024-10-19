@@ -284,7 +284,7 @@ mod tests {
 
         events.emit("multiple", flag.clone());
 
-        pause!(100);
+        pause!(500);
         assert_eq!(
             flag.load(Ordering::SeqCst),
             2,

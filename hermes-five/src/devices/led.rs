@@ -78,7 +78,7 @@ impl Led {
             true => 0xFF,
         };
 
-        Ok(Self {
+        let led = Self {
             pin,
             state: Arc::new(RwLock::new(default)),
             default,
@@ -86,7 +86,9 @@ impl Led {
             pwm_mode,
             protocol,
             animation: Arc::new(None),
-        })
+        };
+
+        Ok(led)
     }
 
     /// Turn the LED on.

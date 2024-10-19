@@ -1,14 +1,17 @@
 use std::fmt::Display;
 use std::ops::{Deref, DerefMut};
+use std::sync::Arc;
 
 use log::trace;
-use parking_lot::RwLockReadGuard;
+use parking_lot::{RwLock, RwLockReadGuard};
 
 use crate::errors::Error;
+use crate::pause;
 use crate::protocols::{Hardware, PinModeId, Protocol};
 use crate::protocols::SerialProtocol;
 use crate::utils::events::{EventHandler, EventManager};
 use crate::utils::task;
+use crate::utils::task::TaskHandler;
 
 /// Lists all events a Board can emit/listen.
 pub enum BoardEvent {
@@ -39,6 +42,9 @@ pub struct Board {
     events: EventManager,
     /// The inner protocol used by this Board.
     protocol: Box<dyn Protocol>,
+    /// Inner handler to the task running the button value check.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    handler: Arc<RwLock<Option<TaskHandler>>>,
 }
 
 impl Default for Board {
@@ -101,6 +107,7 @@ impl Board {
         Self {
             events: EventManager::default(),
             protocol: Box::new(protocol),
+            handler: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -141,12 +148,23 @@ impl Board {
     pub fn open(self) -> Self {
         let events_clone = self.events.clone();
         let callback_board = self.clone();
-        task::run(async move {
-            let board = callback_board.blocking_open()?;
-            events_clone.emit(BoardEvent::OnReady, board);
-            Ok(())
-        })
-        .expect("Task failed");
+        *self.handler.write() = Some(
+            task::run(async move {
+                let mut board = callback_board.blocking_open()?;
+                events_clone.emit(BoardEvent::OnReady, board.clone());
+
+                // Infinite loop to listen for inputs from the board.
+                // @todo this is constant polling. Evaluate if this is the right solution and the polling resolution.
+                loop {
+                    let _ = board.read_and_decode();
+                    pause!(10);
+                }
+
+                #[allow(unreachable_code)]
+                Ok(())
+            })
+            .unwrap(),
+        );
 
         self
     }
@@ -190,6 +208,11 @@ impl Board {
         let callback_board = self.clone();
         task::run(async move {
             let board = callback_board.blocking_close()?;
+
+            if let Some(handler) = board.handler.read().as_ref() {
+                handler.abort();
+            }
+            *board.handler.write() = None;
             events.emit(BoardEvent::OnClose, board);
             Ok(())
         })
@@ -263,6 +286,15 @@ impl Board {
     /// }
     pub fn get_hardware(&self) -> RwLockReadGuard<Hardware> {
         self.protocol.get_hardware().read()
+    }
+}
+
+impl Drop for Board {
+    fn drop(&mut self) {
+        if let Some(handler) = self.handler.read().as_ref() {
+            handler.abort();
+        }
+        *self.handler.write() = None;
     }
 }
 
@@ -388,6 +420,7 @@ mod tests {
     fn test_board_run() {
         let board = Board::run();
         assert_eq!(board.protocol.get_protocol_name(), "SerialProtocol");
+        board.close();
     }
 
     #[test]

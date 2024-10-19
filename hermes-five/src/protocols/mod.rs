@@ -79,8 +79,6 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         while self.read_and_decode()? != Message::CapabilityResponse {}
         self.query_analog_mapping()?;
         self.read_and_decode()?;
-        self.report_digital(0, true)?;
-        self.report_digital(1, true)?;
         self.set_connected(true);
         Ok(())
     }
@@ -201,7 +199,20 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     /// This will activate the reporting of all pins in port (hence the pin will send us its value periodically)
     /// https://github.com/firmata/protocol/blob/master/protocol.md
     fn report_digital(&mut self, port: u8, state: bool) -> Result<(), Error> {
-        self.write(&[REPORT_DIGITAL | port, u8::from(state)])
+        let payload = &[REPORT_DIGITAL | port, u8::from(state)];
+        trace!("Report digital: {:02X?}", payload);
+        self.write(payload)
+    }
+
+    /// Helper around `report_digital_pin`.
+    ///
+    /// /!\ Also this method takes a pin as input, it will affect the whole port (8 pins) it belongs
+    /// since Firmata does not support individual pin reporting.
+    /// This will activate the reporting of all pins in port (hence the pin will send us its value periodically)
+    /// https://github.com/firmata/protocol/blob/master/protocol.md
+    fn report_digital_pin(&mut self, pin: u16, state: bool) -> Result<(), Error> {
+        let port = (pin / 8) as u8;
+        self.report_digital(port, state)
     }
 
     /// Set the `mode` of the specified `pin`.
@@ -333,7 +344,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         for i in 0..8 {
             let pin = (8 * port) + i;
             let mode: PinModeId = self.get_hardware().read().get_pin(pin)?.mode.id;
-            if mode == PinModeId::INPUT {
+            if mode == PinModeId::INPUT || mode == PinModeId::PULLUP {
                 self.get_hardware().write().get_pin_mut(pin)?.value = (value >> (i & 0x07)) & 0x01;
             }
         }
@@ -410,13 +421,9 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
                 i += 2;
             }
 
-            let mut pin = Pin {
-                id,
-                mode: PinMode::default(),
-                supported_modes,
-                value: 0,
-                channel: None,
-            };
+            let mut pin = Pin::default();
+            pin.id = id;
+            pin.supported_modes = supported_modes;
             if !pin.supported_modes.is_empty() {
                 pin.mode = pin.supported_modes.first().unwrap().clone();
             }

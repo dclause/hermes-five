@@ -50,6 +50,10 @@ pub fn create_digital_pin(id: u16, value: u16) -> Pin {
                 resolution: 1,
             },
             PinMode {
+                id: PinModeId::PULLUP,
+                resolution: 1,
+            },
+            PinMode {
                 id: PinModeId::OUTPUT,
                 resolution: 1,
             },

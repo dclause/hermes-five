@@ -71,6 +71,22 @@ path = "examples/board/multiple_events.rs"
 name = "board_ready_event"
 path = "examples/board/ready_event.rs"
 
+
+# ########################################
+# Button examples
+
+[[example]]
+name = "button_simple"
+path = "examples/button/simple.rs"
+
+[[example]]
+name = "button_pullup"
+path = "examples/button/pullup.rs"
+
+[[example]]
+name = "button_inverted"
+path = "examples/button/inverted.rs"
+
 # ########################################
 # LED examples
 

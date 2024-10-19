@@ -127,7 +127,7 @@ impl State {
     }
 
     /// Extracts the boolean value if it is a boolean.
-    pub fn as_boolean(&self) -> bool {
+    pub fn as_bool(&self) -> bool {
         match self {
             State::Null => false,
             State::Boolean(b) => *b,
@@ -267,32 +267,32 @@ mod tests {
 
     #[test]
     fn test_as_boolean() {
-        assert_eq!(State::Null.as_boolean(), false);
+        assert_eq!(State::Null.as_bool(), false);
 
-        assert_eq!(State::Boolean(false).as_boolean(), false);
-        assert_eq!(State::Boolean(true).as_boolean(), true);
+        assert_eq!(State::Boolean(false).as_bool(), false);
+        assert_eq!(State::Boolean(true).as_bool(), true);
 
-        assert_eq!(State::Integer(0).as_boolean(), false);
-        assert_eq!(State::Integer(10).as_boolean(), true);
+        assert_eq!(State::Integer(0).as_bool(), false);
+        assert_eq!(State::Integer(10).as_bool(), true);
 
-        assert_eq!(State::Signed(-10).as_boolean(), false);
-        assert_eq!(State::Signed(0).as_boolean(), false);
-        assert_eq!(State::Signed(10).as_boolean(), true);
+        assert_eq!(State::Signed(-10).as_bool(), false);
+        assert_eq!(State::Signed(0).as_bool(), false);
+        assert_eq!(State::Signed(10).as_bool(), true);
 
-        assert_eq!(State::Float(-0.5).as_boolean(), false);
-        assert_eq!(State::Float(0.0).as_boolean(), false);
-        assert_eq!(State::Float(10.5).as_boolean(), true);
+        assert_eq!(State::Float(-0.5).as_bool(), false);
+        assert_eq!(State::Float(0.0).as_bool(), false);
+        assert_eq!(State::Float(10.5).as_bool(), true);
 
-        assert_eq!(State::String(String::from("")).as_boolean(), false);
-        assert_eq!(State::String(" ".into()).as_boolean(), true);
+        assert_eq!(State::String(String::from("")).as_bool(), false);
+        assert_eq!(State::String(" ".into()).as_bool(), true);
 
-        assert_eq!(State::Array(vec!()).as_boolean(), false);
-        assert_eq!(State::Array(vec![1.into()]).as_boolean(), true);
+        assert_eq!(State::Array(vec!()).as_bool(), false);
+        assert_eq!(State::Array(vec![1.into()]).as_bool(), true);
 
         let mut map = HashMap::new();
-        assert_eq!(State::Object(map.clone()).as_boolean(), false);
+        assert_eq!(State::Object(map.clone()).as_bool(), false);
         map.insert("key".to_string(), State::Integer(42));
-        assert_eq!(State::Object(map).as_boolean(), true);
+        assert_eq!(State::Object(map).as_bool(), true);
     }
 
     #[test]

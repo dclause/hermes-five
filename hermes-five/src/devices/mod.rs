@@ -2,6 +2,8 @@ use std::fmt::{Debug, Display};
 
 use dyn_clone::DynClone;
 
+pub use crate::devices::button::Button;
+pub use crate::devices::button::ButtonEvent;
 pub use crate::devices::led::Led;
 pub use crate::devices::servo::Servo;
 pub use crate::devices::servo::ServoType;
@@ -9,6 +11,7 @@ use crate::errors::Error;
 use crate::utils::{Easing, State};
 use crate::utils::scale::Scalable;
 
+mod button;
 mod led;
 mod servo;
 
@@ -76,7 +79,11 @@ dyn_clone::clone_trait_object!(Actuator);
 /// This trait extends `Device` and is intended for sensors that require the same capabilities
 /// as devices, including debugging, cloning, and concurrency support.
 #[cfg_attr(feature = "serde", typetag::serde(tag = "type"))]
-pub trait Sensor: Device {}
+pub trait Sensor: Device {
+    /// Retrieves the sensor current state.
+    fn get_state(&self) -> State;
+}
+
 dyn_clone::clone_trait_object!(Sensor);
 
 #[cfg(feature = "serde")]
