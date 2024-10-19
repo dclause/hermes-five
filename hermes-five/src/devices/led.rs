@@ -78,7 +78,7 @@ impl Led {
             true => 0xFF,
         };
 
-        let led = Self {
+        let mut led = Self {
             pin,
             state: Arc::new(RwLock::new(default)),
             default,
@@ -87,6 +87,8 @@ impl Led {
             protocol,
             animation: Arc::new(None),
         };
+
+        led.reset()?;
 
         Ok(led)
     }
