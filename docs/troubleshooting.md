@@ -35,7 +35,5 @@ When running the basic sample code from [Getting Started](/getting-started) sect
 the error:   
 **_Task failed: "Protocol error: Operation timed out."_**
 
-1. Check that your board has the proper and
-   latest [StandardFirmataPlus.ino](https://github.com/firmata/arduino/blob/main/examples/StandardFirmataPlus/StandardFirmataPlus.ino)
-   Arduino sketch uploaded.
-   :::
+1. Check that your board has the proper and latest [StandardFirmataPlus.ino](https://github.com/firmata/arduino/blob/main/examples/StandardFirmataPlus/StandardFirmataPlus.ino) Arduino sketch uploaded.
+:::
