@@ -46,12 +46,12 @@ pub const SET_DIGITAL_PIN_VALUE: u8 = 0xF5;
 //
 /// Report protocol version
 pub const REPORT_PROTOCOL_VERSION: u8 = 0xF9;
-/// Reset from MIDI
+/// Reset from software
 pub const SYSTEM_RESET: u8 = 0xFF;
 //
-/// Start a MIDI Sysex message
+/// Start a Sysex message
 pub const START_SYSEX: u8 = 0xF0;
-/// End a MIDI Sysex message
+/// End a Sysex message
 pub const END_SYSEX: u8 = 0xF7;
 
 // Extended command set using sysex (0-127/0x00-0x7F)

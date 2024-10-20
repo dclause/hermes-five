@@ -66,19 +66,35 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     // ########################################
     // Protocol related functions
 
+    /// Sends a software reset request.
+    fn software_reset(&mut self) -> Result<(), Error> {
+        let payload = &[SYSTEM_RESET];
+        trace!("Software reset: {:02X?}", payload);
+        self.write(payload)
+    }
+
     /// Starts a conversation with the board: validate the firmware version and...
     fn handshake(&mut self) -> Result<(), Error> {
         self.set_connected(false);
-        self.query_firmware()?;
-        self.read_and_decode()?;
-        self.query_capabilities()?;
+
+        // Forces a software reset: some board do not restart automatically when the connexion is opened.
+        // Therefore, running two different software in a raw may result to unexpected settings leftover,
+        // for instance the report_analog and report_digital on some pins may continue otherwise.
+        self.software_reset()?;
+
         // The Firmata protocol is supposed to send the protocol and firmware version automatically,
         // but it doesn't always do so. The while-loop here ensures that we are now in sync with
         // receiving the expected data. This prevents an initial 'read_and_decode()' call that would
         // otherwise result in a long timeout while waiting to detect the situation
+        self.query_firmware()?;
+        while self.read_and_decode()? != Message::ReportFirmwareVersion {}
+
+        self.query_capabilities()?;
         while self.read_and_decode()? != Message::CapabilityResponse {}
         self.query_analog_mapping()?;
-        self.read_and_decode()?;
+        while self.read_and_decode()? != Message::AnalogMappingResponse {}
+
+        // println!("PINS {:#?}", self.get_hardware());
         self.set_connected(true);
         Ok(())
     }
@@ -186,11 +202,28 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         self.write(payload)
     }
 
+    /// Set the sampling interval (in ms).
+    ///
+    /// The sampling interval sets how often analog data and i2c data is reported to the
+    /// client. The default for the arduino implementation is 19ms. This means that every
+    /// 19ms analog data will be reported and any i2c devices with read continuous mode
+    /// will be read.
+    fn sampling_interval(&mut self, interval: u16) -> Result<(), Error> {
+        self.write(&[
+            START_SYSEX,
+            SAMPLING_INTERVAL,
+            interval as u8 & SYSEX_REALTIME,
+            (interval >> 7) as u8 & SYSEX_REALTIME,
+            END_SYSEX,
+        ])
+    }
+
     /// Set the analog reporting `state` of the specified `pin`.
     ///
     /// This will activate the reporting of the pin (hence the pin will send us its value periodically)
     /// https://github.com/firmata/protocol/blob/master/protocol.md
     fn report_analog(&mut self, channel: u8, state: bool) -> Result<(), Error> {
+        trace!("Report analog: {}", state);
         self.write(&[REPORT_ANALOG | channel, u8::from(state)])
     }
 
@@ -879,6 +912,7 @@ mod tests {
         assert_eq!(result.unwrap(), Message::AnalogMappingResponse);
         {
             let lock = protocol.get_hardware().read();
+            println!("PIN {:?}", lock.to_owned().get_pin(0).unwrap());
             assert_eq!(lock.to_owned().get_pin(0).unwrap().channel, Some(1));
         }
 
