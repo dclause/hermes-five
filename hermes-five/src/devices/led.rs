@@ -17,7 +17,7 @@ use crate::utils::scale::Scalable;
 pub struct Led {
     // ########################################
     // # Basics
-    /// The pin (id) of the board [`Board`] used to control the LED.
+    /// The pin (id) of the [`Board`] used to control the LED.
     pin: u16,
     /// The current LED state.
     #[cfg_attr(feature = "serde", serde(with = "crate::devices::arc_rwlock_serde"))]
@@ -46,7 +46,7 @@ impl Led {
     /// Creates an instance of a LED attached to a given board.
     ///
     /// # Parameters
-    /// * `board`: the board which the LED is attached to
+    /// * `board`: the [`Board`] which the LED is attached to
     /// * `pin`: the pin used to control the LED
     /// * `default`: the default LED state (boolean on/off)
     ///

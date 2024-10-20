@@ -65,9 +65,3 @@ impl Actuator for MockActuator {
         false
     }
 }
-
-impl Drop for MockActuator {
-    fn drop(&mut self) {
-        println!("MockActuator is dropped")
-    }
-}

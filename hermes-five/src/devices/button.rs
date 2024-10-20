@@ -11,7 +11,7 @@ use crate::utils::{State, task};
 use crate::utils::events::{EventHandler, EventManager};
 use crate::utils::task::TaskHandler;
 
-/// Lists all events a Button type device can emit/listen.
+/// Lists all events a [`Button`] type device can emit/listen.
 pub enum ButtonEvent {
     /// Triggered when the button value changes.
     OnChange,
@@ -38,7 +38,7 @@ impl Into<String> for ButtonEvent {
 pub struct Button {
     // ########################################
     // # Basics
-    /// The pin (id) of the board [`Board`] used to read the button value.
+    /// The pin (id) of the [`Board`] used to read the button value.
     pin: u16,
     /// The current Button state.
     #[cfg_attr(feature = "serde", serde(with = "crate::devices::arc_rwlock_serde"))]
@@ -68,7 +68,7 @@ impl Button {
     /// - Button released => pin state LOW
     ///
     /// # Parameters
-    /// * `board`: the board which the Button is attached to
+    /// * `board`: the [`Board`] which the Button is attached to
     /// * `pin`: the pin used to read the Button value
     ///
     /// # Errors
@@ -95,7 +95,7 @@ impl Button {
     /// - Inverted button released => pin state HIGH
     ///
     /// # Parameters
-    /// * `board`: the board which the Button is attached to
+    /// * `board`: the [`Board`] which the Button is attached to
     /// * `pin`: the pin used to read the Button value
     ///
     /// # Errors
@@ -121,7 +121,7 @@ impl Button {
     /// - Pullup button released => pin state HIGH
     ///
     /// # Parameters
-    /// * `board`: the board which the Button is attached to
+    /// * `board`: the [`Board`] which the Button is attached to
     /// * `pin`: the pin used to read the Button value
     ///
     /// # Errors
@@ -149,7 +149,7 @@ impl Button {
     /// - Inverted pullup button released => pin state LOW
     ///
     /// # Parameters
-    /// * `board`: the board which the Button is attached to
+    /// * `board`: the [`Board`] which the Button is attached to
     /// * `pin`: the pin used to read the Button value
     ///
     /// # Errors
@@ -265,13 +265,13 @@ impl Button {
     }
 }
 
-impl Drop for Button {
-    fn drop(&mut self) {
-        if let Some(handler) = self.interval.read().as_ref() {
-            handler.abort();
-        }
-    }
-}
+// impl Drop for Button {
+//     fn drop(&mut self) {
+//         if let Some(handler) = self.interval.read().as_ref() {
+//             handler.abort();
+//         }
+//     }
+// }
 
 impl Display for Button {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

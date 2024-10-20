@@ -157,7 +157,7 @@ impl Board {
                 // @todo this is constant polling. Evaluate if this is the right solution and the polling resolution.
                 loop {
                     let _ = board.read_and_decode();
-                    pause!(10);
+                    pause!(19);
                 }
 
                 #[allow(unreachable_code)]
@@ -289,14 +289,14 @@ impl Board {
     }
 }
 
-impl Drop for Board {
-    fn drop(&mut self) {
-        if let Some(handler) = self.handler.read().as_ref() {
-            handler.abort();
-        }
-        *self.handler.write() = None;
-    }
-}
+// impl Drop for Board {
+//     fn drop(&mut self) {
+//         if let Some(handler) = self.handler.read().as_ref() {
+//             handler.abort();
+//         }
+//         *self.handler.write() = None;
+//     }
+// }
 
 impl Display for Board {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

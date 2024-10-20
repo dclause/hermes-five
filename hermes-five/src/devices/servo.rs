@@ -27,7 +27,7 @@ pub enum ServoType {
 pub struct Servo {
     // ########################################
     // # Basics
-    /// The pin (id) of the board [`Board`] used to control the Servo.
+    /// The pin (id) of the [`Board`] used to control the Servo.
     pin: u16,
     /// The current Servo state.
     #[cfg_attr(feature = "serde", serde(with = "crate::devices::arc_rwlock_serde"))]
