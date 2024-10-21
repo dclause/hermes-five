@@ -208,6 +208,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
     /// client. The default for the arduino implementation is 19ms. This means that every
     /// 19ms analog data will be reported and any i2c devices with read continuous mode
     /// will be read.
+    /// https://github.com/firmata/protocol/blob/master/protocol.md#sampling-interval
     fn sampling_interval(&mut self, interval: u16) -> Result<(), Error> {
         self.write(&[
             START_SYSEX,
@@ -621,11 +622,11 @@ mod tests {
             assert_eq!(pin.value, 170, "Pin value updated");
         }
 
-        let result = protocol.analog_write(5, 0);
+        let result = protocol.analog_write(6, 0);
         assert!(result.is_err(), "{:?}", result);
         assert_eq!(
             result.err().unwrap().to_string(),
-            "Hardware error: Unknown pin 5."
+            "Hardware error: Unknown pin 6."
         );
     }
 
@@ -775,6 +776,18 @@ mod tests {
             protocol.buf.starts_with(&[0xF0, 0x69, 0xF7]),
             "Buffer data has been sent [{:?}]",
             format_as_hex(&protocol.buf[..3])
+        );
+    }
+
+    #[test]
+    fn test_sampling_interval() {
+        let mut protocol = MockProtocol::default();
+        let result = protocol.sampling_interval(100);
+        assert!(result.is_ok(), "{:?}", result);
+        assert!(
+            protocol.buf.starts_with(&[0xF0, 0x7A, 0x64, 0x00, 0xF7]),
+            "Buffer data has been sent [{:?}]",
+            format_as_hex(&protocol.buf[..5])
         );
     }
 

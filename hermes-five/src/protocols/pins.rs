@@ -96,7 +96,7 @@ impl Debug for Pin {
 
 /// Defines a structure to receive either an id or a name for a pin: 1, 'D1' or 'A1' for instance.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Clone, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum PinIdOrName {
     Id(u16),
     Name(String),
@@ -264,7 +264,7 @@ impl Display for PinModeId {
 
 #[cfg(test)]
 mod tests {
-    use crate::protocols::{Pin, PinMode, PinModeId};
+    use crate::protocols::{Pin, PinIdOrName, PinMode, PinModeId};
 
     #[test]
     fn test_pin_supports_mode() {
@@ -405,5 +405,23 @@ mod tests {
     #[test]
     fn test_pin_mode_id_display() {
         assert_eq!(format!("{}", PinModeId::PWM), "PWM");
+    }
+
+    #[test]
+    fn test_pin_id_from() {
+        let pin = PinIdOrName::from(42u16);
+        assert_eq!(pin, PinIdOrName::Id(42));
+        let pin = PinIdOrName::from("D1");
+        assert_eq!(pin, PinIdOrName::Name("D1".to_string()));
+        let pin = PinIdOrName::from("A1".to_string());
+        assert_eq!(pin, PinIdOrName::Name("A1".to_string()));
+    }
+
+    #[test]
+    fn test_pin_id_display() {
+        let pin = PinIdOrName::Id(42);
+        assert_eq!(pin.to_string(), "42");
+        let pin = PinIdOrName::Name(String::from("A0"));
+        assert_eq!(pin.to_string(), "\"A0\"");
     }
 }

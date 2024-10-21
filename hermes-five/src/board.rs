@@ -413,7 +413,10 @@ mod tests {
         let flag = Arc::new(AtomicBool::new(false));
         let moved_flag = flag.clone();
 
-        let board = Board::from(MockProtocol::default()).open().close();
+        let board = Board::from(MockProtocol::default()).open();
+        board.attach(); // Close an attached board should detach it.
+        let board = board.close();
+
         board.on(BoardEvent::OnClose, move |board: Board| {
             let captured_flag = moved_flag.clone();
             async move {

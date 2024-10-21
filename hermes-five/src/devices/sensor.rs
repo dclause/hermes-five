@@ -62,11 +62,11 @@ impl AnalogInput {
     /// * `UnknownPin`: this function will bail an error if the sensor pin does not exist for this board.
     /// * `IncompatibleMode`: this function will bail an error if the sensor pin does not support ANALOG mode.
     pub fn new<T: Into<PinIdOrName>>(board: &Board, analog_pin: T) -> Result<Self, Error> {
-        let pin = board.get_hardware().get_pin(analog_pin.into())?.id;
+        let pin = board.get_hardware().get_pin(analog_pin.into())?.clone();
 
         let mut sensor = Self {
-            pin,
-            state: Arc::new(RwLock::new(0)),
+            pin: pin.id,
+            state: Arc::new(RwLock::new(pin.value)),
             protocol: board.get_protocol(),
             handler: Arc::new(RwLock::new(None)),
             events: Default::default(),
@@ -163,128 +163,79 @@ impl Sensor for AnalogInput {
         State::from(*self.state.read())
     }
 }
-//
-// #[cfg(test)]
-// mod tests {
-//     use std::sync::atomic::{AtomicBool, Ordering};
-//
-//     use crate::Board;
-//     // Assuming there's a mock protocol for testing
-//     use crate::mocks::protocol::MockProtocol;
-//
-//     use super::*;
-//
-//     #[hermes_macros::test]
-//     fn test_new_button_creation() {
-//         let board = Board::from(MockProtocol::default());
-//         let button = Button::new(&board, 4);
-//
-//         assert!(button.is_ok());
-//         let button = button.unwrap();
-//         assert_eq!(button.pin, 4);
-//         assert!(!button.is_inverted());
-//         assert!(!button.is_pullup());
-//
-//         drop(button);
-//     }
-//
-//     #[hermes_macros::test]
-//     fn test_new_inverted_button_creation() {
-//         let board = Board::from(MockProtocol::default());
-//         let button = Button::new_inverted(&board, 4);
-//
-//         assert!(button.is_ok());
-//         let button = button.unwrap();
-//         assert_eq!(button.pin, 4);
-//         assert!(button.is_inverted());
-//         assert!(!button.is_pullup());
-//
-//         drop(button);
-//     }
-//
-//     #[hermes_macros::test]
-//     fn test_new_pullup_button_creation() {
-//         let board = Board::from(MockProtocol::default());
-//         let button = Button::new_pullup(&board, 4);
-//
-//         assert!(button.is_ok());
-//         let button = button.unwrap();
-//         assert_eq!(button.pin, 4);
-//         assert!(!button.is_inverted());
-//         assert!(button.is_pullup());
-//
-//         drop(button);
-//     }
-//
-//     #[hermes_macros::test]
-//     fn test_new_inverted_pullup_button_creation() {
-//         let board = Board::from(MockProtocol::default());
-//         let button = Button::new_inverted_pullup(&board, 4);
-//
-//         assert!(button.is_ok());
-//         let button = button.unwrap();
-//         assert_eq!(button.pin, 4);
-//         assert!(button.is_inverted());
-//         assert!(button.is_pullup());
-//
-//         drop(button);
-//     }
-//
-//     #[hermes_macros::test]
-//     fn test_button_display() {
-//         let board = Board::from(MockProtocol::default());
-//         let button = Button::new(&board, 4).unwrap();
-//
-//         assert_eq!(
-//             format!("{}", button),
-//             String::from("Button (pin=4) [state=false, pullup=false, inverted=false]")
-//         );
-//
-//         drop(button);
-//     }
-//
-//     #[hermes_macros::test]
-//     fn test_button_event_emission() {
-//         let board = Board::from(MockProtocol::default());
-//         let button = Button::new(&board, 4).unwrap();
-//
-//         // Simulate an event handler
-//         let flag = Arc::new(AtomicBool::new(false));
-//         let moved_flag = flag.clone();
-//         button.on(ButtonEvent::OnChange, move |new_state: bool| {
-//             let captured_flag = moved_flag.clone();
-//             async move {
-//                 assert!(new_state);
-//                 captured_flag.store(new_state, Ordering::SeqCst);
-//                 Ok(())
-//             }
-//         });
-//
-//         // Simulate pin state change in the protocol
-//         button
-//             .protocol
-//             .get_hardware()
-//             .write()
-//             .get_pin_mut(4)
-//             .unwrap()
-//             .value = 1;
-//
-//         // Ensure event is emitted
-//         pause!(500);
-//         assert!(flag.load(Ordering::SeqCst));
-//
-//         drop(button);
-//     }
-//
-//     #[hermes_macros::test]
-//     fn test_button_inverted_state_logic() {
-//         let board = Board::from(MockProtocol::default());
-//         let button = Button::new_inverted(&board, 4).unwrap();
-//         assert_eq!(button.get_state().as_bool(), true);
-//
-//         button.state.write().clone_from(&true); // Simulate a pressed button
-//         assert_eq!(button.get_state().as_bool(), false);
-//
-//         drop(button);
-//     }
-// }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicU16, Ordering};
+
+    use crate::Board;
+    use crate::mocks::protocol::MockProtocol;
+
+    use super::*;
+
+    #[hermes_macros::test]
+    fn test_new_analog_input() {
+        let board = Board::from(MockProtocol::default());
+        let sensor = AnalogInput::new(&board, 14).unwrap();
+        assert_eq!(sensor.pin, 14);
+        assert_eq!(sensor.get_state().as_integer(), 100);
+        sensor.detach();
+
+        let sensor = AnalogInput::new(&board, "A22").unwrap();
+        assert_eq!(sensor.pin, 22);
+        assert_eq!(sensor.get_state().as_integer(), 222);
+
+        board.detach();
+        sensor.detach();
+    }
+
+    #[hermes_macros::test]
+    fn test_button_display() {
+        let board = Board::from(MockProtocol::default());
+        let sensor = AnalogInput::new(&board, "A15").unwrap();
+        assert_eq!(sensor.get_state().as_integer(), 200);
+        assert_eq!(
+            format!("{}", sensor),
+            String::from("AnalogSensor (pin=15) [state=200]")
+        );
+
+        board.detach();
+        sensor.detach();
+    }
+
+    #[hermes_macros::test]
+    fn test_button_events() {
+        let pin = "A14";
+        let board = Board::from(MockProtocol::default());
+        let sensor = AnalogInput::new(&board, pin).unwrap();
+        assert_eq!(sensor.get_state().as_integer(), 100);
+
+        // CHANGE
+        let change_flag = Arc::new(AtomicU16::new(100));
+        let moved_change_flag = change_flag.clone();
+        sensor.on(SensorEvent::OnChange, move |new_state: u16| {
+            let captured_flag = moved_change_flag.clone();
+            async move {
+                captured_flag.store(new_state, Ordering::SeqCst);
+                Ok(())
+            }
+        });
+
+        assert_eq!(change_flag.load(Ordering::SeqCst), 100);
+
+        // Simulate pin state change in the protocol => take value 0xFF
+        sensor
+            .protocol
+            .get_hardware()
+            .write()
+            .get_pin_mut(pin)
+            .unwrap()
+            .value = 0xFF;
+
+        pause!(500);
+        assert_eq!(change_flag.load(Ordering::SeqCst), 0xFF);
+
+        board.detach();
+        sensor.detach();
+    }
+}

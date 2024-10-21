@@ -95,7 +95,7 @@ mod tests {
 
     #[test]
     fn test_get_pin_error() {
-        assert!(create_test_hardware().get_pin(5).is_err());
+        assert!(create_test_hardware().get_pin(6).is_err());
         assert!(create_test_hardware().get_pin_mut(6).is_err());
     }
 

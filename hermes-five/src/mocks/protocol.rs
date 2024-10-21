@@ -69,6 +69,10 @@ impl Protocol for MockProtocol {
     fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), Error> {
         // Simulate read operation (for testing purposes)
         let len = self.buf.len().min(buf.len());
+        // Loop over.
+        if self.index + len > self.buf.len() {
+            self.index = 0;
+        }
         buf[..len].copy_from_slice(&self.buf[self.index..self.index + len]);
         self.index += len;
         Ok(())

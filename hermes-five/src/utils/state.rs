@@ -111,13 +111,6 @@ impl State {
     }
 }
 
-// #[cfg(feature = "serde")]
-// impl<T: serde::Serialize> From<T> for State {
-//     fn from(value: T) -> Self {
-//         serde_json::to_value(value).into()
-//     }
-// }
-
 // **********************************************
 // Extractors: get the value inside State.
 // **********************************************
@@ -688,6 +681,13 @@ mod tests {
             map.insert("key".to_string(), State::Integer(42));
             map.insert("state".to_string(), State::Object(map.clone()));
             assert_eq!(state, State::Object(map));
+        }
+
+        #[test]
+        fn test_into_state() {
+            let input = "hello world";
+            let state = State::into_state(input);
+            assert_eq!(state.as_string(), String::from("hello world"));
         }
     }
 }
