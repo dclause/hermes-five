@@ -5,6 +5,8 @@ use dyn_clone::DynClone;
 pub use crate::devices::button::Button;
 pub use crate::devices::button::ButtonEvent;
 pub use crate::devices::led::Led;
+pub use crate::devices::sensor::AnalogInput;
+pub use crate::devices::sensor::SensorEvent;
 pub use crate::devices::servo::Servo;
 pub use crate::devices::servo::ServoType;
 use crate::errors::Error;
@@ -13,6 +15,7 @@ use crate::utils::scale::Scalable;
 
 mod button;
 mod led;
+mod sensor;
 mod servo;
 
 /// A trait for devices that can be debugged, cloned, and used in concurrent contexts.

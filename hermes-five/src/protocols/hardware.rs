@@ -3,7 +3,7 @@ use std::fmt::Debug;
 
 use crate::errors::*;
 use crate::errors::HardwareError::UnknownPin;
-use crate::protocols::{I2CReply, Pin};
+use crate::protocols::{I2CReply, Pin, PinIdOrName};
 
 /// Represents the hardware and internal data that a generic protocol handles.
 ///
@@ -37,28 +37,47 @@ pub struct Hardware {
 }
 
 impl Hardware {
-    /// Retrieves a reference to a pin by its index.
+    /// Retrieves a reference to a pin by its id or name.
     ///
     /// # Arguments
     /// * `pin`  - The index of the pin to retrieve.
     ///
     /// # Errors
     /// * `UnknownPin` - An `Error` returned if the pin index is out of bounds.
-    pub fn get_pin(&self, pin: u16) -> Result<&Pin, Error> {
-        self.pins.get(&pin).ok_or(Error::from(UnknownPin { pin }))
+    pub fn get_pin<T: Into<PinIdOrName>>(&self, pin: T) -> Result<&Pin, Error> {
+        let pin = pin.into();
+        match &pin {
+            PinIdOrName::Id(id) => self.pins.get(&id).ok_or(Error::from(UnknownPin { pin })),
+            PinIdOrName::Name(name) => Ok(self
+                .pins
+                .iter()
+                .find(|(_, &ref pin)| pin.name == *name)
+                .ok_or(Error::from(UnknownPin { pin }))?
+                .1),
+        }
     }
 
-    /// Retrieves a mutable reference to a pin by its index.
+    /// Retrieves a mutable reference to a pin by its id or name.
     ///
     /// # Arguments
     /// * `pin` - The index of the pin to retrieve.
     ///
     /// # Errors
     /// * `UnknownPin` - An `Error` returned if the pin index is out of bounds.
-    pub fn get_pin_mut(&mut self, pin: u16) -> Result<&mut Pin, Error> {
-        self.pins
-            .get_mut(&pin)
-            .ok_or(Error::from(UnknownPin { pin }))
+    pub fn get_pin_mut<T: Into<PinIdOrName>>(&mut self, pin: T) -> Result<&mut Pin, Error> {
+        let pin = pin.into();
+        match &pin {
+            PinIdOrName::Id(id) => self
+                .pins
+                .get_mut(&id)
+                .ok_or(Error::from(UnknownPin { pin })),
+            PinIdOrName::Name(name) => Ok(self
+                .pins
+                .iter_mut()
+                .find(|(_, &mut ref pin)| pin.name == *name)
+                .ok_or(Error::from(UnknownPin { pin }))?
+                .1),
+        }
     }
 }
 

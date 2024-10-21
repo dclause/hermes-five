@@ -6,6 +6,7 @@ use crate::protocols::Hardware;
 pub fn create_analog_pin(id: u16, value: u16) -> Pin {
     Pin {
         id,
+        name: format!("A{}", id),
         mode: PinMode {
             id: PinModeId::ANALOG,
             resolution: 8,
@@ -36,6 +37,7 @@ pub fn create_analog_pin(id: u16, value: u16) -> Pin {
 pub fn create_digital_pin(id: u16, value: u16) -> Pin {
     Pin {
         id,
+        name: format!("D{}", id),
         mode: PinMode {
             id: PinModeId::OUTPUT,
             resolution: 1,
@@ -66,6 +68,7 @@ pub fn create_digital_pin(id: u16, value: u16) -> Pin {
 pub fn create_input_pin(id: u16, value: u16) -> Pin {
     Pin {
         id,
+        name: format!("D{}", id),
         mode: PinMode {
             id: PinModeId::INPUT,
             resolution: 1,
@@ -92,6 +95,7 @@ pub fn create_input_pin(id: u16, value: u16) -> Pin {
 pub fn create_pwm_pin(id: u16, value: u16) -> Pin {
     Pin {
         id,
+        name: format!("D{}", id),
         mode: PinMode {
             id: PinModeId::PWM,
             resolution: 1,
@@ -122,6 +126,7 @@ pub fn create_pwm_pin(id: u16, value: u16) -> Pin {
 pub fn create_shift_pin(id: u16, value: u16) -> Pin {
     Pin {
         id,
+        name: format!("D{}", id),
         mode: PinMode {
             id: PinModeId::SHIFT,
             resolution: 8,
@@ -148,6 +153,7 @@ pub fn create_shift_pin(id: u16, value: u16) -> Pin {
 pub fn create_servo_pin(id: u16, value: u16) -> Pin {
     Pin {
         id,
+        name: format!("D{}", id),
         mode: PinMode {
             id: PinModeId::SERVO,
             resolution: 8,
@@ -174,6 +180,7 @@ pub fn create_servo_pin(id: u16, value: u16) -> Pin {
 pub fn create_unsupported_pin(id: u16) -> Pin {
     Pin {
         id,
+        name: format!("A{}", id),
         mode: PinMode {
             id: PinModeId::UNSUPPORTED,
             resolution: 0,

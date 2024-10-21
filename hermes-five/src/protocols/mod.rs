@@ -428,6 +428,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
                         mode: PinModeId::ANALOG,
                         context: "handle_analog_mapping_response",
                     })?;
+                pin.name = format!("A{}", buf[i]);
                 pin.channel = Some(buf[i]);
             }
             i += 1;
@@ -456,6 +457,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
 
             let mut pin = Pin::default();
             pin.id = id;
+            pin.name = format!("D{}", id);
             pin.supported_modes = supported_modes;
             if !pin.supported_modes.is_empty() {
                 pin.mode = pin.supported_modes.first().unwrap().clone();
@@ -912,7 +914,6 @@ mod tests {
         assert_eq!(result.unwrap(), Message::AnalogMappingResponse);
         {
             let lock = protocol.get_hardware().read();
-            println!("PIN {:?}", lock.to_owned().get_pin(0).unwrap());
             assert_eq!(lock.to_owned().get_pin(0).unwrap().channel, Some(1));
         }
 

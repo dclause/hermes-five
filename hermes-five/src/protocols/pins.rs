@@ -17,6 +17,8 @@ use crate::errors::HardwareError::IncompatibleMode;
 pub struct Pin {
     /// The pin id: should correspond also to the position of the pin in the [`Hardware::pins`]
     pub id: u16,
+    /// The pin name: an alternative String representation of the pin name: 'D13', 'A0', 'GPIO13' for instance.
+    pub name: String,
     /// Currently configured mode.
     pub mode: PinMode,
     /// All pin supported modes.
@@ -71,21 +73,59 @@ impl Pin {
 }
 
 impl Debug for Pin {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         // Transformer for "resolution"
         let mode_str = format!("{}", self.mode);
-        let channel_str = match self.channel {
-            None => String::default(),
-            Some(ch) => format!("A{}", ch),
-        };
 
-        f.debug_struct("Pin")
+        let mut debug_struct = f.debug_struct("Pin");
+        debug_struct
             .field("id", &self.id)
+            .field("name", &self.name)
             .field("mode", &mode_str)
-            .field("supported modes", &self.supported_modes)
-            .field("channel", &channel_str)
-            .field("value", &self.value)
-            .finish()
+            .field("supported modes", &self.supported_modes);
+        if let Some(channel) = self.channel {
+            debug_struct.field("channel", &channel);
+        } else {
+            debug_struct.field("channel", &None::<u8>);
+        }
+        debug_struct.field("value", &self.value).finish()
+    }
+}
+
+// ########################################
+
+/// Defines a structure to receive either an id or a name for a pin: 1, 'D1' or 'A1' for instance.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug)]
+pub enum PinIdOrName {
+    Id(u16),
+    Name(String),
+}
+
+impl From<u16> for PinIdOrName {
+    fn from(n: u16) -> Self {
+        PinIdOrName::Id(n)
+    }
+}
+
+impl From<&str> for PinIdOrName {
+    fn from(s: &str) -> Self {
+        PinIdOrName::Name(s.to_string())
+    }
+}
+
+impl From<String> for PinIdOrName {
+    fn from(s: String) -> Self {
+        PinIdOrName::Name(s)
+    }
+}
+
+impl Display for PinIdOrName {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PinIdOrName::Id(n) => write!(f, "{}", n),
+            PinIdOrName::Name(s) => write!(f, "{:?}", s),
+        }
     }
 }
 
@@ -220,6 +260,8 @@ impl Display for PinModeId {
     }
 }
 
+// ########################################
+
 #[cfg(test)]
 mod tests {
     use crate::protocols::{Pin, PinMode, PinModeId};
@@ -293,13 +335,13 @@ mod tests {
             channel: Some(1),
             ..Default::default()
         };
-        assert_eq!(format!("{:?}", pin), String::from("Pin { id: 0, mode: \"UNSUPPORTED\", supported modes: [[id: INPUT, resolution: 0], [id: OUTPUT, resolution: 1], [id: ANALOG, resolution: 8]], channel: \"A1\", value: 0 }"));
+        assert_eq!(format!("{:?}", pin), String::from("Pin { id: 0, name: \"\", mode: \"UNSUPPORTED\", supported modes: [[id: INPUT, resolution: 0], [id: OUTPUT, resolution: 1], [id: ANALOG, resolution: 8]], channel: 1, value: 0 }"));
         pin.mode = PinMode {
             id: PinModeId::INPUT,
             resolution: 0,
         };
         pin.channel = None;
-        assert_eq!(format!("{:?}", pin), String::from("Pin { id: 0, mode: \"INPUT\", supported modes: [[id: INPUT, resolution: 0], [id: OUTPUT, resolution: 1], [id: ANALOG, resolution: 8]], channel: \"\", value: 0 }"));
+        assert_eq!(format!("{:?}", pin), String::from("Pin { id: 0, name: \"\", mode: \"INPUT\", supported modes: [[id: INPUT, resolution: 0], [id: OUTPUT, resolution: 1], [id: ANALOG, resolution: 8]], channel: None, value: 0 }"));
     }
 
     #[test]

@@ -5,7 +5,7 @@ use snafu::Snafu;
 
 pub use crate::errors::Error::*;
 use crate::errors::ProtocolError::IoException;
-use crate::protocols::PinModeId;
+use crate::protocols::{PinIdOrName, PinModeId};
 
 #[derive(Debug, Snafu)]
 #[snafu(visibility(pub))]
@@ -83,7 +83,7 @@ pub enum HardwareError {
         context: &'static str,
     },
     /// Unknown pin {pin}
-    UnknownPin { pin: u16 },
+    UnknownPin { pin: PinIdOrName },
 }
 
 #[cfg(test)]
@@ -151,7 +151,9 @@ mod tests {
 
     #[test]
     fn test_from_hardware_error() {
-        let hardware_error = UnknownPin { pin: 42 };
+        let hardware_error = UnknownPin {
+            pin: PinIdOrName::Id(42),
+        };
         let error: Error = hardware_error.into();
         assert_eq!(format!("{}", error), "Hardware error: Unknown pin 42.");
     }

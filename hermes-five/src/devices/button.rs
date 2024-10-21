@@ -54,7 +54,7 @@ pub struct Button {
     protocol: Box<dyn Protocol>,
     /// Inner handler to the task running the button value check.
     #[cfg_attr(feature = "serde", serde(skip))]
-    interval: Arc<RwLock<Option<TaskHandler>>>,
+    handler: Arc<RwLock<Option<TaskHandler>>>,
     /// The event manager for the button.
     #[cfg_attr(feature = "serde", serde(skip))]
     events: EventManager,
@@ -81,10 +81,10 @@ impl Button {
             invert: false,
             pullup: false,
             protocol: board.get_protocol(),
-            interval: Arc::new(RwLock::new(None)),
+            handler: Arc::new(RwLock::new(None)),
             events: Default::default(),
         }
-        ._start_reactive()
+        .start_with(board)
     }
 
     /// Creates an instance of an inverted PULL-DOWN button attached to a given board:
@@ -108,10 +108,10 @@ impl Button {
             invert: true,
             pullup: false,
             protocol: board.get_protocol(),
-            interval: Arc::new(RwLock::new(None)),
+            handler: Arc::new(RwLock::new(None)),
             events: Default::default(),
         }
-        ._start_reactive()
+        .start_with(board)
     }
 
     /// Creates an instance of a PULL-UP button attached to a given board:
@@ -134,10 +134,10 @@ impl Button {
             invert: false,
             pullup: true,
             protocol: board.get_protocol(),
-            interval: Arc::new(RwLock::new(None)),
+            handler: Arc::new(RwLock::new(None)),
             events: Default::default(),
         }
-        ._start_reactive()
+        .start_with(board)
     }
 
     /// Creates an instance of an inverted PULL-UP button attached to a given board:
@@ -162,14 +162,14 @@ impl Button {
             invert: true,
             pullup: true,
             protocol: board.get_protocol(),
-            interval: Arc::new(RwLock::new(None)),
+            handler: Arc::new(RwLock::new(None)),
             events: Default::default(),
         }
-        ._start_reactive()
+        .start_with(board)
     }
 
     /// Private helper method shared by constructors.
-    fn _start_reactive(mut self) -> Result<Self, Error> {
+    fn start_with(mut self, board: &Board) -> Result<Self, Error> {
         // Set pin mode to INPUT/PULLUP.
         match self.pullup {
             true => {
@@ -189,47 +189,8 @@ impl Button {
         self.protocol.report_digital_pin(self.pin, true)?;
 
         // Create a task to listen hardware value and emit events accordingly.
-        let button_clone = self.clone();
-        *self.interval.write() = Some(
-            task::run(async move {
-                loop {
-                    let pin_value = button_clone
-                        .protocol
-                        .get_hardware()
-                        .read()
-                        .get_pin(self.pin)?
-                        .value
-                        != 0;
-                    let state_value = button_clone.state.read().clone();
-                    if pin_value != state_value {
-                        *button_clone.state.write() = pin_value;
-
-                        // Depending on logical inversion mode, pin_value is inverted.
-                        match button_clone.invert {
-                            false => button_clone.events.emit(ButtonEvent::OnChange, pin_value),
-                            true => button_clone.events.emit(ButtonEvent::OnChange, !pin_value),
-                        };
-
-                        match button_clone.pullup {
-                            true => match pin_value {
-                                true => button_clone.events.emit(ButtonEvent::OnRelease, ()),
-                                false => button_clone.events.emit(ButtonEvent::OnPress, ()),
-                            },
-                            false => match pin_value {
-                                true => button_clone.events.emit(ButtonEvent::OnPress, ()),
-                                false => button_clone.events.emit(ButtonEvent::OnRelease, ()),
-                            },
-                        };
-                    }
-
-                    // Change can only be done 10x a sec. to avoid bouncing.
-                    pause!(100);
-                }
-                #[allow(unreachable_code)]
-                Ok(())
-            })
-            .unwrap(),
-        );
+        board.attach();
+        self.attach();
 
         Ok(self)
     }
@@ -248,7 +209,64 @@ impl Button {
 
     // ########################################
     // Event related functions
-    //
+
+    /// Manually attaches the button with the value change events.
+    /// This should never be needed unless you manually `detach()` the button first for some reason
+    /// and want it to start being reactive to events again.
+    pub fn attach(&self) {
+        if self.handler.read().is_none() {
+            let self_clone = self.clone();
+            *self.handler.write() = Some(
+                task::run(async move {
+                    loop {
+                        let pin_value = self_clone
+                            .protocol
+                            .get_hardware()
+                            .read()
+                            .get_pin(self_clone.pin)?
+                            .value
+                            != 0;
+                        let state_value = self_clone.state.read().clone();
+                        if pin_value != state_value {
+                            *self_clone.state.write() = pin_value;
+
+                            // Depending on logical inversion mode, pin_value is inverted.
+                            match self_clone.invert {
+                                false => self_clone.events.emit(ButtonEvent::OnChange, pin_value),
+                                true => self_clone.events.emit(ButtonEvent::OnChange, !pin_value),
+                            };
+
+                            match self_clone.pullup {
+                                true => match pin_value {
+                                    true => self_clone.events.emit(ButtonEvent::OnRelease, ()),
+                                    false => self_clone.events.emit(ButtonEvent::OnPress, ()),
+                                },
+                                false => match pin_value {
+                                    true => self_clone.events.emit(ButtonEvent::OnPress, ()),
+                                    false => self_clone.events.emit(ButtonEvent::OnRelease, ()),
+                                },
+                            };
+                        }
+
+                        // Change can only be done 10x a sec. to avoid bouncing.
+                        pause!(100);
+                    }
+                    #[allow(unreachable_code)]
+                    Ok(())
+                })
+                .unwrap(),
+            );
+        }
+    }
+
+    /// Detaches the interval associated with the button.
+    /// This means the button won't react anymore to value changes.
+    pub fn detach(&self) {
+        if let Some(handler) = self.handler.read().as_ref() {
+            handler.abort();
+        }
+    }
+
     /// Registers a callback to be executed on a given event on the Button.
     ///
     /// Available events for a button are:
@@ -264,14 +282,6 @@ impl Button {
         self.events.on(event, callback)
     }
 }
-
-// impl Drop for Button {
-//     fn drop(&mut self) {
-//         if let Some(handler) = self.interval.read().as_ref() {
-//             handler.abort();
-//         }
-//     }
-// }
 
 impl Display for Button {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -320,7 +330,7 @@ mod tests {
         assert!(!button.is_inverted());
         assert!(!button.is_pullup());
 
-        drop(button);
+        button.detach();
     }
 
     #[hermes_macros::test]
@@ -334,7 +344,7 @@ mod tests {
         assert!(button.is_inverted());
         assert!(!button.is_pullup());
 
-        drop(button);
+        button.detach();
     }
 
     #[hermes_macros::test]
@@ -348,7 +358,7 @@ mod tests {
         assert!(!button.is_inverted());
         assert!(button.is_pullup());
 
-        drop(button);
+        button.detach();
     }
 
     #[hermes_macros::test]
@@ -362,7 +372,93 @@ mod tests {
         assert!(button.is_inverted());
         assert!(button.is_pullup());
 
-        drop(button);
+        button.detach();
+    }
+
+    #[hermes_macros::test]
+    fn test_button_inverted_state_logic() {
+        let board = Board::from(MockProtocol::default());
+        let button = Button::new_inverted(&board, 4).unwrap();
+        assert_eq!(button.get_state().as_bool(), true);
+
+        button.state.write().clone_from(&true); // Simulate a pressed button
+        assert_eq!(button.get_state().as_bool(), false);
+
+        button.detach();
+    }
+
+    #[hermes_macros::test]
+    fn test_button_events() {
+        let board = Board::from(MockProtocol::default());
+        let button = Button::new(&board, 4).unwrap();
+
+        // CHANGE
+        let change_flag = Arc::new(AtomicBool::new(false));
+        let moved_change_flag = change_flag.clone();
+        button.on(ButtonEvent::OnChange, move |new_state: bool| {
+            let captured_flag = moved_change_flag.clone();
+            async move {
+                captured_flag.store(new_state, Ordering::SeqCst);
+                Ok(())
+            }
+        });
+
+        // PRESSED
+        let pressed_flag = Arc::new(AtomicBool::new(false));
+        let moved_pressed_flag = pressed_flag.clone();
+        button.on(ButtonEvent::OnPress, move |_: ()| {
+            let captured_flag = moved_pressed_flag.clone();
+            async move {
+                captured_flag.store(true, Ordering::SeqCst);
+                Ok(())
+            }
+        });
+
+        // RELEASED
+        let released_flag = Arc::new(AtomicBool::new(false));
+        let moved_released_flag = released_flag.clone();
+        button.on(ButtonEvent::OnRelease, move |_: ()| {
+            let captured_flag = moved_released_flag.clone();
+            async move {
+                captured_flag.store(true, Ordering::SeqCst);
+                Ok(())
+            }
+        });
+
+        assert!(!change_flag.load(Ordering::SeqCst));
+        assert!(!pressed_flag.load(Ordering::SeqCst));
+        assert!(!released_flag.load(Ordering::SeqCst));
+
+        // Simulate pin state change in the protocol => take value 0xFF
+        button
+            .protocol
+            .get_hardware()
+            .write()
+            .get_pin_mut(4)
+            .unwrap()
+            .value = 0xFF;
+
+        pause!(500);
+
+        assert!(change_flag.load(Ordering::SeqCst));
+        assert!(pressed_flag.load(Ordering::SeqCst));
+        assert!(!released_flag.load(Ordering::SeqCst));
+
+        // Simulate pin state change in the protocol => takes value 0
+        button
+            .protocol
+            .get_hardware()
+            .write()
+            .get_pin_mut(4)
+            .unwrap()
+            .value = 0;
+
+        pause!(500);
+
+        assert!(!change_flag.load(Ordering::SeqCst)); // change switched back to 0
+        assert!(released_flag.load(Ordering::SeqCst));
+
+        button.detach();
     }
 
     #[hermes_macros::test]
@@ -375,51 +471,6 @@ mod tests {
             String::from("Button (pin=4) [state=false, pullup=false, inverted=false]")
         );
 
-        drop(button);
-    }
-
-    #[hermes_macros::test]
-    fn test_button_event_emission() {
-        let board = Board::from(MockProtocol::default());
-        let button = Button::new(&board, 4).unwrap();
-
-        // Simulate an event handler
-        let flag = Arc::new(AtomicBool::new(false));
-        let moved_flag = flag.clone();
-        button.on(ButtonEvent::OnChange, move |new_state: bool| {
-            let captured_flag = moved_flag.clone();
-            async move {
-                assert!(new_state);
-                captured_flag.store(new_state, Ordering::SeqCst);
-                Ok(())
-            }
-        });
-
-        // Simulate pin state change in the protocol
-        button
-            .protocol
-            .get_hardware()
-            .write()
-            .get_pin_mut(4)
-            .unwrap()
-            .value = 1;
-
-        // Ensure event is emitted
-        pause!(500);
-        assert!(flag.load(Ordering::SeqCst));
-
-        drop(button);
-    }
-
-    #[hermes_macros::test]
-    fn test_button_inverted_state_logic() {
-        let board = Board::from(MockProtocol::default());
-        let button = Button::new_inverted(&board, 4).unwrap();
-        assert_eq!(button.get_state().as_bool(), true);
-
-        button.state.write().clone_from(&true); // Simulate a pressed button
-        assert_eq!(button.get_state().as_bool(), false);
-
-        drop(button);
+        button.detach();
     }
 }

@@ -148,23 +148,13 @@ impl Board {
     pub fn open(self) -> Self {
         let events_clone = self.events.clone();
         let callback_board = self.clone();
-        *self.handler.write() = Some(
-            task::run(async move {
-                let mut board = callback_board.blocking_open()?;
-                events_clone.emit(BoardEvent::OnReady, board.clone());
 
-                // Infinite loop to listen for inputs from the board.
-                // @todo this is constant polling. Evaluate if this is the right solution and the polling resolution.
-                loop {
-                    let _ = board.read_and_decode();
-                    pause!(19);
-                }
-
-                #[allow(unreachable_code)]
-                Ok(())
-            })
-            .unwrap(),
-        );
+        task::run(async move {
+            let board = callback_board.blocking_open()?;
+            events_clone.emit(BoardEvent::OnReady, board);
+            Ok(())
+        })
+        .expect("Task failed");
 
         self
     }
@@ -235,6 +225,37 @@ impl Board {
     // ########################################
     // Event related functions
 
+    /// Manually attaches the board value change listener. This is only used for input events.
+    /// This should never be needed unless you manually `detach()` the sensor first for some reason
+    /// and want it to start being reactive to events again.
+    pub fn attach(&self) {
+        if self.handler.read().is_none() {
+            let mut self_clone = self.clone();
+            *self.handler.write() = Some(
+                task::run(async move {
+                    // Infinite loop to listen for inputs from the board.
+                    // @todo this is constant polling. Evaluate if this is the right solution and the polling resolution.
+                    loop {
+                        let _ = self_clone.read_and_decode();
+                        pause!(1);
+                    }
+
+                    #[allow(unreachable_code)]
+                    Ok(())
+                })
+                .unwrap(),
+            );
+        }
+    }
+
+    /// Detaches the interval associated with the button.
+    /// This means the button won't react anymore to value changes.
+    pub fn detach(&self) {
+        if let Some(handler) = self.handler.read().as_ref() {
+            handler.abort();
+        }
+    }
+
     /// Registers a callback to be executed on a given event on the board.
     ///
     /// Available events for a board are:
@@ -288,15 +309,6 @@ impl Board {
         self.protocol.get_hardware().read()
     }
 }
-
-// impl Drop for Board {
-//     fn drop(&mut self) {
-//         if let Some(handler) = self.handler.read().as_ref() {
-//             handler.abort();
-//         }
-//         *self.handler.write() = None;
-//     }
-// }
 
 impl Display for Board {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
