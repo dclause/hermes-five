@@ -1,5 +1,5 @@
-use hermes_five::{Board, BoardEvent, pause};
-use hermes_five::devices::{Actuator, Led};
+use hermes_five::devices::{Led, Output};
+use hermes_five::{pause, Board, BoardEvent};
 
 #[hermes_five::runtime]
 async fn main() {

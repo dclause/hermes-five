@@ -1,8 +1,8 @@
 //! Demonstrates the simple usage of a push Button on pin 8 configured in PULLUP mode (using the internal resistor) as per show on Arduino tutorial:
 //! https://docs.arduino.cc/built-in-examples/digital/InputPullupSerial/
 
+use hermes_five::devices::{Button, InputEvent};
 use hermes_five::{Board, BoardEvent};
-use hermes_five::devices::{Button, ButtonEvent};
 
 #[hermes_five::runtime]
 async fn main() {
@@ -13,19 +13,19 @@ async fn main() {
         let button = Button::new_pullup(&board, 8)?;
 
         // Triggered function when the button state changes.
-        button.on(ButtonEvent::OnChange, |value: bool| async move {
+        button.on(InputEvent::OnChange, |value: bool| async move {
             println!("Push button value changed: {}", value);
             Ok(())
         });
 
         // Triggered function when the button is pressed.
-        button.on(ButtonEvent::OnPress, |_: ()| async move {
+        button.on(InputEvent::OnPress, |_: ()| async move {
             println!("Push button pressed");
             Ok(())
         });
 
         // Triggered function when the button is released.
-        button.on(ButtonEvent::OnRelease, |_: ()| async move {
+        button.on(InputEvent::OnRelease, |_: ()| async move {
             println!("Push button released");
             Ok(())
         });

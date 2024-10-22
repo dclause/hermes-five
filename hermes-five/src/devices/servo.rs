@@ -4,15 +4,15 @@ use std::time::SystemTime;
 
 use parking_lot::RwLock;
 
-use crate::{pause, pause_sync};
 use crate::animation::{Animation, Keyframe, Segment, Track};
 use crate::board::Board;
-use crate::devices::{Actuator, Device};
-use crate::errors::{Error, StateError};
+use crate::devices::{Device, Output};
 use crate::errors::HardwareError::IncompatibleMode;
+use crate::errors::{Error, StateError};
 use crate::protocols::{Pin, PinModeId, Protocol};
-use crate::utils::{Easing, Range, State, task};
 use crate::utils::scale::Scalable;
+use crate::utils::{task, Easing, Range, State};
+use crate::{pause, pause_sync};
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
@@ -345,7 +345,7 @@ impl Display for Servo {
 impl Device for Servo {}
 
 #[cfg_attr(feature = "serde", typetag::serde)]
-impl Actuator for Servo {
+impl Output for Servo {
     fn animate<S: Into<State>>(&mut self, state: S, duration: u64, transition: Easing) {
         let mut animation = Animation::from(
             Track::new(self.clone())
@@ -454,7 +454,7 @@ mod tests {
     use hermes_five::devices::ServoType;
 
     use crate::board::Board;
-    use crate::devices::{Actuator, Servo};
+    use crate::devices::{Output, Servo};
     use crate::mocks::protocol::MockProtocol;
     use crate::pause;
     use crate::protocols::PinModeId;

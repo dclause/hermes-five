@@ -5,12 +5,12 @@ use parking_lot::RwLock;
 
 use crate::animation::{Animation, Keyframe, Segment, Track};
 use crate::board::Board;
-use crate::devices::{Actuator, Device};
-use crate::errors::{Error, StateError};
+use crate::devices::{Device, Output};
 use crate::errors::HardwareError::IncompatibleMode;
+use crate::errors::{Error, StateError};
 use crate::protocols::{Pin, PinMode, PinModeId, Protocol};
-use crate::utils::{Easing, State};
 use crate::utils::scale::Scalable;
+use crate::utils::{Easing, State};
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
@@ -236,7 +236,7 @@ impl Display for Led {
 impl Device for Led {}
 
 #[cfg_attr(feature = "serde", typetag::serde)]
-impl Actuator for Led {
+impl Output for Led {
     /// Animates the LED
     fn animate<S: Into<State>>(&mut self, state: S, duration: u64, transition: Easing) {
         let mut animation = Animation::from(

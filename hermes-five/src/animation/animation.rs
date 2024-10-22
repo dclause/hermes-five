@@ -243,7 +243,7 @@ impl Animation {
     /// ```
     /// use hermes_five::Board;
     /// use hermes_five::BoardEvent;
-    /// use hermes_five::devices::{Actuator, Led};
+    /// use hermes_five::devices::{Output, Led};
     /// use hermes_five::animation::{Animation, AnimationEvent};
     /// use hermes_five::utils::Easing;
     ///
@@ -378,14 +378,14 @@ mod tests {
     use serial_test::serial;
 
     use crate::animation::Keyframe;
-    use crate::mocks::actuator::MockActuator;
+    use crate::mocks::output::MockOutputDevice;
     use crate::pause;
 
     use super::*;
 
     fn create_animation() -> Animation {
         let segment = Segment::from(
-            Track::new(MockActuator::new(40)).with_keyframe(Keyframe::new(100, 0, 190)),
+            Track::new(MockOutputDevice::new(40)).with_keyframe(Keyframe::new(100, 0, 190)),
         );
         Animation::default()
             .with_segment(segment.clone())
@@ -410,7 +410,7 @@ mod tests {
 
         let animation = animation.with_segment(
             Segment::from(
-                Track::new(MockActuator::new(40)).with_keyframe(Keyframe::new(100, 0, 190)),
+                Track::new(MockOutputDevice::new(40)).with_keyframe(Keyframe::new(100, 0, 190)),
             )
             .set_repeat(true),
         );
@@ -419,7 +419,7 @@ mod tests {
         assert_eq!(animation.to_string(), "Animation [duration=INF, segments=1]\n  Segment [duration=190ms, repeat=true, fps=60, speed=100] :\n   Track [duration=190ms, device=MockActuator [state=40]]:\n      Keyframe 0ms to 190ms: 100 [transition=Linear]\n");
 
         let animation = animation.set_segments(vec![Segment::from(
-            Track::new(MockActuator::new(40)).with_keyframe(Keyframe::new(100, 0, 190)),
+            Track::new(MockOutputDevice::new(40)).with_keyframe(Keyframe::new(100, 0, 190)),
         )]);
         assert_eq!(animation.get_duration(), 190);
         assert_eq!(animation.to_string(), "Animation [duration=190ms, segments=1]\n  Segment [duration=190ms, repeat=false, fps=60, speed=100] :\n   Track [duration=190ms, device=MockActuator [state=40]]:\n      Keyframe 0ms to 190ms: 100 [transition=Linear]\n");
@@ -427,7 +427,7 @@ mod tests {
 
     #[test]
     fn test_animation_converters() {
-        let animation_from_track = Animation::from(Track::new(MockActuator::new(40)));
+        let animation_from_track = Animation::from(Track::new(MockOutputDevice::new(40)));
         assert_eq!(animation_from_track.get_current(), 0);
         assert_eq!(animation_from_track.get_segments().len(), 1);
 

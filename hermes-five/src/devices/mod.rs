@@ -2,20 +2,20 @@ use std::fmt::{Debug, Display};
 
 use dyn_clone::DynClone;
 
-pub use crate::devices::button::Button;
-pub use crate::devices::button::ButtonEvent;
+// Input re-exports
+pub use crate::devices::input::analog::AnalogInput;
+pub use crate::devices::input::button::Button;
+pub use crate::devices::input::digital::DigitalInput;
+pub use crate::devices::input::{Input, InputEvent};
 pub use crate::devices::led::Led;
-pub use crate::devices::sensor::AnalogInput;
-pub use crate::devices::sensor::SensorEvent;
 pub use crate::devices::servo::Servo;
 pub use crate::devices::servo::ServoType;
 use crate::errors::Error;
-use crate::utils::{Easing, State};
 use crate::utils::scale::Scalable;
+use crate::utils::{Easing, State};
 
-mod button;
+mod input;
 mod led;
-mod sensor;
 mod servo;
 
 /// A trait for devices that can be debugged, cloned, and used in concurrent contexts.
@@ -41,7 +41,7 @@ dyn_clone::clone_trait_object!(Device);
 /// * `get_state(&self) -> u16`
 ///     - Retrieves the current internal state of the device.
 #[cfg_attr(feature = "serde", typetag::serde(tag = "type"))]
-pub trait Actuator: Device {
+pub trait Output: Device {
     fn animate<S: Into<State>>(&mut self, state: S, duration: u64, transition: Easing)
     where
         Self: Sized;
@@ -75,28 +75,16 @@ pub trait Actuator: Device {
         self.set_state(self.get_default())
     }
 }
-dyn_clone::clone_trait_object!(Actuator);
-
-/// A trait for devices that can sense or measure data.
-///
-/// This trait extends `Device` and is intended for sensors that require the same capabilities
-/// as devices, including debugging, cloning, and concurrency support.
-#[cfg_attr(feature = "serde", typetag::serde(tag = "type"))]
-pub trait Sensor: Device {
-    /// Retrieves the sensor current state.
-    fn get_state(&self) -> State;
-}
-
-dyn_clone::clone_trait_object!(Sensor);
+dyn_clone::clone_trait_object!(Output);
 
 #[cfg(feature = "serde")]
 pub mod arc_rwlock_serde {
     use std::sync::Arc;
 
     use parking_lot::RwLock;
-    use serde::{Deserialize, Serialize};
     use serde::de::Deserializer;
     use serde::ser::Serializer;
+    use serde::{Deserialize, Serialize};
 
     pub fn serialize<S, T>(val: &Arc<RwLock<T>>, s: S) -> Result<S::Ok, S::Error>
     where
@@ -118,11 +106,11 @@ pub mod arc_rwlock_serde {
     mod arc_rwlock_serde_tests {
         use serde_json;
 
-        use crate::mocks::actuator::MockActuator;
+        use crate::mocks::output::MockOutputDevice;
 
         #[test]
         fn test_serialize() {
-            let test = MockActuator::new(20);
+            let test = MockOutputDevice::new(20);
 
             let serialized = serde_json::to_string(&test);
             assert!(serialized.is_ok());
@@ -134,7 +122,7 @@ pub mod arc_rwlock_serde {
         #[test]
         fn test_deserialize() {
             let json_data = r#"{"state":20,"lock":42}"#;
-            let deserialized = serde_json::from_str::<MockActuator>(json_data);
+            let deserialized = serde_json::from_str::<MockOutputDevice>(json_data);
 
             assert!(deserialized.is_ok());
             assert_eq!(deserialized.unwrap().get_locked_value(), 42);
@@ -144,13 +132,13 @@ pub mod arc_rwlock_serde {
 
 #[cfg(test)]
 mod tests {
-    use crate::mocks::actuator::MockActuator;
+    use crate::mocks::output::MockOutputDevice;
 
     use super::*;
 
     #[test]
     fn test_scale_state_integer() {
-        let mut device = MockActuator::new(0);
+        let mut device = MockOutputDevice::new(0);
 
         // Halfway between 10 and 20
         let result = device.scale_state(State::Integer(10), State::Integer(20), 0.5);
@@ -167,7 +155,7 @@ mod tests {
 
     #[test]
     fn test_scale_state_signed() {
-        let mut device = MockActuator::new(0);
+        let mut device = MockOutputDevice::new(0);
 
         // Halfway between 10 and 20
         let result = device.scale_state(State::Signed(-10), State::Signed(10), 0.5);
@@ -184,7 +172,7 @@ mod tests {
 
     #[test]
     fn test_scale_state_float() {
-        let mut device = MockActuator::new(0);
+        let mut device = MockOutputDevice::new(0);
 
         // Halfway between 10 and 20
         let result = device.scale_state(State::Float(1.0), State::Float(2.0), 0.5);
@@ -201,7 +189,7 @@ mod tests {
 
     #[test]
     fn test_scale_state_non_numeric() {
-        let mut device = MockActuator::new(0);
+        let mut device = MockOutputDevice::new(0);
 
         let result = device.scale_state(State::Boolean(false), State::Boolean(true), 0.0);
         assert_eq!(result, State::Boolean(false));
@@ -212,7 +200,7 @@ mod tests {
 
     #[test]
     fn test_reset() {
-        let mut device = MockActuator::new(42);
+        let mut device = MockOutputDevice::new(42);
         assert_eq!(device.get_state(), State::Integer(42));
         assert!(device.reset().is_ok());
         assert_eq!(device.get_state(), State::Integer(0))

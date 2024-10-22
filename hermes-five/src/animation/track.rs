@@ -1,11 +1,11 @@
 use std::fmt::{Display, Formatter};
 
 use crate::animation::Keyframe;
-use crate::devices::Actuator;
+use crate::devices::Output;
 use crate::errors::Error;
 use crate::utils::{Range, State};
 
-/// Represents an animation track within a [`Sequence`] for a given [`Actuator`].
+/// Represents an animation track within a [`Sequence`] for a given [`Output`].
 ///
 /// The `Track` struct manages the state and keyframes for an actuator device through a sequence.
 /// It represents the evolution of the device internal state over the sequence (animation) period
@@ -41,16 +41,16 @@ use crate::utils::{Range, State};
 ///
 /// # Fields
 ///
-/// * `device`: The [`Actuator`] associated with this track.
+/// * `device`: The [`Output`] associated with this track.
 /// * `keyframes`: A list of [`Keyframe`]s defining the animation.
 /// * `previous`: The previous state value of the actuator.
 /// * `current`: The current state value of the actuator.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
 pub struct Track {
-    /// The [`Actuator`] device that this track is associated with.
+    /// The [`Output`] device that this track is associated with.
     /// All keyframes' [`Keyframe::target`] values will reference this device.
-    device: Box<dyn Actuator>,
+    device: Box<dyn Output>,
     /// The [`Keyframe`]s belonging to this track.
     keyframes: Vec<Keyframe>,
 
@@ -71,7 +71,7 @@ impl Track {
     /// # Returns
     /// A new `Track` instance with the provided actuator and an empty list of keyframes.
     #[allow(private_bounds)]
-    pub fn new<T: Actuator + 'static>(device: T) -> Self {
+    pub fn new<T: Output + 'static>(device: T) -> Self {
         let history = device.get_state();
         Self {
             device: Box::new(device),
@@ -189,7 +189,7 @@ impl Display for Track {
 impl Track {
     /// Returns the device associated with the [`Track`].
     #[allow(private_interfaces)]
-    pub fn get_device(&self) -> &Box<dyn Actuator> {
+    pub fn get_device(&self) -> &Box<dyn Output> {
         &self.device
     }
     /// Returns the keyframes of this [`Track`].
@@ -211,14 +211,14 @@ impl Track {
 #[cfg(test)]
 mod tests {
     use crate::animation::Keyframe;
-    use crate::mocks::actuator::MockActuator;
+    use crate::mocks::output::MockOutputDevice;
     use crate::utils::Range;
 
     use super::*;
 
     #[test]
     fn test_new_track() {
-        let actuator = MockActuator::new(5);
+        let actuator = MockOutputDevice::new(5);
         let track = Track::new(actuator);
 
         assert_eq!(track.get_keyframes().len(), 0);
@@ -231,7 +231,7 @@ mod tests {
 
     #[test]
     fn test_get_duration() {
-        let actuator = MockActuator::new(5);
+        let actuator = MockOutputDevice::new(5);
         let track = Track::new(actuator);
 
         assert_eq!(
@@ -253,7 +253,7 @@ mod tests {
 
     #[test]
     fn test_update_history() {
-        let actuator = MockActuator::new(5);
+        let actuator = MockOutputDevice::new(5);
         let mut track = Track::new(actuator);
         assert_eq!(track.previous.as_integer(), 5);
         assert_eq!(track.current.as_integer(), 5);
@@ -270,7 +270,7 @@ mod tests {
 
     #[test]
     fn test_get_best_keyframe() {
-        let mut track = Track::new(MockActuator::new(100))
+        let mut track = Track::new(MockOutputDevice::new(100))
             .with_keyframe(Keyframe::new(60, 0, 2000))
             .with_keyframe(Keyframe::new(70, 500, 2200))
             .with_keyframe(Keyframe::new(80, 100, 2100));
@@ -293,7 +293,7 @@ mod tests {
 
     #[test]
     fn test_play_frame_no_keyframes() {
-        let actuator = MockActuator::new(5);
+        let actuator = MockOutputDevice::new(5);
         let mut track = Track::new(actuator);
 
         let result = track.play_frame(Range {
@@ -305,7 +305,7 @@ mod tests {
 
     #[test]
     fn test_play_frame() {
-        let actuator = MockActuator::new(0);
+        let actuator = MockOutputDevice::new(0);
         let mut track = Track::new(actuator);
 
         // Don't fail with no keyframe.
@@ -329,7 +329,7 @@ mod tests {
 
     #[test]
     fn test_display_implementation() {
-        let track = Track::new(MockActuator::new(5))
+        let track = Track::new(MockOutputDevice::new(5))
             .with_keyframe(Keyframe::new(50, 0, 2000))
             .with_keyframe(Keyframe::new(100, 500, 2200))
             .with_keyframe(Keyframe::new(100, 100, 1000));

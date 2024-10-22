@@ -3,35 +3,13 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 
-use crate::{Board, pause};
-use crate::devices::{Device, Sensor};
+use crate::devices::{Device, Input, InputEvent};
 use crate::errors::Error;
 use crate::protocols::{PinIdOrName, PinModeId, Protocol};
-use crate::utils::{State, task};
 use crate::utils::events::{EventHandler, EventManager};
 use crate::utils::task::TaskHandler;
-
-/// Lists all events a [`Button`] type device can emit/listen.
-pub enum ButtonEvent {
-    /// Triggered when the button value changes.
-    OnChange,
-    /// Triggered when the button is pressed.
-    OnPress,
-    /// Triggered when the button is released.
-    OnRelease,
-}
-
-/// Convert events to string to facilitate usage with [`EventManager`].
-impl Into<String> for ButtonEvent {
-    fn into(self) -> String {
-        let event = match self {
-            ButtonEvent::OnChange => "change",
-            ButtonEvent::OnPress => "press",
-            ButtonEvent::OnRelease => "release",
-        };
-        event.into()
-    }
-}
+use crate::utils::{task, State};
+use crate::{pause, Board};
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
@@ -238,18 +216,18 @@ impl Button {
 
                             // Depending on logical inversion mode, pin_value is inverted.
                             match self_clone.invert {
-                                false => self_clone.events.emit(ButtonEvent::OnChange, pin_value),
-                                true => self_clone.events.emit(ButtonEvent::OnChange, !pin_value),
+                                false => self_clone.events.emit(InputEvent::OnChange, pin_value),
+                                true => self_clone.events.emit(InputEvent::OnChange, !pin_value),
                             };
 
                             match self_clone.pullup {
                                 true => match pin_value {
-                                    true => self_clone.events.emit(ButtonEvent::OnRelease, ()),
-                                    false => self_clone.events.emit(ButtonEvent::OnPress, ()),
+                                    true => self_clone.events.emit(InputEvent::OnRelease, ()),
+                                    false => self_clone.events.emit(InputEvent::OnPress, ()),
                                 },
                                 false => match pin_value {
-                                    true => self_clone.events.emit(ButtonEvent::OnPress, ()),
-                                    false => self_clone.events.emit(ButtonEvent::OnRelease, ()),
+                                    true => self_clone.events.emit(InputEvent::OnPress, ()),
+                                    false => self_clone.events.emit(InputEvent::OnRelease, ()),
                                 },
                             };
                         }
@@ -306,7 +284,7 @@ impl Display for Button {
 impl Device for Button {}
 
 #[cfg_attr(feature = "serde", typetag::serde)]
-impl Sensor for Button {
+impl Input for Button {
     fn get_state(&self) -> State {
         match self.invert {
             false => State::from(*self.state.read()),
@@ -319,8 +297,8 @@ impl Sensor for Button {
 mod tests {
     use std::sync::atomic::{AtomicBool, Ordering};
 
-    use crate::Board;
     use crate::mocks::protocol::MockProtocol;
+    use crate::Board;
 
     use super::*;
 
@@ -409,7 +387,7 @@ mod tests {
         // CHANGE
         let change_flag = Arc::new(AtomicBool::new(false));
         let moved_change_flag = change_flag.clone();
-        button.on(ButtonEvent::OnChange, move |new_state: bool| {
+        button.on(InputEvent::OnChange, move |new_state: bool| {
             let captured_flag = moved_change_flag.clone();
             async move {
                 captured_flag.store(new_state, Ordering::SeqCst);
@@ -420,7 +398,7 @@ mod tests {
         // PRESSED
         let pressed_flag = Arc::new(AtomicBool::new(false));
         let moved_pressed_flag = pressed_flag.clone();
-        button.on(ButtonEvent::OnPress, move |_: ()| {
+        button.on(InputEvent::OnPress, move |_: ()| {
             let captured_flag = moved_pressed_flag.clone();
             async move {
                 captured_flag.store(true, Ordering::SeqCst);
@@ -431,7 +409,7 @@ mod tests {
         // RELEASED
         let released_flag = Arc::new(AtomicBool::new(false));
         let moved_released_flag = released_flag.clone();
-        button.on(ButtonEvent::OnRelease, move |_: ()| {
+        button.on(InputEvent::OnRelease, move |_: ()| {
             let captured_flag = moved_released_flag.clone();
             async move {
                 captured_flag.store(true, Ordering::SeqCst);

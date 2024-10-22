@@ -41,8 +41,10 @@ The purpose for this release is to create a proof-of-concept of the project:
 - [X] ~~Implement most features / controls for Servo~~
 - [X] ~~Implement most features for creating Animation~~
 - [X] ~~Implement most features for creating Button input~~
-- [ ] Implement most features for creating AnalogSensor input
-- [ ] Implement most features for creating InputSensor input
+- [X] ~~Implement most features for creating AnalogInput input~~
+- [X] ~~Implement most features for creating DigitalInput input~~
+- [ ] Implement most features for creating AnalogOutput output
+- [ ] Implement most features for creating DigitalOutput output
 
 ## Release version 0.2
 

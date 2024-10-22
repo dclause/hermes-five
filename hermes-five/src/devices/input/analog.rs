@@ -3,38 +3,26 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 
-use crate::{Board, pause};
-use crate::devices::{Device, Sensor};
+use crate::devices::input::{Input, InputEvent};
+use crate::devices::Device;
 use crate::errors::Error;
 use crate::protocols::{PinIdOrName, PinModeId, Protocol};
-use crate::utils::{State, task};
 use crate::utils::events::{EventHandler, EventManager};
 use crate::utils::task::TaskHandler;
+use crate::utils::{task, State};
+use crate::{pause, Board};
 
-/// Lists all events a Sensor type device can emit/listen.
-pub enum SensorEvent {
-    /// Triggered when the sensor value changes.
-    OnChange,
-}
-
-/// Convert events to string to facilitate usage with [`EventManager`].
-impl Into<String> for SensorEvent {
-    fn into(self) -> String {
-        let event = match self {
-            SensorEvent::OnChange => "change",
-        };
-        event.into()
-    }
-}
-
+/// Represents an analog sensor of unspecified type: an [`Input`] [`Device`] that reads analog values
+/// from an ANALOG compatible pin.
+/// https://docs.arduino.cc/built-in-examples/analog/AnalogInput
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
 pub struct AnalogInput {
     // ########################################
     // # Basics
-    /// The pin (id) of the [`Board`] used to read the sensor value.
+    /// The pin (id) of the [`Board`] used to read the analog value.
     pin: u16,
-    /// The current sensor state.
+    /// The current AnalogInput state.
     #[cfg_attr(feature = "serde", serde(with = "crate::devices::arc_rwlock_serde"))]
     state: Arc<RwLock<u16>>,
 
@@ -45,7 +33,7 @@ pub struct AnalogInput {
     /// Inner handler to the task running the button value check.
     #[cfg_attr(feature = "serde", serde(skip))]
     handler: Arc<RwLock<Option<TaskHandler>>>,
-    /// The event manager for the sensor.
+    /// The event manager for the AnalogInput.
     #[cfg_attr(feature = "serde", serde(skip))]
     events: EventManager,
 }
@@ -55,12 +43,12 @@ impl AnalogInput {
     /// https://docs.arduino.cc/built-in-examples/analog/AnalogInput/
     ///
     /// # Parameters
-    /// * `board`: the [`Board`] which the sensor is attached to
-    /// * `analog_pin`: the analog pin used to read the sensor value
+    /// * `board`: the [`Board`] which the AnalogInput is attached to
+    /// * `analog_pin`: the analog pin used to read the AnalogInput value
     ///
     /// # Errors
-    /// * `UnknownPin`: this function will bail an error if the sensor pin does not exist for this board.
-    /// * `IncompatibleMode`: this function will bail an error if the sensor pin does not support ANALOG mode.
+    /// * `UnknownPin`: this function will bail an error if the AnalogInput pin does not exist for this board.
+    /// * `IncompatibleMode`: this function will bail an error if the AnalogInput pin does not support ANALOG mode.
     pub fn new<T: Into<PinIdOrName>>(board: &Board, analog_pin: T) -> Result<Self, Error> {
         let pin = board.get_hardware().get_pin(analog_pin.into())?.clone();
 
@@ -87,8 +75,8 @@ impl AnalogInput {
     // ########################################
     // Event related functions
 
-    /// Manually attaches the sensor with the value change events.
-    /// This should never be needed unless you manually `detach()` the sensor first for some reason
+    /// Manually attaches the AnalogInput with the value change events.
+    /// This should never be needed unless you manually `detach()` the AnalogInput first for some reason
     /// and want it to start being reactive to events again.
     pub fn attach(&self) {
         if self.handler.read().is_none() {
@@ -105,7 +93,7 @@ impl AnalogInput {
                         let state_value = self_clone.state.read().clone();
                         if pin_value != state_value {
                             *self_clone.state.write() = pin_value;
-                            self_clone.events.emit(SensorEvent::OnChange, pin_value);
+                            self_clone.events.emit(InputEvent::OnChange, pin_value);
                         }
 
                         // Change can only be done 10x a sec. to avoid bouncing.
@@ -119,18 +107,18 @@ impl AnalogInput {
         }
     }
 
-    /// Detaches the interval associated with the sensor.
-    /// This means the sensor won't react anymore to value changes.
+    /// Detaches the interval associated with the AnalogInput.
+    /// This means the AnalogInput won't react anymore to value changes.
     pub fn detach(&self) {
         if let Some(handler) = self.handler.read().as_ref() {
             handler.abort();
         }
     }
 
-    /// Registers a callback to be executed on a given event on the AnalogSensor.
+    /// Registers a callback to be executed on a given event on the AnalogInput.
     ///
-    /// Available events for an AnalogSensor are:
-    /// * `change`: Triggered when the sensor value changes. To use it, register though the [`Self::on()`] method.
+    /// Available events for an AnalogInput are:
+    /// * `change`: Triggered when the AnalogInput value changes. To use it, register though the [`Self::on()`] method.
     /// ```
     pub fn on<S, F, T, Fut>(&self, event: S, callback: F) -> EventHandler
     where
@@ -147,7 +135,7 @@ impl Display for AnalogInput {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "AnalogSensor (pin={}) [state={}]",
+            "AnalogInput (pin={}) [state={}]",
             self.pin,
             self.state.read(),
         )
@@ -158,7 +146,7 @@ impl Display for AnalogInput {
 impl Device for AnalogInput {}
 
 #[cfg_attr(feature = "serde", typetag::serde)]
-impl Sensor for AnalogInput {
+impl Input for AnalogInput {
     fn get_state(&self) -> State {
         State::from(*self.state.read())
     }
@@ -166,12 +154,13 @@ impl Sensor for AnalogInput {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::{AtomicU16, Ordering};
-
-    use crate::Board;
+    use crate::devices::input::analog::AnalogInput;
+    use crate::devices::input::Input;
+    use crate::devices::input::InputEvent;
     use crate::mocks::protocol::MockProtocol;
-
-    use super::*;
+    use crate::{pause, Board};
+    use std::sync::atomic::{AtomicU16, Ordering};
+    use std::sync::Arc;
 
     #[hermes_macros::test]
     fn test_new_analog_input() {
@@ -190,13 +179,13 @@ mod tests {
     }
 
     #[hermes_macros::test]
-    fn test_button_display() {
+    fn test_analog_display() {
         let board = Board::from(MockProtocol::default());
         let sensor = AnalogInput::new(&board, "A15").unwrap();
         assert_eq!(sensor.get_state().as_integer(), 200);
         assert_eq!(
             format!("{}", sensor),
-            String::from("AnalogSensor (pin=15) [state=200]")
+            String::from("AnalogInput (pin=15) [state=200]")
         );
 
         board.detach();
@@ -204,7 +193,7 @@ mod tests {
     }
 
     #[hermes_macros::test]
-    fn test_button_events() {
+    fn test_analog_events() {
         let pin = "A14";
         let board = Board::from(MockProtocol::default());
         let sensor = AnalogInput::new(&board, pin).unwrap();
@@ -213,7 +202,7 @@ mod tests {
         // CHANGE
         let change_flag = Arc::new(AtomicU16::new(100));
         let moved_change_flag = change_flag.clone();
-        sensor.on(SensorEvent::OnChange, move |new_state: u16| {
+        sensor.on(InputEvent::OnChange, move |new_state: u16| {
             let captured_flag = moved_change_flag.clone();
             async move {
                 captured_flag.store(new_state, Ordering::SeqCst);

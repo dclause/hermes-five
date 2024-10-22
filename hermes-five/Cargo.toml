@@ -88,13 +88,6 @@ name = "button_inverted"
 path = "examples/button/inverted.rs"
 
 # ########################################
-# Sensor examples
-
-[[example]]
-name = "sensor_potentiometer"
-path = "examples/sensor/potentiometer.rs"
-
-# ########################################
 # LED examples
 
 [[example]]
@@ -116,6 +109,17 @@ path = "examples/led/brightness.rs"
 [[example]]
 name = "led_animate"
 path = "examples/led/animate.rs"
+
+# ########################################
+# SENSORS examples
+
+[[example]]
+name = "sensors_potentiometer"
+path = "examples/sensors/potentiometer.rs"
+
+[[example]]
+name = "sensors_microwave"
+path = "examples/sensors/microwave.rs"
 
 # ########################################
 # SERVO examples

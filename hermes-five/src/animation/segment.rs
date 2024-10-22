@@ -282,9 +282,9 @@ impl Display for Segment {
 mod tests {
     use std::time::SystemTime;
 
-    use crate::animation::{Keyframe, Segment};
     use crate::animation::Track;
-    use crate::mocks::actuator::MockActuator;
+    use crate::animation::{Keyframe, Segment};
+    use crate::mocks::output::MockOutputDevice;
 
     #[test]
     fn test_segment_default() {
@@ -305,8 +305,8 @@ mod tests {
             .set_speed(150)
             .set_fps(100)
             .set_tracks(vec![
-                Track::new(MockActuator::new(50)),
-                Track::new(MockActuator::new(100)),
+                Track::new(MockOutputDevice::new(50)),
+                Track::new(MockOutputDevice::new(100)),
             ]);
 
         assert!(segment.is_repeat());
@@ -327,10 +327,10 @@ mod tests {
     #[test]
     fn test_segment_duration() {
         let segment = Segment::default().set_tracks(vec![
-            Track::new(MockActuator::new(50))
+            Track::new(MockOutputDevice::new(50))
                 .with_keyframe(Keyframe::new(10, 0, 500))
                 .with_keyframe(Keyframe::new(20, 600, 4000)),
-            Track::new(MockActuator::new(100))
+            Track::new(MockOutputDevice::new(100))
                 .with_keyframe(Keyframe::new(10, 3000, 3300))
                 .with_keyframe(Keyframe::new(20, 3500, 3800)),
         ]);
@@ -342,10 +342,10 @@ mod tests {
     async fn test_segment_play_once() {
         let mut segment = Segment::default()
             .set_tracks(vec![
-                Track::new(MockActuator::new(50))
+                Track::new(MockOutputDevice::new(50))
                     .with_keyframe(Keyframe::new(10, 0, 100))
                     .with_keyframe(Keyframe::new(20, 200, 300)),
-                Track::new(MockActuator::new(100)).with_keyframe(Keyframe::new(10, 300, 500)),
+                Track::new(MockOutputDevice::new(100)).with_keyframe(Keyframe::new(10, 300, 500)),
             ])
             .set_fps(100);
 
@@ -366,7 +366,7 @@ mod tests {
     async fn test_segment_play() {
         let mut segment = Segment::default()
             .set_tracks(vec![
-                Track::new(MockActuator::new(50)).with_keyframe(Keyframe::new(10, 0, 100))
+                Track::new(MockOutputDevice::new(50)).with_keyframe(Keyframe::new(10, 0, 100))
             ])
             .set_fps(100);
 
@@ -396,7 +396,7 @@ mod tests {
 
     #[test]
     fn test_track_to_segment() {
-        let segment = Segment::from(Track::new(MockActuator::new(50)));
+        let segment = Segment::from(Track::new(MockOutputDevice::new(50)));
         assert_eq!(segment.get_tracks().len(), 1);
     }
 
@@ -404,12 +404,12 @@ mod tests {
     fn test_display_implementation() {
         let segment = Segment::default()
             .with_track(
-                Track::new(MockActuator::new(50))
+                Track::new(MockOutputDevice::new(50))
                     .with_keyframe(Keyframe::new(10, 0, 500))
                     .with_keyframe(Keyframe::new(20, 600, 4000)),
             )
             .with_track(
-                Track::new(MockActuator::new(100))
+                Track::new(MockOutputDevice::new(100))
                     .with_keyframe(Keyframe::new(10, 3000, 3300))
                     .with_keyframe(Keyframe::new(20, 3500, 3800)),
             );
