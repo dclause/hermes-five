@@ -11,24 +11,27 @@ use crate::errors::{Error, StateError};
 use crate::protocols::{Pin, PinIdOrName, PinModeId, Protocol};
 use crate::utils::{Easing, State};
 
-/// Represents a digital actuator of unspecified type: an [`Output`] [`Device`] that write digital values
-/// from an OUTPUT compatible pin.
-/// https://docs.arduino.cc/language-reference/en/functions/digital-io/digitalwrite/
+/// Represents an analog actuator of unspecified type: an [`Output`] [`Device`] that write analog values from a PWM compatible pin.
+/// https://docs.arduino.cc/language-reference/en/functions/analog-io/analogWrite/
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
-pub struct DigitalOutput {
+pub struct PwmOutput {
     // ########################################
     // # Basics
     /// The pin (id) of the [`Board`] used to control the output value.
     pin: u16,
     /// The current output state.
     #[cfg_attr(feature = "serde", serde(with = "crate::devices::arc_rwlock_serde"))]
-    state: Arc<RwLock<bool>>,
+    state: Arc<RwLock<u16>>,
     /// The output default value (default: 0).
-    default: bool,
+    default: u16,
 
     // ########################################
     // # Volatile utility data.
+    /// Caches the max output value depending on resolution.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    max_value: u16,
+    /// The protocol used by the board to communicate with the device.
     #[cfg_attr(feature = "serde", serde(skip))]
     protocol: Box<dyn Protocol>,
     /// Inner handler to the task running the animation.
@@ -36,32 +39,37 @@ pub struct DigitalOutput {
     animation: Arc<Option<Animation>>,
 }
 
-impl DigitalOutput {
-    /// Creates an instance of a [`DigitalOutput`] attached to a given board.
+impl PwmOutput {
+    /// Creates an instance of a [`PwmOutput`] attached to a given board.
     ///
     /// # Parameters
-    /// * `board`: the [`Board`] which the DigitalOutput is attached to.
-    /// * `pin`: the output pin used to write digital output value.
+    /// * `board`: the [`Board`] which the PwmOutput is attached to.
+    /// * `pin`: the output pin used to write PWM output value.
     /// * `default`: the default output value taken by this device.
     ///
     /// # Errors
     /// * `UnknownPin`: this function will bail an error if the pin does not exist for this board.
-    /// * `IncompatibleMode`: this function will bail an error if the pin does not support OUTPUT mode.
-    pub fn new<T: Into<PinIdOrName>>(board: &Board, pin: T, default: bool) -> Result<Self, Error> {
+    /// * `IncompatibleMode`: this function will bail an error if the pin does not support PWM mode.
+    pub fn new<T: Into<PinIdOrName>>(board: &Board, pin: T, default: u16) -> Result<Self, Error> {
         let pin = board.get_hardware().get_pin(pin)?.clone();
 
         let mut output = Self {
             pin: pin.id,
             state: Arc::new(RwLock::new(default)),
             default,
+            max_value: 0,
             protocol: board.get_protocol(),
             animation: Arc::new(None),
         };
 
-        // Set pin mode to OUTPUT.
-        output
-            .protocol
-            .set_pin_mode(output.pin, PinModeId::OUTPUT)?;
+        // Set pin mode to PWM.
+        output.protocol.set_pin_mode(output.pin, PinModeId::PWM)?;
+
+        // Retrieve PWM max value for the pin.
+        output.max_value = board
+            .get_hardware()
+            .get_pin(pin.id)?
+            .get_max_possible_value();
 
         // Resets the output to default value.
         output.reset()?;
@@ -69,24 +77,25 @@ impl DigitalOutput {
         Ok(output)
     }
 
-    /// Turn the output HIGH.
-    pub fn turn_on(&mut self) -> Result<&Self, Error> {
-        self.set_state(State::Boolean(true))?;
+    /// Sets the PWM value.
+    ///
+    /// # Parameters
+    /// * `value`: the value to set
+    pub fn set_value(&mut self, value: u16) -> Result<&Self, Error> {
+        self.set_state(value.into())?;
         Ok(self)
     }
 
-    /// Turn the output LOW.
-    pub fn turn_off(&mut self) -> Result<&Self, Error> {
-        self.set_state(State::Boolean(false))?;
+    /// Sets the PWM value to a percentage of its max value.
+    /// NOTE: everything above 100 is considered 100%.
+    ///
+    /// # Parameters
+    /// * `percentage`: the percentage of the value to set
+    pub fn set_percentage(&mut self, percentage: u8) -> Result<&Self, Error> {
+        let percentage = percentage.min(100) as u16;
+        let value = (percentage * self.max_value) / 100;
+        self.set_state(value.into())?;
         Ok(self)
-    }
-
-    /// Toggle the current state, if on then turn off, if off then turn on.
-    pub fn toggle(&mut self) -> Result<&Self, Error> {
-        match self.is_high() {
-            true => self.turn_off(),
-            false => self.turn_on(),
-        }
     }
 
     // ########################################
@@ -103,34 +112,38 @@ impl DigitalOutput {
         Ok(lock.get_pin(self.pin)?.clone())
     }
 
-    /// Indicates if the device state is HIGH.
-    pub fn is_high(&self) -> bool {
+    /// Gets the current PWM value.
+    pub fn get_value(&self) -> u16 {
         self.state.read().clone()
     }
 
-    /// Indicates if the device state is LOW.
-    pub fn is_low(&self) -> bool {
-        !self.state.read().clone()
+    /// Gets the current percentage of the PWM value compared to max possible.
+    pub fn get_percentage(&self) -> u8 {
+        let value = self.state.read().clone();
+        let percentage = ((value as f32 * 100.0) / self.max_value as f32).round() as u8;
+        percentage as u8
     }
 }
 
-impl Display for DigitalOutput {
+impl Display for PwmOutput {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        println!("percentage: {}", self.get_percentage());
         write!(
             f,
-            "DigitalOutput (pin={}) [state={}, default={}]",
+            "PwmOutput (pin={}) [state={} ({}%), default={}]",
             self.pin,
             self.state.read(),
+            self.get_percentage(),
             self.default,
         )
     }
 }
 
 #[cfg_attr(feature = "serde", typetag::serde)]
-impl Device for DigitalOutput {}
+impl Device for PwmOutput {}
 
 #[cfg_attr(feature = "serde", typetag::serde)]
-impl Output for DigitalOutput {
+impl Output for PwmOutput {
     /// Retrieves the actuator current state.
     fn get_state(&self) -> State {
         self.state.read().clone().into()
@@ -141,22 +154,24 @@ impl Output for DigitalOutput {
     /// /!\ You should rather use [`Led::on()`], [`Led::off()`], [`Led::set_brightness()`]` functions.`
     fn set_state(&mut self, state: State) -> Result<State, Error> {
         let value = match state {
-            State::Boolean(value) => Ok(value),
-            State::Integer(value) => match value {
-                0 => Ok(false),
-                1 => Ok(true),
-                _ => Err(Error::from(StateError)),
+            State::Integer(value) => Ok(value as u16),
+            State::Signed(value) => match value >= 0 {
+                true => Ok(value as u16),
+                false => Err(Error::from(StateError)),
+            },
+            State::Float(value) => match value >= 0.0 {
+                true => Ok(value as u16),
+                false => Err(Error::from(StateError)),
             },
             _ => Err(Error::from(StateError)),
         }?;
 
         match self.get_pin_info()?.mode.id {
-            // on/off digital operation.
-            PinModeId::OUTPUT => self.protocol.digital_write(self.pin, value),
+            PinModeId::PWM => self.protocol.analog_write(self.pin, value),
             id => Err(Error::from(IncompatibleMode {
                 mode: id,
                 pin: self.pin,
-                context: "update digital output",
+                context: "update pwm output",
             })),
         }?;
         *self.state.write() = value;
@@ -197,7 +212,7 @@ impl Output for DigitalOutput {
 #[cfg(test)]
 mod tests {
     use crate::board::Board;
-    use crate::devices::output::digital::DigitalOutput;
+    use crate::devices::output::pwm::PwmOutput;
     use crate::devices::Output;
     use crate::mocks::protocol::MockProtocol;
     use crate::pause;
@@ -209,73 +224,64 @@ mod tests {
         let board = Board::from(MockProtocol::default());
 
         // Default LOW state.
-        let output = DigitalOutput::new(&board, 13, false).unwrap();
-        assert_eq!(output.get_pin(), 13);
-        assert_eq!(*output.state.read(), false);
-        assert_eq!(output.get_state().as_bool(), false);
-        assert_eq!(output.get_default().as_bool(), false);
-        assert!(output.is_low());
-        assert!(!output.is_high());
+        let output = PwmOutput::new(&board, 8, 0).unwrap();
+        assert_eq!(output.get_pin(), 8);
+        assert_eq!(*output.state.read(), 0);
+        assert_eq!(output.get_state().as_integer(), 0);
+        assert_eq!(output.get_default().as_integer(), 0);
 
         // Default HIGH state.
-        let output = DigitalOutput::new(&board, 4, true).unwrap();
-        assert_eq!(output.get_pin(), 4);
-        assert_eq!(*output.state.read(), true);
-        assert_eq!(output.get_state().as_bool(), true);
-        assert_eq!(output.get_default().as_bool(), true);
-        assert!(output.is_high());
-        assert!(!output.is_low());
+        let output = PwmOutput::new(&board, 8, 50).unwrap();
+        assert_eq!(output.get_pin(), 8);
+        assert_eq!(*output.state.read(), 50);
+        assert_eq!(output.get_state().as_integer(), 50);
+        assert_eq!(output.get_default().as_integer(), 50);
 
         // Created from pin name
-        let output = DigitalOutput::new(&board, "D13", true).unwrap();
-        assert_eq!(output.get_pin(), 13);
-
-        // Created for a ANALOG pin.
-        let output = DigitalOutput::new(&board, "A14", false).unwrap();
-        assert_eq!(output.get_pin(), 14);
+        let output = PwmOutput::new(&board, "D11", 50).unwrap();
+        assert_eq!(output.get_pin(), 11);
     }
 
     #[test]
-    fn test_set_high() {
-        let mut output =
-            DigitalOutput::new(&Board::from(MockProtocol::default()), 4, false).unwrap();
-        output.turn_on().unwrap();
-        assert!(output.turn_on().is_ok());
-        assert_eq!(*output.state.read(), true);
+    fn test_set_value() {
+        let mut output = PwmOutput::new(&Board::from(MockProtocol::default()), 8, 0).unwrap();
+        output.set_value(127).unwrap();
+        assert_eq!(*output.state.read(), 127);
+        assert_eq!(output.get_value(), 127);
     }
 
     #[test]
-    fn test_set_low() {
-        let mut output =
-            DigitalOutput::new(&Board::from(MockProtocol::default()), 5, true).unwrap();
-        assert!(output.turn_off().is_ok());
-        assert_eq!(*output.state.read(), false);
-    }
-
-    #[test]
-    fn test_toggle() {
-        let mut output =
-            DigitalOutput::new(&Board::from(MockProtocol::default()), 5, false).unwrap();
-        assert!(output.toggle().is_ok()); // Toggle to HIGH
-        assert_eq!(*output.state.read(), true);
-        assert!(output.toggle().is_ok()); // Toggle to LOW
-        assert_eq!(*output.state.read(), false);
+    fn test_set_percent() {
+        let mut output = PwmOutput::new(&Board::from(MockProtocol::default()), 8, 0).unwrap();
+        output.set_percentage(50).unwrap();
+        assert_eq!(*output.state.read(), 127);
+        assert_eq!(output.get_value(), 127);
+        assert_eq!(output.get_percentage(), 50);
+        output.set_percentage(200).unwrap();
+        assert_eq!(*output.state.read(), 0xFF);
+        assert_eq!(output.get_value(), 255);
+        assert_eq!(output.get_percentage(), 100);
     }
 
     #[test]
     fn test_set_state() {
-        let mut output =
-            DigitalOutput::new(&Board::from(MockProtocol::default()), 13, false).unwrap();
-        assert!(output.set_state(State::Boolean(true)).is_ok());
-        assert_eq!(*output.state.read(), true);
-        assert!(output.set_state(State::Boolean(false)).is_ok());
-        assert_eq!(*output.state.read(), false);
-
-        assert!(output.set_state(State::Integer(1)).is_ok());
-        assert_eq!(*output.state.read(), true);
+        let mut output = PwmOutput::new(&Board::from(MockProtocol::default()), 11, 127).unwrap();
         assert!(output.set_state(State::Integer(0)).is_ok());
-        assert_eq!(*output.state.read(), false);
-        assert!(output.set_state(State::Integer(42)).is_err());
+        assert_eq!(*output.state.read(), 0);
+        assert!(output.set_state(State::Integer(127)).is_ok());
+        assert_eq!(*output.state.read(), 127);
+
+        assert!(output.set_state(State::Signed(0)).is_ok());
+        assert_eq!(*output.state.read(), 0);
+        assert!(output.set_state(State::Signed(127)).is_ok());
+        assert_eq!(*output.state.read(), 127);
+        assert!(output.set_state(State::Signed(-42)).is_err());
+
+        assert!(output.set_state(State::Float(0.0)).is_ok());
+        assert_eq!(*output.state.read(), 0);
+        assert!(output.set_state(State::Float(127.0)).is_ok());
+        assert_eq!(*output.state.read(), 127);
+        assert!(output.set_state(State::Float(-42.0)).is_err());
 
         assert!(output
             .set_state(State::String(String::from("incorrect format")))
@@ -284,21 +290,20 @@ mod tests {
         let _ = output
             .protocol
             .set_pin_mode(output.pin, PinModeId::UNSUPPORTED);
-        assert!(output.set_state(State::Boolean(false)).is_err()); // Should return an error due to incompatible pin mode.
+        assert!(output.set_state(State::Integer(1)).is_err()); // Should return an error due to incompatible pin mode.
     }
 
     #[test]
     fn test_get_pin_info() {
-        let output = DigitalOutput::new(&Board::from(MockProtocol::default()), 13, false).unwrap();
+        let output = PwmOutput::new(&Board::from(MockProtocol::default()), 11, 20).unwrap();
         let pin_info = output.get_pin_info();
         assert!(pin_info.is_ok());
-        assert_eq!(pin_info.unwrap().id, 13);
+        assert_eq!(pin_info.unwrap().id, 11);
     }
 
     #[hermes_macros::test]
     fn test_animation() {
-        let mut output =
-            DigitalOutput::new(&Board::from(MockProtocol::default()), 13, false).unwrap();
+        let mut output = PwmOutput::new(&Board::from(MockProtocol::default()), 11, 20).unwrap();
         assert!(!output.is_busy());
         // Stop something not started should not fail.
         output.stop();
@@ -311,13 +316,12 @@ mod tests {
 
     #[test]
     fn test_display_impl() {
-        let mut output =
-            DigitalOutput::new(&Board::from(MockProtocol::default()), 13, true).unwrap();
-        let _ = output.turn_off();
+        let mut output = PwmOutput::new(&Board::from(MockProtocol::default()), 11, 212).unwrap();
+        let _ = output.set_value(127);
         let display_str = format!("{}", output);
         assert_eq!(
             display_str,
-            "DigitalOutput (pin=13) [state=false, default=true]"
+            "PwmOutput (pin=11) [state=127 (50%), default=212]"
         );
     }
 }

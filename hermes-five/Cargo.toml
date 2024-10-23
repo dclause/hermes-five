@@ -111,6 +111,17 @@ name = "led_animate"
 path = "examples/led/animate.rs"
 
 # ########################################
+# OUTPUTS examples
+
+[[example]]
+name = "output_digital"
+path = "examples/output/digital.rs"
+
+[[example]]
+name = "output_pwm"
+path = "examples/output/pwm.rs"
+
+# ########################################
 # SENSORS examples
 
 [[example]]

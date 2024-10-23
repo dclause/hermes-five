@@ -67,7 +67,7 @@ impl Pin {
     /// Get the max value this pin can reach.
     ///
     /// This is defined by the resolution of the current pin mode.
-    pub fn get_max_possible_value(&self) -> usize {
+    pub fn get_max_possible_value(&self) -> u16 {
         self.mode.get_max_possible_value()
     }
 }
@@ -147,7 +147,7 @@ pub struct PinMode {
 
 impl PinMode {
     /// Get the max value this pinMode can reach according to its resolution.
-    pub fn get_max_possible_value(&self) -> usize {
+    pub fn get_max_possible_value(&self) -> u16 {
         (1 << self.resolution) - 1
     }
 }

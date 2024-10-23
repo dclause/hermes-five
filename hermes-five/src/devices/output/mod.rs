@@ -5,6 +5,7 @@ use crate::utils::{Easing, State};
 
 pub mod digital;
 pub mod led;
+pub mod pwm;
 pub mod servo;
 
 /// A trait for devices that can act on the world: the board "outputs" some state onto them.

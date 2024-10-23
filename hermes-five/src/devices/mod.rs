@@ -12,6 +12,7 @@ pub use crate::devices::input::{Input, InputEvent};
 // Output devices re-exports
 pub use crate::devices::output::digital::DigitalOutput;
 pub use crate::devices::output::led::Led;
+pub use crate::devices::output::pwm::PwmOutput;
 pub use crate::devices::output::servo::Servo;
 pub use crate::devices::output::servo::ServoType;
 pub use crate::devices::output::Output;

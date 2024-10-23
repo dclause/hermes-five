@@ -172,10 +172,9 @@ impl Led {
         match self.pwm_mode {
             None => 100,
             // Compute the brightness percentage (depending on resolution (255 on arduino for instance)).
-            Some(pwm_mode) => {
-                self.brightness
-                    .scale(0, pwm_mode.get_max_possible_value() as u16, 0, 100)
-            }
+            Some(pwm_mode) => self
+                .brightness
+                .scale(0, pwm_mode.get_max_possible_value(), 0, 100),
         }
     }
 
@@ -200,7 +199,7 @@ impl Led {
         })?;
 
         // Compute the brightness value (depending on resolution (255 on arduino for instance))
-        let brightness = brightness.scale(0, 100, 0, pwm_mode.get_max_possible_value() as u16);
+        let brightness = brightness.scale(0, 100, 0, pwm_mode.get_max_possible_value());
 
         // Sets the brightness.
         self.brightness = brightness;

@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 
-use crate::errors::*;
 use crate::errors::HardwareError::UnknownPin;
+use crate::errors::*;
 use crate::protocols::{I2CReply, Pin, PinIdOrName};
 
 /// Represents the hardware and internal data that a generic protocol handles.
@@ -95,8 +95,8 @@ mod tests {
 
     #[test]
     fn test_get_pin_error() {
-        assert!(create_test_hardware().get_pin(6).is_err());
-        assert!(create_test_hardware().get_pin_mut(6).is_err());
+        assert!(create_test_hardware().get_pin(66).is_err());
+        assert!(create_test_hardware().get_pin_mut(66).is_err());
     }
 
     #[test]

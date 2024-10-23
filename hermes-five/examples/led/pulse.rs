@@ -18,7 +18,7 @@ async fn main() {
         // stop() stops the animation.
         // off() shuts the led off.
         led.stop();
-        led.off()?;
+        led.turn_off()?;
 
         Ok(())
     });

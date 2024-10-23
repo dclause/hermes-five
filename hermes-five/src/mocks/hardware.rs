@@ -98,7 +98,7 @@ pub fn create_pwm_pin(id: u16, value: u16) -> Pin {
         name: format!("D{}", id),
         mode: PinMode {
             id: PinModeId::PWM,
-            resolution: 1,
+            resolution: 8,
         },
         supported_modes: vec![
             PinMode {
