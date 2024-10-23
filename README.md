@@ -1,6 +1,6 @@
 # Hermes-Five
 
-[![License](https://img.shields.io/github/license/dclause/hermes-five?color=success)](https://github.com/dclause/hermes-five/blob/develop/LICENSE)
+[![License](https://img.shields.io/github/license/dclause/hermes-five?color=success)](/LICENSE)
 [![Documentation](https://img.shields.io/badge/documentation-_online-success)](https://dclause.github.io/hermes-five/)
 [![Build Status](https://github.com/dclause/hermes-five/workflows/Build/badge.svg)](https://github.com/dclause/hermes-five/actions/workflows/build.yml)
 [![Test Status](https://github.com/dclause/hermes-five/workflows/Test/badge.svg)](https://github.com/dclause/hermes-five/actions/workflows/test.yml)
@@ -106,16 +106,16 @@ RUST_LOG=DEBUG cargo run --example folder_examplename
 
 ## Roadmap
 
-For details, see the full [roadmap](https://github.com/dclause/hermes-five/blob/develop/roadmap.md): currently working
+For details, see the full [roadmap](/roadmap.md): currently working
 toward release 0.1
 
 In short:
 
-- version 0.1: proof-of-concept;
+- [version 0.1](/roadmap.md#release-version-01): proof-of-concept;
     - basics concepts and underlying requirements (events, tasks, multi-tasking, etc..)
     - API syntax
     - Firmata communication to read/write data for basic input/ouput
-- version 0.2: PoC of swapping the underlying bricks
+- [version 0.2](/roadmap.md#release-version-02): PoC of swapping the underlying bricks
     - multi-protocol compatibility: serial, wifi, etc.
     - multi-board compatibility: arduino, raspberry, etc.
     - *to be determined:* new layer between the board and devices ? (ex. PCA9685 for servo)
@@ -137,7 +137,7 @@ respect the project's original philosophy._**
 ## License
 
 This project is licensed under the MIT License. See
-the [LICENSE](https://github.com/dclause/hermes-five/blob/develop/LICENSE) file for details.
+the [LICENSE](/LICENSE) file for details.
 
 ## Contact
 

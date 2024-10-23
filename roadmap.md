@@ -43,8 +43,12 @@ The purpose for this release is to create a proof-of-concept of the project:
 - [X] ~~Implement most features for creating Button input~~
 - [X] ~~Implement most features for creating AnalogInput input~~
 - [X] ~~Implement most features for creating DigitalInput input~~
-- [ ] Implement most features for creating AnalogOutput output
-- [ ] Implement most features for creating DigitalOutput output
+- [X] ~~Implement most features for creating DigitalOutput output~~
+- [X] ~~Implement most features for creating PwmOutput output~~
+
+### Pre-release phase:
+
+- [ ] Write appropriate documentation
 
 ## Release version 0.2
 
