@@ -237,23 +237,9 @@ impl Device for Led {}
 
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl Output for Led {
-    /// Animates the LED
-    fn animate<S: Into<State>>(&mut self, state: S, duration: u64, transition: Easing) {
-        let mut animation = Animation::from(
-            Track::new(self.clone())
-                .with_keyframe(Keyframe::new(state, 0, duration).set_transition(transition)),
-        );
-        animation.play();
-        self.animation = Arc::new(Some(animation));
-    }
-
-    /// Stops the current animation. This does not necessarily turn off the LED;
-    /// it will remain in its current state when stopped.
-    fn stop(&mut self) {
-        if let Some(animation) = Arc::get_mut(&mut self.animation).and_then(Option::as_mut) {
-            animation.stop();
-        }
-        self.animation = Arc::new(None);
+    /// Retrieves the actuator current state.
+    fn get_state(&self) -> State {
+        self.state.read().clone().into()
     }
 
     /// Internal only: Update the LED to the target state.
@@ -284,19 +270,34 @@ impl Output for Led {
         Ok(value.into())
     }
 
-    /// Retrieves the actuator current state.
-    fn get_state(&self) -> State {
-        self.state.read().clone().into()
-    }
-
     /// Retrieves the actuator default (or neutral) state.
     fn get_default(&self) -> State {
         self.default.into()
     }
 
+    /// Animates the LED
+    fn animate<S: Into<State>>(&mut self, state: S, duration: u64, transition: Easing) {
+        let mut animation = Animation::from(
+            Track::new(self.clone())
+                .with_keyframe(Keyframe::new(state, 0, duration).set_transition(transition)),
+        );
+        animation.play();
+        self.animation = Arc::new(Some(animation));
+    }
+
     /// Indicates the busy status, ie if the device is running an animation.
     fn is_busy(&self) -> bool {
         self.animation.is_some()
+    }
+
+    /// Stops the current animation.
+    /// This does not necessarily turn off the LED;
+    /// it will remain in its current state when stopped.
+    fn stop(&mut self) {
+        if let Some(animation) = Arc::get_mut(&mut self.animation).and_then(Option::as_mut) {
+            animation.stop();
+        }
+        self.animation = Arc::new(None);
     }
 }
 

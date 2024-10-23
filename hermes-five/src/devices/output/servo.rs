@@ -346,23 +346,9 @@ impl Device for Servo {}
 
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl Output for Servo {
-    fn animate<S: Into<State>>(&mut self, state: S, duration: u64, transition: Easing) {
-        let mut animation = Animation::from(
-            Track::new(self.clone())
-                .with_keyframe(Keyframe::new(state, 0, duration).set_transition(transition)),
-        );
-        animation.play();
-        self.animation = Arc::new(Some(animation));
-    }
-
-    /// Stops the current animation.
-    /// Any animation running will be stopped after the current running step is executed.
-    /// Any simple move running will be stopped at current position with no reset.
-    fn stop(&mut self) {
-        if let Some(animation) = Arc::get_mut(&mut self.animation).and_then(Option::as_mut) {
-            animation.stop();
-        }
-        self.animation = Arc::new(None);
+    /// Retrieves the actuator current state.
+    fn get_state(&self) -> State {
+        self.state.read().clone().into()
     }
 
     /// Update the Servo position.
@@ -433,19 +419,33 @@ impl Output for Servo {
         Ok(value.into())
     }
 
-    /// Retrieves the actuator current state.
-    fn get_state(&self) -> State {
-        self.state.read().clone().into()
-    }
-
     /// Retrieves the actuator default (or neutral) state.
     fn get_default(&self) -> State {
         self.default.into()
     }
 
+    fn animate<S: Into<State>>(&mut self, state: S, duration: u64, transition: Easing) {
+        let mut animation = Animation::from(
+            Track::new(self.clone())
+                .with_keyframe(Keyframe::new(state, 0, duration).set_transition(transition)),
+        );
+        animation.play();
+        self.animation = Arc::new(Some(animation));
+    }
+
     /// Indicates the busy status, ie if the device is running an animation.
     fn is_busy(&self) -> bool {
         self.animation.is_some()
+    }
+
+    /// Stops the current animation.
+    /// Any animation running will be stopped after the current running step is executed.
+    /// Any simple move running will be stopped at current position with no reset.
+    fn stop(&mut self) {
+        if let Some(animation) = Arc::get_mut(&mut self.animation).and_then(Option::as_mut) {
+            animation.stop();
+        }
+        self.animation = Arc::new(None);
     }
 }
 
