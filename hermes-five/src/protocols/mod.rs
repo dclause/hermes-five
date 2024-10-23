@@ -7,9 +7,9 @@ use dyn_clone::DynClone;
 use log::trace;
 use parking_lot::RwLock;
 
-use crate::errors::*;
 use crate::errors::HardwareError::IncompatibleMode;
 use crate::errors::ProtocolError::MessageTooShort;
+use crate::errors::*;
 pub use crate::protocols::constants::*;
 pub use crate::protocols::flavor::*;
 pub use crate::protocols::hardware::*;
@@ -622,11 +622,11 @@ mod tests {
             assert_eq!(pin.value, 170, "Pin value updated");
         }
 
-        let result = protocol.analog_write(6, 0);
+        let result = protocol.analog_write(66, 0);
         assert!(result.is_err(), "{:?}", result);
         assert_eq!(
             result.err().unwrap().to_string(),
-            "Hardware error: Unknown pin 6."
+            "Hardware error: Unknown pin 66."
         );
     }
 
@@ -677,11 +677,11 @@ mod tests {
             assert_eq!(pin.value, 11, "Other pin value does not change");
         }
 
-        let result = protocol.digital_write(7, true);
+        let result = protocol.digital_write(66, true);
         assert!(result.is_err(), "{:?}", result);
         assert_eq!(
             result.err().unwrap().to_string(),
-            "Hardware error: Unknown pin 7."
+            "Hardware error: Unknown pin 66."
         );
     }
 

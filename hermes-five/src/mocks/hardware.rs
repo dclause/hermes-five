@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use crate::protocols::{Pin, PinMode, PinModeId};
 use crate::protocols::Hardware;
+use crate::protocols::{Pin, PinMode, PinModeId};
 
 pub fn create_analog_pin(id: u16, value: u16) -> Pin {
     Pin {
@@ -203,6 +203,8 @@ pub fn create_test_hardware() -> Hardware {
             (3, create_digital_pin(3, 3)),
             (4, create_digital_pin(4, 4)),
             (5, create_digital_pin(5, 0)),
+            (6, create_digital_pin(6, 0)),
+            (7, create_digital_pin(7, 0)),
             (8, create_pwm_pin(8, 8)),
             (9, create_shift_pin(9, 9)),
             (10, create_input_pin(10, 10)),

@@ -94,13 +94,13 @@ impl Led {
     }
 
     /// Turn the LED on.
-    pub fn on(&mut self) -> Result<&Self, Error> {
+    pub fn turn_on(&mut self) -> Result<&Self, Error> {
         self.set_state(State::Integer(self.brightness as u64))?;
         Ok(self)
     }
 
     /// Turn the LED off.
-    pub fn off(&mut self) -> Result<&Self, Error> {
+    pub fn turn_off(&mut self) -> Result<&Self, Error> {
         self.set_state(State::Integer(0))?;
         Ok(self)
     }
@@ -108,8 +108,8 @@ impl Led {
     /// Toggle the current state, if on then turn off, if off then turn on.
     pub fn toggle(&mut self) -> Result<&Self, Error> {
         match self.is_on() {
-            true => self.off(),
-            false => self.on(),
+            true => self.turn_off(),
+            false => self.turn_on(),
         }
     }
 
@@ -154,7 +154,7 @@ impl Led {
     }
 
     // ########################################
-    // Setters and Getters.
+    // Getters.
 
     /// Retrieves the PIN (id) used to control the LED.
     pub fn get_pin(&self) -> u16 {
@@ -213,9 +213,14 @@ impl Led {
         Ok(self)
     }
 
-    /// Indicates the LED current ON/OFF status.
+    /// Indicates if the LED is current ON (regardless its brightness).
     pub fn is_on(&self) -> bool {
         self.state.read().gt(&0)
+    }
+
+    /// Indicates if the LED is current OFF.
+    pub fn is_off(&self) -> bool {
+        self.state.read().eq(&0)
     }
 }
 
@@ -244,7 +249,7 @@ impl Output for Led {
 
     /// Internal only: Update the LED to the target state.
     ///
-    /// /!\ You should rather use [`Led::on()`], [`Led::off()`], [`Led::set_brightness()`]` functions.`
+    /// /!\ You should rather use [`Led::turn_on()`], [`Led::turn_off()`], [`Led::set_brightness()`]` functions.`
     fn set_state(&mut self, state: State) -> Result<State, Error> {
         let value = match state {
             State::Boolean(value) => match value {
@@ -325,15 +330,15 @@ mod tests {
     #[test]
     fn test_turn_on() {
         let mut led = _setup_led(13);
-        assert!(led.on().is_ok()); // Turn LED on
+        assert!(led.turn_on().is_ok()); // Turn LED on
         assert_eq!(*led.state.read(), 0xFF); // State should reflect the brightness (255)
     }
 
     #[test]
     fn test_turn_off() {
         let mut led = _setup_led(13);
-        led.on().unwrap(); // Turn LED on first
-        assert!(led.off().is_ok()); // Turn LED off
+        led.turn_on().unwrap(); // Turn LED on first
+        assert!(led.turn_off().is_ok()); // Turn LED off
         assert_eq!(*led.state.read(), 0); // State should be 0 (OFF)
     }
 
@@ -481,7 +486,7 @@ mod tests {
     fn test_is_on() {
         let mut led = _setup_led(13);
         assert!(!led.is_on()); // Initially the LED is off
-        led.on().unwrap();
+        led.turn_on().unwrap();
         assert!(led.is_on()); // After turning on, the LED should be on
     }
 
@@ -489,6 +494,6 @@ mod tests {
     fn test_display_impl() {
         let led = _setup_led(13);
         let display_str = format!("{}", led);
-        assert!(display_str.contains("LED (pin=13)")); // Check that the pin is correctly displayed
+        assert!(display_str.contains("LED (pin=13) [state=0, default=0, brightness=255]"));
     }
 }

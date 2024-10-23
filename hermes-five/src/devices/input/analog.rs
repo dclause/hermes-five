@@ -50,7 +50,7 @@ impl AnalogInput {
     /// * `UnknownPin`: this function will bail an error if the AnalogInput pin does not exist for this board.
     /// * `IncompatibleMode`: this function will bail an error if the AnalogInput pin does not support ANALOG mode.
     pub fn new<T: Into<PinIdOrName>>(board: &Board, analog_pin: T) -> Result<Self, Error> {
-        let pin = board.get_hardware().get_pin(analog_pin.into())?.clone();
+        let pin = board.get_hardware().get_pin(analog_pin)?.clone();
 
         let mut sensor = Self {
             pin: pin.id,

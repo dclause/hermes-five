@@ -1,4 +1,3 @@
-use crate::utils::scale::Scalable;
 use dyn_clone::DynClone;
 use std::fmt::{Debug, Display};
 
@@ -11,6 +10,7 @@ pub use crate::devices::input::button::Button;
 pub use crate::devices::input::digital::DigitalInput;
 pub use crate::devices::input::{Input, InputEvent};
 // Output devices re-exports
+pub use crate::devices::output::digital::DigitalOutput;
 pub use crate::devices::output::led::Led;
 pub use crate::devices::output::servo::Servo;
 pub use crate::devices::output::servo::ServoType;

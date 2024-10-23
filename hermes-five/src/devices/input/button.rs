@@ -148,7 +148,7 @@ impl Button {
 
     /// Private helper method shared by constructors.
     fn start_with<T: Into<PinIdOrName>>(mut self, board: &Board, pin: T) -> Result<Self, Error> {
-        let pin = board.get_hardware().get_pin(pin.into())?.clone();
+        let pin = board.get_hardware().get_pin(pin)?.clone();
 
         // Set pin ID and state from pin.
         self.pin = pin.id;

@@ -3,6 +3,7 @@ use crate::errors::Error;
 use crate::utils::scale::Scalable;
 use crate::utils::{Easing, State};
 
+pub mod digital;
 pub mod led;
 pub mod servo;
 

@@ -1,7 +1,7 @@
 use std::fmt::{Debug, Display, Formatter};
 
-use crate::errors::{Error, Unknown};
 use crate::errors::HardwareError::IncompatibleMode;
+use crate::errors::{Error, Unknown};
 
 /// Represents the current state and configuration of a pin.
 ///
@@ -411,6 +411,8 @@ mod tests {
     fn test_pin_id_from() {
         let pin = PinIdOrName::from(42u16);
         assert_eq!(pin, PinIdOrName::Id(42));
+        let pin: PinIdOrName = 4.into();
+        assert_eq!(pin, PinIdOrName::Id(4));
         let pin = PinIdOrName::from("D1");
         assert_eq!(pin, PinIdOrName::Name("D1".to_string()));
         let pin = PinIdOrName::from("A1".to_string());

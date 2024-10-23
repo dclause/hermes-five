@@ -39,7 +39,7 @@ pub struct DigitalInput {
 }
 
 impl DigitalInput {
-    /// Creates an instance of an [`DigitalInput`] attached to a given board.
+    /// Creates an instance of a [`DigitalInput`] attached to a given board.
     ///
     /// # Parameters
     /// * `board`: the [`Board`] which the DigitalInput is attached to
@@ -49,7 +49,7 @@ impl DigitalInput {
     /// * `UnknownPin`: this function will bail an error if the DigitalInput pin does not exist for this board.
     /// * `IncompatibleMode`: this function will bail an error if the DigitalInput pin does not support ANALOG mode.
     pub fn new<T: Into<PinIdOrName>>(board: &Board, pin: T) -> Result<Self, Error> {
-        let pin = board.get_hardware().get_pin(pin.into())?.clone();
+        let pin = board.get_hardware().get_pin(pin)?.clone();
 
         let mut sensor = Self {
             pin: pin.id,
