@@ -98,7 +98,7 @@ impl DigitalInput {
                             .get_pin(self_clone.pin)?
                             .value
                             != 0;
-                        let state_value = self_clone.state.read().clone();
+                        let state_value = *self_clone.state.read();
                         if pin_value != state_value {
                             *self_clone.state.write() = pin_value;
                             self_clone.events.emit(InputEvent::OnChange, pin_value);

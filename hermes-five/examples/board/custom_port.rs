@@ -1,5 +1,5 @@
-use hermes_five::{Board, BoardEvent};
 use hermes_five::protocols::SerialProtocol;
+use hermes_five::{Board, BoardEvent};
 
 #[hermes_five::runtime]
 async fn main() {

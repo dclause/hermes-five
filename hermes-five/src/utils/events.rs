@@ -3,8 +3,8 @@
 use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 use futures::future::BoxFuture;
 use futures::FutureExt;
@@ -13,19 +13,19 @@ use parking_lot::Mutex;
 use crate::errors::Error;
 use crate::utils::task;
 
-type SyncedCallbackMap = Mutex<HashMap<String, Vec<CallbackWrapper>>>;
+type Callback =
+    dyn FnMut(Arc<dyn Any + Send + Sync>) -> BoxFuture<'static, Result<(), Error>> + Send;
 pub type EventHandler = usize;
+struct CallbackWrapper {
+    id: EventHandler,
+    callback: Box<Callback>,
+}
+type SyncedCallbackMap = Mutex<HashMap<String, Vec<CallbackWrapper>>>;
 
 #[derive(Clone, Default)]
 pub struct EventManager {
     callbacks: Arc<SyncedCallbackMap>,
     next_id: Arc<AtomicUsize>,
-}
-
-struct CallbackWrapper {
-    id: EventHandler,
-    callback:
-        Box<dyn FnMut(Arc<dyn Any + Send + Sync>) -> BoxFuture<'static, Result<(), Error>> + Send>,
 }
 
 impl EventManager {
@@ -146,7 +146,7 @@ impl EventManager {
     ///     events.emit("nothing", ());
     /// }
     /// ```
-    pub fn emit<'a, S, T>(&self, event: S, payload: T)
+    pub fn emit<S, T>(&self, event: S, payload: T)
     where
         S: Into<String>,
         T: 'static + Send + Sync,

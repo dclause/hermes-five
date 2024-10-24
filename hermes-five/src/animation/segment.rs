@@ -11,7 +11,7 @@ use crate::pause;
 ///
 /// The `Segment` plays the keyframes of its track in a logical and temporal order.
 /// - A segment searches for keyframe to execute and updates the associated devices based on a given
-/// number of times per second, as defined by its `fps` property.
+///   number of times per second, as defined by its `fps` property.
 /// - A segment can be set to repeat in a loop within an [`Animation`] from a starting point in time called `loopback`.
 ///
 /// # Example
@@ -178,7 +178,7 @@ impl Segment {
     ///
     /// The duration is determined by the longest track in the segment.
     pub fn get_duration(&self) -> u64 {
-        match self.tracks.len() > 0 {
+        match !self.tracks.is_empty() {
             false => 0,
             true => {
                 let longest_track = self

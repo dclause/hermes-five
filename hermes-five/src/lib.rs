@@ -1,3 +1,5 @@
+#![doc(html_root_url = "https://docs.rs/hermes-five/0.1.0-beta")]
+
 #[cfg(test)]
 extern crate self as hermes_five;
 

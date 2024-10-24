@@ -105,12 +105,12 @@ impl DigitalOutput {
 
     /// Indicates if the device state is HIGH.
     pub fn is_high(&self) -> bool {
-        self.state.read().clone()
+        *self.state.read()
     }
 
     /// Indicates if the device state is LOW.
     pub fn is_low(&self) -> bool {
-        !self.state.read().clone()
+        !*self.state.read()
     }
 }
 
@@ -133,7 +133,7 @@ impl Device for DigitalOutput {}
 impl Output for DigitalOutput {
     /// Retrieves the actuator current state.
     fn get_state(&self) -> State {
-        self.state.read().clone().into()
+        (*self.state.read()).into()
     }
 
     /// Internal only: Update the LED to the target state.
@@ -145,9 +145,9 @@ impl Output for DigitalOutput {
             State::Integer(value) => match value {
                 0 => Ok(false),
                 1 => Ok(true),
-                _ => Err(Error::from(StateError)),
+                _ => Err(StateError),
             },
-            _ => Err(Error::from(StateError)),
+            _ => Err(StateError),
         }?;
 
         match self.get_pin_info()?.mode.id {

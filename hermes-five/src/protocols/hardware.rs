@@ -47,11 +47,11 @@ impl Hardware {
     pub fn get_pin<T: Into<PinIdOrName>>(&self, pin: T) -> Result<&Pin, Error> {
         let pin = pin.into();
         match &pin {
-            PinIdOrName::Id(id) => self.pins.get(&id).ok_or(Error::from(UnknownPin { pin })),
+            PinIdOrName::Id(id) => self.pins.get(id).ok_or(Error::from(UnknownPin { pin })),
             PinIdOrName::Name(name) => Ok(self
                 .pins
                 .iter()
-                .find(|(_, &ref pin)| pin.name == *name)
+                .find(|(_, pin)| pin.name == *name)
                 .ok_or(Error::from(UnknownPin { pin }))?
                 .1),
         }
@@ -67,10 +67,7 @@ impl Hardware {
     pub fn get_pin_mut<T: Into<PinIdOrName>>(&mut self, pin: T) -> Result<&mut Pin, Error> {
         let pin = pin.into();
         match &pin {
-            PinIdOrName::Id(id) => self
-                .pins
-                .get_mut(&id)
-                .ok_or(Error::from(UnknownPin { pin })),
+            PinIdOrName::Id(id) => self.pins.get_mut(id).ok_or(Error::from(UnknownPin { pin })),
             PinIdOrName::Name(name) => Ok(self
                 .pins
                 .iter_mut()

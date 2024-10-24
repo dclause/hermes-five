@@ -7,8 +7,8 @@ use parking_lot::{RwLock, RwLockReadGuard};
 
 use crate::errors::Error;
 use crate::pause;
-use crate::protocols::{Hardware, PinModeId, Protocol};
 use crate::protocols::SerialProtocol;
+use crate::protocols::{Hardware, PinModeId, Protocol};
 use crate::utils::events::{EventHandler, EventManager};
 use crate::utils::task;
 use crate::utils::task::TaskHandler;
@@ -22,9 +22,9 @@ pub enum BoardEvent {
 }
 
 /// Convert events to string to facilitate usage with [`EventManager`].
-impl Into<String> for BoardEvent {
-    fn into(self) -> String {
-        let event = match self {
+impl From<BoardEvent> for String {
+    fn from(value: BoardEvent) -> Self {
+        let event = match value {
             BoardEvent::OnReady => "ready",
             BoardEvent::OnClose => "close",
         };
@@ -332,8 +332,8 @@ impl DerefMut for Board {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
 
     use crate::mocks::protocol::MockProtocol;
     use crate::pause;

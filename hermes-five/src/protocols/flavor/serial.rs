@@ -8,8 +8,8 @@ use std::time::Duration;
 
 use log::trace;
 use parking_lot::{Mutex, RwLock};
-use serialport::{DataBits, FlowControl, Parity, StopBits};
 use serialport::SerialPort;
+use serialport::{DataBits, FlowControl, Parity, StopBits};
 
 use crate::errors::Error;
 use crate::errors::ProtocolError::NotInitialized;
@@ -74,7 +74,7 @@ impl Default for SerialProtocol {
     #[cfg(not(tarpaulin_include))]
     fn default() -> Self {
         let ports = serialport::available_ports().unwrap_or_else(|_| vec![]);
-        match ports.get(0) {
+        match ports.first() {
             Some(port) => Self::new(&port.port_name),
             None => Self::new(""),
         }

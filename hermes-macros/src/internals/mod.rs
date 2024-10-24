@@ -36,10 +36,9 @@ pub fn runtime_macro(item: TokenStream, tokio: TokioMode) -> TokenStream {
     // Check if the function has an explicit return type
     let has_return_type = match &sync_sig.output {
         ReturnType::Default => false,
-        ReturnType::Type(_, ty) => match &**ty {
-            syn::Type::Tuple(tuple) if tuple.elems.is_empty() => false,
-            _ => true,
-        },
+        ReturnType::Type(_, ty) => {
+            !matches!(&**ty, syn::Type::Tuple(tuple) if tuple.elems.is_empty())
+        }
     };
 
     // Extract the last statement if it's an expression (potential return value)
@@ -124,7 +123,7 @@ pub fn runtime_macro(item: TokenStream, tokio: TokioMode) -> TokenStream {
     }
 
     // Generate the expanded function
-    let expanded = quote! {
+    quote! {
         #test_attr
         #(#attrs)*
         #vis #sync_sig {
@@ -133,10 +132,7 @@ pub fn runtime_macro(item: TokenStream, tokio: TokioMode) -> TokenStream {
                 #(#body)*
             })
         }
-    };
-
-    // Return the generated TokenStream
-    TokenStream::from(expanded)
+    }
 }
 
 #[cfg(test)]

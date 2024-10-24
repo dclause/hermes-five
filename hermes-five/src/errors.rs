@@ -19,7 +19,7 @@ pub enum Error {
     /// Hardware error: {source}.
     HardwareError { source: HardwareError },
     /// Unknown error: {info}.
-    Unknown { info: String },
+    UnknownError { info: String },
 }
 
 impl From<std::io::Error> for Error {
@@ -31,7 +31,7 @@ impl From<std::io::Error> for Error {
             _ => error.to_string(),
         };
         Self::ProtocolError {
-            source: IoException { info: info },
+            source: IoException { info },
         }
     }
 }
@@ -50,7 +50,7 @@ impl From<HardwareError> for Error {
 
 impl From<Utf8Error> for Error {
     fn from(value: Utf8Error) -> Self {
-        Self::Unknown {
+        Self::UnknownError {
             info: value.to_string(),
         }
     }
@@ -120,7 +120,7 @@ mod tests {
             "Hardware error: Pin (1) not compatible with mode (SERVO) - test context."
         );
 
-        let unknown_error = Unknown {
+        let unknown_error = UnknownError {
             info: "Some unknown error".to_string(),
         };
         assert_eq!(

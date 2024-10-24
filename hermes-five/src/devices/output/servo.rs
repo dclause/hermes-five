@@ -348,7 +348,7 @@ impl Device for Servo {}
 impl Output for Servo {
     /// Retrieves the actuator current state.
     fn get_state(&self) -> State {
-        self.state.read().clone().into()
+        (*self.state.read()).into()
     }
 
     /// Update the Servo position.
@@ -358,13 +358,13 @@ impl Output for Servo {
             State::Integer(value) => Ok(value as u16),
             State::Signed(value) => match value >= 0 {
                 true => Ok(value as u16),
-                false => Err(Error::from(StateError)),
+                false => Err(StateError),
             },
             State::Float(value) => match value >= 0.0 {
                 true => Ok(value as u16),
-                false => Err(Error::from(StateError)),
+                false => Err(StateError),
             },
-            _ => Err(Error::from(StateError)),
+            _ => Err(StateError),
         }?;
 
         // Clamp the request within the Servo range.
@@ -413,7 +413,7 @@ impl Output for Servo {
                 })?;
             }
         }
-        let current = self.state.read().clone();
+        let current = *self.state.read();
         self.previous = current;
         *self.state.write() = value;
         Ok(value.into())

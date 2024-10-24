@@ -114,20 +114,18 @@ impl PwmOutput {
 
     /// Gets the current PWM value.
     pub fn get_value(&self) -> u16 {
-        self.state.read().clone()
+        *self.state.read()
     }
 
     /// Gets the current percentage of the PWM value compared to max possible.
     pub fn get_percentage(&self) -> u8 {
-        let value = self.state.read().clone();
-        let percentage = ((value as f32 * 100.0) / self.max_value as f32).round() as u8;
-        percentage as u8
+        let value = *self.state.read();
+        ((value as f32 * 100.0) / self.max_value as f32).round() as u8
     }
 }
 
 impl Display for PwmOutput {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        println!("percentage: {}", self.get_percentage());
         write!(
             f,
             "PwmOutput (pin={}) [state={} ({}%), default={}]",
@@ -146,7 +144,7 @@ impl Device for PwmOutput {}
 impl Output for PwmOutput {
     /// Retrieves the actuator current state.
     fn get_state(&self) -> State {
-        self.state.read().clone().into()
+        (*self.state.read()).into()
     }
 
     /// Internal only: Update the LED to the target state.
@@ -157,13 +155,13 @@ impl Output for PwmOutput {
             State::Integer(value) => Ok(value as u16),
             State::Signed(value) => match value >= 0 {
                 true => Ok(value as u16),
-                false => Err(Error::from(StateError)),
+                false => Err(StateError),
             },
             State::Float(value) => match value >= 0.0 {
                 true => Ok(value as u16),
-                false => Err(Error::from(StateError)),
+                false => Err(StateError),
             },
-            _ => Err(Error::from(StateError)),
+            _ => Err(StateError),
         }?;
 
         match self.get_pin_info()?.mode.id {
@@ -199,8 +197,7 @@ impl Output for PwmOutput {
     }
 
     /// Stops the current animation.
-    /// This does not necessarily turn off the LED;
-    /// it will remain in its current state when stopped.
+    /// This does not necessarily turn off the servo: it will remain in its current state when stopped.
     fn stop(&mut self) {
         if let Some(animation) = Arc::get_mut(&mut self.animation).and_then(Option::as_mut) {
             animation.stop();

@@ -31,9 +31,9 @@ pub enum InputEvent {
 }
 
 /// Convert events to string to facilitate usage with [`EventManager`].
-impl Into<String> for InputEvent {
-    fn into(self) -> String {
-        let event = match self {
+impl From<InputEvent> for String {
+    fn from(value: InputEvent) -> Self {
+        let event = match value {
             InputEvent::OnChange => "change",
             InputEvent::OnPress => "press",
             InputEvent::OnRelease => "release",

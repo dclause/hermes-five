@@ -1,5 +1,5 @@
-use crate::utils::{Easing, State};
 use crate::utils::scale::Scalable;
+use crate::utils::{Easing, State};
 
 /// Represents a keyframe in an animation sequence.
 ///
@@ -120,8 +120,7 @@ impl Keyframe {
     pub(crate) fn compute_target_coefficient(&self, time: u64) -> f32 {
         let clamped_time = time.clamp(self.start, self.end) as f32;
         let progress = clamped_time.scale(self.start as f32, self.end as f32, 0.0, 1.0);
-        let eased_progress = self.transition.call(progress);
-        eased_progress
+        self.transition.call(progress)
     }
 }
 

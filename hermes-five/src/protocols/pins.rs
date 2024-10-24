@@ -1,7 +1,7 @@
 use std::fmt::{Debug, Display, Formatter};
 
 use crate::errors::HardwareError::IncompatibleMode;
-use crate::errors::{Error, Unknown};
+use crate::errors::{Error, UnknownError};
 
 /// Represents the current state and configuration of a pin.
 ///
@@ -39,10 +39,7 @@ impl Pin {
     /// * `None` if the mode is not supported.
     /// * `PinMode` the `PinMode` configuration if supported
     pub fn supports_mode(&self, mode: PinModeId) -> Option<PinMode> {
-        match self.supported_modes.iter().find(|m| m.id == mode) {
-            None => None,
-            Some(mode) => Some(mode.clone()),
-        }
+        self.supported_modes.iter().find(|m| m.id == mode).copied()
     }
 
     /// Validates that the pin is in the given mode.
@@ -241,9 +238,9 @@ impl PinModeId {
             0x0E => Ok(PinModeId::TONE),
             0x0F => Ok(PinModeId::DHT),
             0x7F => Ok(PinModeId::UNSUPPORTED),
-            x => Err(Error::from(Unknown {
+            x => Err(UnknownError {
                 info: format!("PinMode not found with value: {}", x),
-            })),
+            }),
         }
     }
 }

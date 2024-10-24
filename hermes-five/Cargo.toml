@@ -33,6 +33,7 @@ typetag = { version = "0.2.18", optional = true }
 
 [dev-dependencies]
 serial_test = "3.1.1"
+version-sync = "0.9.5"
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin_include)'] }

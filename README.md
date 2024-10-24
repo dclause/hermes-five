@@ -19,9 +19,28 @@ in [my spare time](https://github.com/dclause) and
 does not intend
 to compete with any other solutions you might want to try,_
 
-## Documentation
+## Getting started & Documentation
 
-To check out docs, visit [Github Pages](https://dclause.github.io/hermes-five).
+> [!IMPORTANT]  
+> To read documentation, visit [Doc Pages](https://docs.rs/hermes-five/latest/hermes-five).
+
+In a nutshell:
+
+- Create a new Rust project.
+
+```shell
+cargo new my_awesome_project
+cd my_awesome_project
+```
+
+- Add this crate to your dependencies in the `Cargo.toml` file.
+
+```toml
+[dependencies]
+hermes-five = "0.1.0-beta"
+```
+
+- Change `src/main.rs` file as need (see [examples](/examples))
 
 ## Features
 
@@ -81,7 +100,7 @@ cd my_project
 hermes-five = { branch = "develop", git = "https://github.com/dclause/hermes-five" }
 ```
 
-- Start by exploring the [examples](https://github.com/dclause/hermes-five/tree/develop/hermes-five/examples) code and
+- Start by exploring the [examples](/examples) code and
   the [project documentation](https://dclause.github.io/hermes-five).
 
 ## Examples

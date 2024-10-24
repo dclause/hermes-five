@@ -7,7 +7,7 @@ use tokio::sync::OnceCell;
 use tokio::task;
 use tokio::task::JoinHandle;
 
-use crate::errors::{Error, RuntimeError, Unknown};
+use crate::errors::{Error, RuntimeError, UnknownError};
 
 /// Represents the result of a TaskResult.
 /// A task may return either () or Result<(), Error> for flexibility which
@@ -96,7 +96,7 @@ where
     let handler = task::spawn(async move {
         // ...to send the result of the future through that channel.
         let result = future.await.into();
-        task_tx.send(result).map_err(|err| Unknown {
+        task_tx.send(result).map_err(|err| UnknownError {
             info: err.to_string(),
         })?;
         Ok(())
@@ -109,7 +109,7 @@ where
     let mut lock = cell.lock();
     let runtime_tx = lock.as_mut().ok_or(RuntimeError)?;
 
-    runtime_tx.send(task_rx).map_err(|err| Unknown {
+    runtime_tx.send(task_rx).map_err(|err| UnknownError {
         info: err.to_string(),
     })?;
 
@@ -132,13 +132,13 @@ macro_rules! pause_sync {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use std::sync::atomic::{AtomicU8, Ordering};
+    use std::sync::Arc;
     use std::time::SystemTime;
 
     use serial_test::serial;
 
-    use crate::errors::{Error, Unknown};
+    use crate::errors::{Error, UnknownError};
     use crate::utils::task;
 
     #[hermes_macros::runtime]
@@ -255,7 +255,7 @@ mod tests {
         assert!(task.is_ok(), "An Ok(()) task do not panic the runtime");
 
         let task = task::run(async move {
-            return Err(Unknown {
+            return Err(UnknownError {
                 info: "wow panic!".to_string(),
             });
         });

@@ -1,7 +1,7 @@
-use hermes_five::{Board, BoardEvent, pause};
 use hermes_five::animation::{Animation, Keyframe, Segment, Track};
 use hermes_five::devices::Servo;
 use hermes_five::utils::Easing;
+use hermes_five::{pause, Board, BoardEvent};
 
 #[hermes_five::runtime]
 async fn main() {

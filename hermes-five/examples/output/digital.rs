@@ -2,7 +2,6 @@
 /// This example shows how to use the DigitalOutput generic device type to do so.
 use hermes_five::devices::DigitalOutput;
 
-
 use hermes_five::{pause, Board, BoardEvent};
 
 #[hermes_five::runtime]

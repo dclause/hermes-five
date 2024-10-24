@@ -243,7 +243,7 @@ impl Device for Led {}
 impl Output for Led {
     /// Retrieves the actuator current state.
     fn get_state(&self) -> State {
-        self.state.read().clone().into()
+        (*self.state.read()).into()
     }
 
     /// Internal only: Update the LED to the target state.
@@ -256,7 +256,7 @@ impl Output for Led {
                 false => Ok(0),
             },
             State::Integer(value) => Ok(value as u16),
-            _ => Err(Error::from(StateError)),
+            _ => Err(StateError),
         }?;
 
         match self.get_pin_info()?.mode.id {

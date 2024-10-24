@@ -86,13 +86,13 @@ impl Track {
     /// # Returns
     /// The duration in milliseconds (0 if there are no keyframes).
     pub fn get_duration(&self) -> u64 {
-        match self.keyframes.len() > 0 {
+        match !self.keyframes.is_empty() {
             false => 0,
             true => {
                 let last_keyframe = self
                     .keyframes
                     .iter()
-                    .max_by(|x, y| x.get_end().cmp(&(y.get_end() as u64)))
+                    .max_by(|x, y| x.get_end().cmp(&(y.get_end())))
                     .unwrap();
                 last_keyframe.get_end()
             }
@@ -144,7 +144,7 @@ impl Track {
     ///
     /// # Returns
     /// An `Option` containing the most relevant `Keyframe` for the given timeframe, if any.
-    fn get_best_keyframe<'a, R: Into<Range<u64>>>(&mut self, timeframe: R) -> Option<Keyframe> {
+    fn get_best_keyframe<R: Into<Range<u64>>>(&mut self, timeframe: R) -> Option<Keyframe> {
         let timeframe = timeframe.into();
         // Get the keyframe to be played: the last one that
         self.keyframes
@@ -188,9 +188,8 @@ impl Display for Track {
 // Implementing basic getters and setters.
 impl Track {
     /// Returns the device associated with the [`Track`].
-    #[allow(private_interfaces)]
-    pub fn get_device(&self) -> &Box<dyn Output> {
-        &self.device
+    pub fn get_device(&self) -> &dyn Output {
+        &*self.device
     }
     /// Returns the keyframes of this [`Track`].
     pub fn get_keyframes(&self) -> &Vec<Keyframe> {

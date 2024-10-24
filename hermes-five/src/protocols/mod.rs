@@ -194,7 +194,7 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
         }
 
         let payload = &[
-            DIGITAL_MESSAGE | port as u8,
+            DIGITAL_MESSAGE | port,
             value as u8 & SYSEX_REALTIME,
             (value >> 7) as u8 & SYSEX_REALTIME,
         ];
@@ -456,12 +456,14 @@ pub trait Protocol: DynClone + Send + Sync + Debug {
                 i += 2;
             }
 
-            let mut pin = Pin::default();
-            pin.id = id;
-            pin.name = format!("D{}", id);
-            pin.supported_modes = supported_modes;
+            let mut pin = Pin {
+                id,
+                name: format!("D{}", id),
+                supported_modes,
+                ..Default::default()
+            };
             if !pin.supported_modes.is_empty() {
-                pin.mode = pin.supported_modes.first().unwrap().clone();
+                pin.mode = *pin.supported_modes.first().unwrap();
             }
             lock.pins.insert(pin.id, pin);
 
