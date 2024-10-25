@@ -4,14 +4,12 @@ use crate::errors::Error;
 use crate::errors::HardwareError::IncompatibleMode;
 use crate::errors::ProtocolError::MessageTooShort;
 use crate::io::firmata::constants::*;
-use crate::io::private::TraitToAny;
 use crate::io::protocol::IoProtocol;
 use crate::io::serial::Serial;
 use crate::io::{I2CReply, IoData, IoTransport, Pin, PinMode, PinModeId};
 use crate::pause;
 use crate::utils::task::TaskHandler;
 use crate::utils::{task, Range};
-use dyn_clone::DynClone;
 use log::trace;
 use parking_lot::RwLock;
 use std::collections::HashMap;
@@ -1379,7 +1377,7 @@ mod tests {
         // assert_eq!(protocol.get_protocol_name(), "MockIoProtocol");
         assert_eq!(
             format!("{}", boxed_protocol),
-            "FirmataIO [firmware=Fake protocol, version=fake.2.3, protocol=fake.1.0, transport=MockTransportLayer]"
+            "Firmata [firmware=Fake protocol, version=fake.2.3, protocol=fake.1.0, transport=MockTransportLayer]"
         )
     }
 }

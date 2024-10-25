@@ -14,7 +14,6 @@ use std::sync::Arc;
 #[derive(Clone, Debug)]
 pub struct MockIoProtocol {
     pub connected: bool,
-    // pub inner: FirmataIO,
     #[cfg_attr(feature = "serde", serde(skip))]
     pub data: Arc<RwLock<IoData>>,
 }
@@ -23,7 +22,6 @@ impl Default for MockIoProtocol {
     fn default() -> Self {
         Self {
             connected: false,
-            // inner: FirmataIO::from(MockTransportLayer::default()),
             data: Arc::new(RwLock::new(create_test_plugin_io_data())),
         }
     }

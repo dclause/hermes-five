@@ -53,25 +53,16 @@ path = "examples/animation/multiple_animation.rs"
 # BOARD examples
 
 [[example]]
-name = "board_close_event"
-path = "examples/board/close_event.rs"
+name = "board_creation"
+path = "examples/board/creation.rs"
 
 [[example]]
-name = "board_custom_port"
-path = "examples/board/custom_port.rs"
+name = "board_events"
+path = "examples/board/events.rs"
 
 [[example]]
 name = "board_hardware"
 path = "examples/board/hardware.rs"
-
-[[example]]
-name = "board_multiple_events"
-path = "examples/board/multiple_events.rs"
-
-[[example]]
-name = "board_ready_event"
-path = "examples/board/ready_event.rs"
-
 
 # ########################################
 # Button examples

@@ -4,10 +4,9 @@ use crate::io::{IoProtocol, PinModeId};
 use crate::utils::events::{EventHandler, EventManager};
 use crate::utils::task;
 use log::trace;
-use parking_lot::{RwLock, RwLockReadGuard};
+use parking_lot::RwLockReadGuard;
 use std::fmt::Display;
 use std::ops::{Deref, DerefMut};
-use std::sync::Arc;
 
 /// Lists all events a Board can emit/listen.
 pub enum BoardEvent {
@@ -314,6 +313,7 @@ impl DerefMut for Board {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::io::serial::Serial;
     use crate::mocks::plugin_io::MockIoProtocol;
     use crate::mocks::transport_layer::MockTransportLayer;
     use crate::pause;
@@ -326,7 +326,7 @@ mod tests {
         let board = Board::default();
         assert_eq!(
             board.protocol.get_protocol_name(),
-            "FirmataIO",
+            "Firmata",
             "Default board uses the default protocol"
         );
     }
@@ -339,6 +339,13 @@ mod tests {
             board.protocol.get_protocol_name(),
             "MockIoProtocol",
             "Board can be created with a custom protocol"
+        );
+        // Custom transport can be used.
+        let board = Board::from(Serial::default());
+        assert_eq!(
+            board.protocol.get_protocol_name(),
+            "Firmata",
+            "Board can be created with a custom transport"
         );
     }
 
@@ -412,7 +419,7 @@ mod tests {
     #[hermes_macros::test]
     fn test_board_run() {
         let board = Board::run();
-        assert_eq!(board.protocol.get_protocol_name(), "FirmataIO");
+        assert_eq!(board.protocol.get_protocol_name(), "Firmata");
         board.close();
     }
 
