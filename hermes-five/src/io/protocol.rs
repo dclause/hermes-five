@@ -5,22 +5,22 @@ use std::fmt::{Debug, Display};
 use std::sync::Arc;
 
 use crate::errors::*;
-use crate::io::firmata::FirmataIO;
-use crate::io::{PinModeId, PluginIoData};
+use crate::io::firmata::Firmata;
+use crate::io::{IoData, PinModeId};
 use crate::utils::Range;
 use dyn_clone::DynClone;
 use parking_lot::RwLock;
 
 // Makes a Box<dyn IoPlugin> clone (used for Board cloning).
-dyn_clone::clone_trait_object!(PluginIO);
+dyn_clone::clone_trait_object!(IoProtocol);
 
 /// Defines the trait all protocols must implement.
 #[cfg_attr(feature = "serde", typetag::serde(tag = "type"))]
-pub trait PluginIO: DynClone + Send + Sync + Debug + Display {
+pub trait IoProtocol: DynClone + Send + Sync + Debug + Display {
     // ########################################
     // Inner data related functions
 
-    fn get_data(&self) -> &Arc<RwLock<PluginIoData>>;
+    fn get_data(&self) -> &Arc<RwLock<IoData>>;
 
     /// Returns the protocol name (used for Display only)
     fn get_protocol_name(&self) -> &'static str {
@@ -59,7 +59,7 @@ pub trait PluginIO: DynClone + Send + Sync + Debug + Display {
 
     /// Activates reporting `state` of the specified analog `pin`.
     ///
-    /// When activated, the pin will send its value periodically. The value will be stored in the PluginIO synced data.
+    /// When activated, the pin will send its value periodically. The value will be stored in the IoProtocol synced data.
     /// ```no_run
     /// use hermes_five::hardware::Board;
     /// let mut board = Board::default();
@@ -103,8 +103,8 @@ pub trait PluginIO: DynClone + Send + Sync + Debug + Display {
 }
 
 #[cfg(not(tarpaulin_include))]
-impl Default for Box<dyn PluginIO> {
+impl Default for Box<dyn IoProtocol> {
     fn default() -> Self {
-        Box::new(FirmataIO::default())
+        Box::new(Firmata::default())
     }
 }

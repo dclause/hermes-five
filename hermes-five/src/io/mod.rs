@@ -2,12 +2,12 @@
 
 mod data;
 pub mod firmata;
-mod plugin;
+mod protocol;
 mod transports;
 
 // Re-exports.
 pub use data::*;
 pub use firmata::*;
-pub use plugin::*;
+pub use protocol::*;
 pub use transports::*;
 // --

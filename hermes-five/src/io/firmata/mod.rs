@@ -4,10 +4,10 @@ use crate::errors::Error;
 use crate::errors::HardwareError::IncompatibleMode;
 use crate::errors::ProtocolError::MessageTooShort;
 use crate::io::firmata::constants::*;
-use crate::io::plugin::PluginIO;
 use crate::io::private::TraitToAny;
+use crate::io::protocol::IoProtocol;
 use crate::io::serial::Serial;
-use crate::io::{I2CReply, Pin, PinMode, PinModeId, PluginIoData};
+use crate::io::{I2CReply, IoData, IoTransport, Pin, PinMode, PinModeId};
 use crate::pause;
 use crate::utils::task::TaskHandler;
 use crate::utils::{task, Range};
@@ -19,64 +19,18 @@ use std::fmt::{Debug, Display};
 use std::sync::Arc;
 use std::time::Duration;
 
-dyn_clone::clone_trait_object!(TransportLayer);
-
-pub(crate) mod private {
-    use std::any::Any;
-
-    pub trait TraitToAny: 'static {
-        fn as_any(&self) -> &dyn Any;
-    }
-
-    impl<T: 'static> TraitToAny for T {
-        fn as_any(&self) -> &dyn Any {
-            self
-        }
-    }
-}
-
-#[cfg_attr(feature = "serde", typetag::serde(tag = "type"))]
-pub trait TransportLayer: Debug + Display + DynClone + Send + Sync + TraitToAny {
-    /// Opens communication (in a blocking way) using the transport layer.
-    ///
-    /// # Notes
-    ///  The method is sync and may block until the connection is established.
-    fn open(&mut self) -> Result<(), Error>;
-
-    /// Gracefully shuts down the transport layer.
-    fn close(&mut self) -> Result<(), Error>;
-
-    /// Sets a timeout for the transport layer
-    ///
-    /// # Notes
-    /// This function is optional and may not be supported by all transport layers.
-    fn set_timeout(&mut self, duration: Duration) -> Result<(), Error>;
-
-    /// Write bytes to the internal connection. For more details see [`std::io::Write::write`].
-    ///
-    /// # Notes
-    /// This function blocks until the write operation is complete. Ensure proper error handling in calling code.
-    fn write(&mut self, buf: &[u8]) -> Result<(), Error>;
-
-    /// Reads from the internal connection. For more details see [`std::io::Read::read_exact`].
-    ///
-    /// # Notes
-    /// This function blocks until the buffer is filled or an error occurs. Ensure proper error handling in calling code.
-    fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), Error>;
-}
-
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone)]
-pub struct FirmataIO {
-    transport: Box<dyn TransportLayer>,
+pub struct Firmata {
+    transport: Box<dyn IoTransport>,
     #[cfg_attr(feature = "serde", serde(skip))]
-    data: Arc<RwLock<PluginIoData>>,
+    data: Arc<RwLock<IoData>>,
     /// Inner handler to the polling task.
     #[cfg_attr(feature = "serde", serde(skip))]
     handler: Arc<RwLock<Option<TaskHandler>>>,
 }
 
-impl Default for FirmataIO {
+impl Default for Firmata {
     fn default() -> Self {
         Self {
             transport: Box::new(Serial::default()),
@@ -85,7 +39,7 @@ impl Default for FirmataIO {
         }
     }
 }
-impl FirmataIO {
+impl Firmata {
     pub fn new<P: Into<String>>(port: P) -> Self {
         Self {
             transport: Box::new(Serial::new(port)),
@@ -95,7 +49,7 @@ impl FirmataIO {
     }
 }
 
-impl<T: TransportLayer + 'static> From<T> for FirmataIO {
+impl<T: IoTransport + 'static> From<T> for Firmata {
     fn from(transport: T) -> Self {
         Self {
             transport: Box::new(transport),
@@ -105,7 +59,7 @@ impl<T: TransportLayer + 'static> From<T> for FirmataIO {
     }
 }
 
-impl Display for FirmataIO {
+impl Display for Firmata {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let data = self.data.read();
         write!(
@@ -121,14 +75,14 @@ impl Display for FirmataIO {
 }
 
 #[cfg_attr(feature = "serde", typetag::serde)]
-impl PluginIO for FirmataIO {
+impl IoProtocol for Firmata {
     // ########################################
     // Inner data related functions
 
     // ########################################
-    // PluginIoData related functions
+    // IoData related functions
 
-    fn get_data(&self) -> &Arc<RwLock<PluginIoData>> {
+    fn get_data(&self) -> &Arc<RwLock<IoData>> {
         &self.data
     }
 
@@ -409,7 +363,7 @@ impl PluginIO for FirmataIO {
     }
 }
 
-impl FirmataIO {
+impl Firmata {
     /// Sends a software reset request.
     /// https://github.com/firmata/protocol/blob/master/protocol.md
     fn software_reset(&mut self) -> Result<(), Error> {
@@ -731,30 +685,30 @@ impl FirmataIO {
 #[cfg(test)]
 mod tests {
     use crate::io::constants::Message;
-    use crate::io::plugin::PluginIO;
+    use crate::io::protocol::IoProtocol;
     use crate::io::serial::Serial;
-    use crate::io::{FirmataIO, PinModeId};
+    use crate::io::{Firmata, PinModeId};
     use crate::mocks::create_test_plugin_io_data;
     use crate::utils::Range;
     use hermes_five::mocks::transport_layer::MockTransportLayer;
     use parking_lot::lock_api::RwLock;
     use std::sync::Arc;
 
-    fn _create_mock_protocol() -> FirmataIO {
-        let mut protocol = FirmataIO::from(MockTransportLayer::default());
+    fn _create_mock_protocol() -> Firmata {
+        let mut protocol = Firmata::from(MockTransportLayer::default());
         protocol.data = Arc::new(RwLock::new(create_test_plugin_io_data()));
         protocol
     }
 
-    fn _create_mock_protocol_with_data(data: &[u8]) -> FirmataIO {
+    fn _create_mock_protocol_with_data(data: &[u8]) -> Firmata {
         let mut transport = MockTransportLayer::default();
         transport.read_buf[..data.len()].copy_from_slice(data);
-        let mut protocol = FirmataIO::from(transport);
+        let mut protocol = Firmata::from(transport);
         protocol.data = Arc::new(RwLock::new(create_test_plugin_io_data()));
         protocol
     }
 
-    fn _get_mock_transport(protocol: &FirmataIO) -> &MockTransportLayer {
+    fn _get_mock_transport(protocol: &Firmata) -> &MockTransportLayer {
         protocol
             .transport
             .as_any()
@@ -772,16 +726,16 @@ mod tests {
 
     #[test]
     fn test_creation() {
-        let protocol = FirmataIO::default();
+        let protocol = Firmata::default();
         let transport = protocol.transport.as_any().downcast_ref::<Serial>();
         assert!(transport.is_some());
 
-        let protocol = FirmataIO::new("try");
+        let protocol = Firmata::new("try");
         let transport = protocol.transport.as_any().downcast_ref::<Serial>();
         assert!(transport.is_some());
         assert_eq!(transport.unwrap().get_port(), String::from("try"));
 
-        let protocol = FirmataIO::from(MockTransportLayer::default());
+        let protocol = Firmata::from(MockTransportLayer::default());
         let transport = protocol
             .transport
             .as_any()
@@ -1299,7 +1253,7 @@ mod tests {
         let mut protocol = _create_mock_protocol_with_data(&[0xF0, 0x79, 0x02, 0xF7]);
         let result = protocol.read_and_decode();
         assert!(result.is_err(), "{:?}", result);
-        assert_eq!(result.err().unwrap().to_string(), "PluginIO error: Not enough bytes received - 'handle_firmware_report' expected 5 bytes, 4 received.");
+        assert_eq!(result.err().unwrap().to_string(), "Protocol error: Not enough bytes received - 'handle_firmware_report' expected 5 bytes, 4 received.");
     }
 
     /// Simulate (and test) the handling of a "pin state response" which is reading at a pin value.
@@ -1337,7 +1291,7 @@ mod tests {
         // Do the same text wil erroneous incoming data:
         let result = protocol.read_and_decode();
         assert!(result.is_err(), "{:?}", result);
-        assert_eq!(result.err().unwrap().to_string(), "PluginIO error: Not enough bytes received - 'handle_pin_state_response' expected 5 bytes, 4 received.");
+        assert_eq!(result.err().unwrap().to_string(), "Protocol error: Not enough bytes received - 'handle_pin_state_response' expected 5 bytes, 4 received.");
     }
 
     #[test]
@@ -1398,7 +1352,7 @@ mod tests {
 
         let result = protocol.read_and_decode();
         assert!(result.is_err(), "{:?}", result);
-        assert_eq!(result.err().unwrap().to_string(), "PluginIO error: Not enough bytes received - 'handle_i2c_reply' expected 9 bytes, 5 received.");
+        assert_eq!(result.err().unwrap().to_string(), "Protocol error: Not enough bytes received - 'handle_i2c_reply' expected 9 bytes, 5 received.");
 
         // Receive an I2C response from i2C address 0x40, register 8, data "coverage".
         let mut protocol = _create_mock_protocol_with_data(&[
@@ -1421,8 +1375,8 @@ mod tests {
     #[test]
     fn test_debug_and_display() {
         let protocol = _create_mock_protocol();
-        let boxed_protocol: Box<dyn PluginIO> = Box::new(protocol);
-        // assert_eq!(protocol.get_protocol_name(), "MockPluginIO");
+        let boxed_protocol: Box<dyn IoProtocol> = Box::new(protocol);
+        // assert_eq!(protocol.get_protocol_name(), "MockIoProtocol");
         assert_eq!(
             format!("{}", boxed_protocol),
             "FirmataIO [firmware=Fake protocol, version=fake.2.3, protocol=fake.1.0, transport=MockTransportLayer]"

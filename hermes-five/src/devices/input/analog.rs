@@ -7,7 +7,7 @@ use crate::devices::input::{Input, InputEvent};
 use crate::devices::Device;
 use crate::errors::Error;
 use crate::hardware::Board;
-use crate::io::{PinIdOrName, PinModeId, PluginIO};
+use crate::io::{IoProtocol, PinIdOrName, PinModeId};
 use crate::pause;
 use crate::utils::events::{EventHandler, EventManager};
 use crate::utils::task::TaskHandler;
@@ -30,7 +30,7 @@ pub struct AnalogInput {
     // ########################################
     // # Volatile utility data.
     #[cfg_attr(feature = "serde", serde(skip))]
-    protocol: Box<dyn PluginIO>,
+    protocol: Box<dyn IoProtocol>,
     /// Inner handler to the task running the button value check.
     #[cfg_attr(feature = "serde", serde(skip))]
     handler: Arc<RwLock<Option<TaskHandler>>>,
@@ -160,14 +160,14 @@ mod tests {
     use crate::devices::input::Input;
     use crate::devices::input::InputEvent;
     use crate::hardware::Board;
-    use crate::mocks::plugin_io::MockPluginIO;
+    use crate::mocks::plugin_io::MockIoProtocol;
     use crate::pause;
     use std::sync::atomic::{AtomicU16, Ordering};
     use std::sync::Arc;
 
     #[hermes_macros::test]
     fn test_new_analog_input() {
-        let board = Board::from(MockPluginIO::default());
+        let board = Board::new(MockIoProtocol::default());
         let sensor = AnalogInput::new(&board, 14).unwrap();
         assert_eq!(sensor.pin, 14);
         assert_eq!(sensor.get_state().as_integer(), 100);
@@ -183,7 +183,7 @@ mod tests {
 
     #[hermes_macros::test]
     fn test_analog_display() {
-        let board = Board::from(MockPluginIO::default());
+        let board = Board::new(MockIoProtocol::default());
         let sensor = AnalogInput::new(&board, "A15").unwrap();
         assert_eq!(sensor.get_state().as_integer(), 200);
         assert_eq!(
@@ -198,7 +198,7 @@ mod tests {
     #[hermes_macros::test]
     fn test_analog_events() {
         let pin = "A14";
-        let board = Board::from(MockPluginIO::default());
+        let board = Board::new(MockIoProtocol::default());
         let sensor = AnalogInput::new(&board, pin).unwrap();
         assert_eq!(sensor.get_state().as_integer(), 100);
 

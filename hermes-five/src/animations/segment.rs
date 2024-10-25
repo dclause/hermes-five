@@ -22,13 +22,13 @@ use crate::pause;
 /// use hermes_five::animations::{Keyframe, Segment, Track};
 /// use hermes_five::hardware::Board;
 /// use hermes_five::devices::{Led, Servo};
-/// use hermes_five::io::FirmataIO;
+/// use hermes_five::io::Firmata;
 /// use hermes_five::utils::Easing;
 ///
 /// #[hermes_five::runtime]
 /// async fn main() {
 ///     // Define a board on COM4.
-///     let board = Board::from(FirmataIO::new("COM4")).open();
+///     let board = Board::new(Firmata::new("COM4")).open();
 ///
 ///     // Define a servo attached to the board on PIN 9 (default servo position is 90°).
 ///     let servo = Servo::new(&board, 9, 90).unwrap();

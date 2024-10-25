@@ -1,6 +1,6 @@
 use crate::errors::Error;
 use crate::errors::HardwareError::IncompatibleMode;
-use crate::io::{PinModeId, PluginIO, PluginIoData};
+use crate::io::{IoData, IoProtocol, PinModeId};
 use crate::mocks::create_test_plugin_io_data;
 use crate::pause_sync;
 use crate::utils::Range;
@@ -8,18 +8,18 @@ use parking_lot::RwLock;
 use std::fmt::Display;
 use std::sync::Arc;
 
-/// Mock implement for [`PluginIoData`].
+/// Mock implement for [`IoData`].
 /// Uses [`create_test_plugin_io_data`] for the hardware:
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
-pub struct MockPluginIO {
+pub struct MockIoProtocol {
     pub connected: bool,
     // pub inner: FirmataIO,
     #[cfg_attr(feature = "serde", serde(skip))]
-    pub data: Arc<RwLock<PluginIoData>>,
+    pub data: Arc<RwLock<IoData>>,
 }
 
-impl Default for MockPluginIO {
+impl Default for MockIoProtocol {
     fn default() -> Self {
         Self {
             connected: false,
@@ -29,7 +29,7 @@ impl Default for MockPluginIO {
     }
 }
 
-impl Display for MockPluginIO {
+impl Display for MockIoProtocol {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let data = self.data.read();
         write!(
@@ -44,8 +44,8 @@ impl Display for MockPluginIO {
 }
 
 #[cfg_attr(feature = "serde", typetag::serde)]
-impl PluginIO for MockPluginIO {
-    fn get_data(&self) -> &Arc<RwLock<PluginIoData>> {
+impl IoProtocol for MockIoProtocol {
+    fn get_data(&self) -> &Arc<RwLock<IoData>> {
         &self.data
     }
 

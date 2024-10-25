@@ -9,7 +9,7 @@ use crate::devices::{Device, Output};
 use crate::errors::HardwareError::IncompatibleMode;
 use crate::errors::{Error, StateError};
 use crate::hardware::Board;
-use crate::io::{Pin, PinModeId, PluginIO};
+use crate::io::{IoProtocol, Pin, PinModeId};
 use crate::utils::scale::Scalable;
 use crate::utils::{task, Easing, Range, State};
 use crate::{pause, pause_sync};
@@ -73,7 +73,7 @@ pub struct Servo {
     #[cfg_attr(feature = "serde", serde(skip))]
     previous: u16,
     #[cfg_attr(feature = "serde", serde(skip))]
-    protocol: Box<dyn PluginIO>,
+    protocol: Box<dyn IoProtocol>,
     /// Inner handler to the task running the animation.
     #[cfg_attr(feature = "serde", serde(skip))]
     animation: Arc<Option<Animation>>,
@@ -455,18 +455,18 @@ mod tests {
     use crate::devices::{Output, Servo};
     use crate::hardware::Board;
     use crate::io::PinModeId;
-    use crate::mocks::plugin_io::MockPluginIO;
+    use crate::mocks::plugin_io::MockIoProtocol;
     use crate::pause;
     use crate::utils::{Easing, Range, State};
 
     fn _setup_servo(pin: u16) -> Servo {
-        let board = Board::from(MockPluginIO::default()); // Assuming a mock Board implementation
+        let board = Board::new(MockIoProtocol::default()); // Assuming a mock Board implementation
         Servo::new(&board, pin, 90).unwrap()
     }
 
     #[test]
     fn test_servo_creation() {
-        let board = Board::from(MockPluginIO::default());
+        let board = Board::new(MockIoProtocol::default());
 
         let servo = Servo::new(&board, 12, 90).unwrap();
         assert_eq!(servo.get_pin(), 12);

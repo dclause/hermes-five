@@ -10,7 +10,7 @@
 //! It can be compared to _Johnny-Five_ in the javascript ecosystem.
 //!
 //! * Configure your remote controllable [`Board`] (Arduino currently)
-//! * Control boards though a [`PluginIoData`] connection ([`SerialFirmata`] for the moment)
+//! * Control boards though a [`IoData`] connection ([`SerialFirmata`] for the moment)
 //! * Remote control all types of [`Device`](s) such as [`Output`](s) (LED, servo, etc.) or [`Input`](s) (button, switch, sensors,
 //! * etc.) individually
 //! * Create and play [`animation::Animation`] to interpolate movements

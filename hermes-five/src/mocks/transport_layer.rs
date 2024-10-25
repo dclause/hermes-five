@@ -1,5 +1,5 @@
 use crate::errors::Error;
-use crate::io::TransportLayer;
+use crate::io::IoTransport;
 use crate::pause_sync;
 use std::fmt::{Display, Formatter};
 use std::time::Duration;
@@ -25,7 +25,7 @@ impl Display for MockTransportLayer {
 }
 
 #[cfg_attr(feature = "serde", typetag::serde)]
-impl TransportLayer for MockTransportLayer {
+impl IoTransport for MockTransportLayer {
     fn open(&mut self) -> Result<(), Error> {
         pause_sync!(100);
         self.connected = true;

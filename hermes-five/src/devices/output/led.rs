@@ -8,7 +8,7 @@ use crate::devices::{Device, Output};
 use crate::errors::HardwareError::IncompatibleMode;
 use crate::errors::{Error, StateError};
 use crate::hardware::Board;
-use crate::io::{Pin, PinMode, PinModeId, PluginIO};
+use crate::io::{IoProtocol, Pin, PinMode, PinModeId};
 use crate::utils::scale::Scalable;
 use crate::utils::{Easing, State};
 
@@ -36,7 +36,7 @@ pub struct Led {
     #[cfg_attr(feature = "serde", serde(skip))]
     pwm_mode: Option<PinMode>,
     #[cfg_attr(feature = "serde", serde(skip))]
-    protocol: Box<dyn PluginIO>,
+    protocol: Box<dyn IoProtocol>,
     /// Inner handler to the task running the animation.
     #[cfg_attr(feature = "serde", serde(skip))]
     animation: Arc<Option<Animation>>,
@@ -308,13 +308,13 @@ impl Output for Led {
 #[cfg(test)]
 mod tests {
     use crate::hardware::Board;
-    use crate::mocks::plugin_io::MockPluginIO;
+    use crate::mocks::plugin_io::MockIoProtocol;
     use crate::pause;
 
     use super::*;
 
     fn _setup_led(pin: u16) -> Led {
-        let board = Board::from(MockPluginIO::default()); // Assuming a mock Board implementation
+        let board = Board::new(MockIoProtocol::default()); // Assuming a mock Board implementation
         Led::new(&board, pin, false).unwrap()
     }
 
@@ -432,7 +432,7 @@ mod tests {
     fn test_default_value() {
         let led = _setup_led(13);
         assert_eq!(led.get_state().as_integer(), 0); // Should be full OFF by default.
-        let led = Led::new(&Board::from(MockPluginIO::default()), 13, true).unwrap(); // Setup with default value TRUE
+        let led = Led::new(&Board::new(MockIoProtocol::default()), 13, true).unwrap(); // Setup with default value TRUE
         assert_eq!(led.get_default().as_integer(), 0xFF); // Default should be fully ON (255).
         assert_eq!(led.get_state().as_integer(), 0xFF); // State should be equal to default.
     }

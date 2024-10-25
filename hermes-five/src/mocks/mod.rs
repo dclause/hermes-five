@@ -2,7 +2,7 @@
 
 //! Defines mock structure to test the implementations.
 
-use crate::io::{Pin, PinMode, PinModeId, PluginIoData};
+use crate::io::{IoData, Pin, PinMode, PinModeId};
 use std::collections::HashMap;
 
 pub mod input_device;
@@ -202,8 +202,8 @@ pub fn create_unsupported_pin(id: u16) -> Pin {
     }
 }
 
-pub fn create_test_plugin_io_data() -> PluginIoData {
-    PluginIoData {
+pub fn create_test_plugin_io_data() -> IoData {
+    IoData {
         pins: HashMap::from([
             (0, create_unsupported_pin(0)),
             (1, create_unsupported_pin(0)),

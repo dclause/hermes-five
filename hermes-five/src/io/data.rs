@@ -4,14 +4,14 @@ use std::fmt::{Debug, Display, Formatter};
 use crate::errors::HardwareError::{IncompatibleMode, UnknownPin};
 use crate::errors::*;
 
-/// Represents the internal data that a [`PluginIo`] handles.
+/// Represents the internal data that a [`IoProtocol`] handles.
 ///
-/// This struct is hidden behind an `Arc<RwLock<PluginIoData>>` to allow safe concurrent access
-/// and modification through the `PluginIoData` type. It encapsulates data relevant
+/// This struct is hidden behind an `Arc<RwLock<IoData>>` to allow safe concurrent access
+/// and modification through the `IoData` type. It encapsulates data relevant
 /// to the protocol, such as pins and I2C communication data.
 #[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct PluginIoData {
+pub struct IoData {
     /// All `Pin` instances, representing the hardware's pins.
     #[cfg_attr(feature = "serde", serde(skip))]
     pub pins: HashMap<u16, Pin>,
@@ -28,11 +28,11 @@ pub struct PluginIoData {
     pub firmware_name: String,
     /// A string representing the version of the firmware.
     pub firmware_version: String,
-    /// A boolean indicating whether the PluginIO is connected.
+    /// A boolean indicating whether the IoProtocol is connected.
     pub connected: bool,
 }
 
-impl PluginIoData {
+impl IoData {
     /// Retrieves a reference to a pin by its id or name.
     ///
     /// # Arguments
@@ -87,7 +87,7 @@ pub struct I2CReply {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Default)]
 pub struct Pin {
-    /// The pin ID, which also corresponds to the index of the [`PluginIoData::pins`] hashmap.
+    /// The pin ID, which also corresponds to the index of the [`IoData::pins`] hashmap.
     pub id: u16,
     /// The pin name: an alternative String representation of the pin name: 'D13', 'A0', 'GPIO13' for instance.
     pub name: String,

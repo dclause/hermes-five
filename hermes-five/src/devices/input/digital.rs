@@ -7,7 +7,7 @@ use crate::devices::input::{Input, InputEvent};
 use crate::devices::Device;
 use crate::errors::Error;
 use crate::hardware::Board;
-use crate::io::{PinIdOrName, PinModeId, PluginIO};
+use crate::io::{IoProtocol, PinIdOrName, PinModeId};
 use crate::pause;
 use crate::utils::events::{EventHandler, EventManager};
 use crate::utils::task::TaskHandler;
@@ -30,7 +30,7 @@ pub struct DigitalInput {
     // ########################################
     // # Volatile utility data.
     #[cfg_attr(feature = "serde", serde(skip))]
-    protocol: Box<dyn PluginIO>,
+    protocol: Box<dyn IoProtocol>,
     /// Inner handler to the task running the button value check.
     #[cfg_attr(feature = "serde", serde(skip))]
     handler: Arc<RwLock<Option<TaskHandler>>>,
@@ -170,14 +170,14 @@ mod tests {
     use crate::devices::input::Input;
     use crate::devices::input::InputEvent;
     use crate::hardware::Board;
-    use crate::mocks::plugin_io::MockPluginIO;
+    use crate::mocks::plugin_io::MockIoProtocol;
     use crate::pause;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
 
     #[hermes_macros::test]
     fn test_new_digital_input() {
-        let board = Board::from(MockPluginIO::default());
+        let board = Board::new(MockIoProtocol::default());
         let sensor = DigitalInput::new(&board, 2).unwrap();
         assert_eq!(sensor.pin, 2);
         assert!(sensor.get_state().as_bool());
@@ -193,7 +193,7 @@ mod tests {
 
     #[hermes_macros::test]
     fn test_digital_display() {
-        let board = Board::from(MockPluginIO::default());
+        let board = Board::new(MockIoProtocol::default());
         let sensor = DigitalInput::new(&board, "D5").unwrap();
         assert!(!sensor.get_state().as_bool());
         assert_eq!(
@@ -207,7 +207,7 @@ mod tests {
 
     #[hermes_macros::test]
     fn test_digital_events() {
-        let board = Board::from(MockPluginIO::default());
+        let board = Board::new(MockIoProtocol::default());
         let button = DigitalInput::new(&board, 5).unwrap();
 
         // CHANGE

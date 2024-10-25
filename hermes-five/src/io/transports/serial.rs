@@ -1,6 +1,6 @@
 use crate::errors::Error;
 use crate::errors::ProtocolError::NotInitialized;
-use crate::io::firmata::TransportLayer;
+use crate::io::IoTransport;
 use log::trace;
 use parking_lot::Mutex;
 use serialport::{DataBits, FlowControl, Parity, SerialPort, StopBits};
@@ -28,12 +28,12 @@ impl Serial {
     /// # Example
     /// ```
     /// use hermes_five::hardware::Board;
-    /// use hermes_five::io::FirmataIO;
+    /// use hermes_five::io::Firmata;
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
-    ///     let protocol = FirmataIO::new("/dev/ttyACM0");
-    ///     let board = Board::from(protocol).open();
+    ///     let protocol = Firmata::new("/dev/ttyACM0");
+    ///     let board = Board::new(protocol).open();
     /// }
     /// ```
     pub fn new<P: Into<String>>(port: P) -> Self {
@@ -72,7 +72,7 @@ impl Display for Serial {
 }
 
 #[cfg_attr(feature = "serde", typetag::serde)]
-impl TransportLayer for Serial {
+impl IoTransport for Serial {
     fn open(&mut self) -> Result<(), Error> {
         let connexion = serialport::new(self.port.clone(), 57_600)
             .data_bits(DataBits::Eight)
@@ -223,7 +223,7 @@ mod tests {
             description: String::from("test error"),
         };
         let custom_error: Error = serial_error.into();
-        assert_eq!(custom_error.to_string(), "PluginIO error: test error.");
+        assert_eq!(custom_error.to_string(), "Protocol error: test error.");
 
         let serial_error = serialport::Error {
             kind: ErrorKind::Io(std::io::ErrorKind::NotFound),
@@ -232,7 +232,7 @@ mod tests {
         let custom_error: Error = serial_error.into();
         assert_eq!(
             custom_error.to_string(),
-            "PluginIO error: Board not found or already in use."
+            "Protocol error: Board not found or already in use."
         );
 
         let serial_error = serialport::Error {
@@ -240,7 +240,7 @@ mod tests {
             description: String::from("IO error"),
         };
         let custom_error: Error = serial_error.into();
-        assert_eq!(custom_error.to_string(), "PluginIO error: IO error.");
+        assert_eq!(custom_error.to_string(), "Protocol error: IO error.");
     }
 
     #[test]

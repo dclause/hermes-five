@@ -6,7 +6,7 @@ use parking_lot::RwLock;
 use crate::devices::{Device, Input, InputEvent};
 use crate::errors::Error;
 use crate::hardware::Board;
-use crate::io::{PinIdOrName, PinModeId, PluginIO};
+use crate::io::{IoProtocol, PinIdOrName, PinModeId};
 use crate::pause;
 use crate::utils::events::{EventHandler, EventManager};
 use crate::utils::task::TaskHandler;
@@ -30,7 +30,7 @@ pub struct Button {
     // ########################################
     // # Volatile utility data.
     #[cfg_attr(feature = "serde", serde(skip))]
-    protocol: Box<dyn PluginIO>,
+    protocol: Box<dyn IoProtocol>,
     /// Inner handler to the task running the button value check.
     #[cfg_attr(feature = "serde", serde(skip))]
     handler: Arc<RwLock<Option<TaskHandler>>>,
@@ -298,13 +298,13 @@ mod tests {
     use std::sync::atomic::{AtomicBool, Ordering};
 
     use crate::hardware::Board;
-    use crate::mocks::plugin_io::MockPluginIO;
+    use crate::mocks::plugin_io::MockIoProtocol;
 
     use super::*;
 
     #[hermes_macros::test]
     fn test_new_button_creation() {
-        let board = Board::from(MockPluginIO::default());
+        let board = Board::new(MockIoProtocol::default());
         let button = Button::new(&board, 4);
 
         assert!(button.is_ok());
@@ -320,7 +320,7 @@ mod tests {
 
     #[hermes_macros::test]
     fn test_new_inverted_button_creation() {
-        let board = Board::from(MockPluginIO::default());
+        let board = Board::new(MockIoProtocol::default());
         let button = Button::new_inverted(&board, 4);
 
         assert!(button.is_ok());
@@ -336,7 +336,7 @@ mod tests {
 
     #[hermes_macros::test]
     fn test_new_pullup_button_creation() {
-        let board = Board::from(MockPluginIO::default());
+        let board = Board::new(MockIoProtocol::default());
         let button = Button::new_pullup(&board, 4);
 
         assert!(button.is_ok());
@@ -352,7 +352,7 @@ mod tests {
 
     #[hermes_macros::test]
     fn test_new_inverted_pullup_button_creation() {
-        let board = Board::from(MockPluginIO::default());
+        let board = Board::new(MockIoProtocol::default());
         let button = Button::new_inverted_pullup(&board, 4);
 
         assert!(button.is_ok());
@@ -368,7 +368,7 @@ mod tests {
 
     #[hermes_macros::test]
     fn test_button_inverted_state_logic() {
-        let board = Board::from(MockPluginIO::default());
+        let board = Board::new(MockIoProtocol::default());
         let button = Button::new_inverted(&board, 5).unwrap();
         assert_eq!(button.get_state().as_bool(), true);
 
@@ -381,7 +381,7 @@ mod tests {
 
     #[hermes_macros::test]
     fn test_button_events() {
-        let board = Board::from(MockPluginIO::default());
+        let board = Board::new(MockIoProtocol::default());
         let button = Button::new(&board, 5).unwrap();
 
         // CHANGE
@@ -456,7 +456,7 @@ mod tests {
 
     #[hermes_macros::test]
     fn test_button_display() {
-        let board = Board::from(MockPluginIO::default());
+        let board = Board::new(MockIoProtocol::default());
         let button = Button::new(&board, 4).unwrap();
 
         assert_eq!(

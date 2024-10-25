@@ -14,7 +14,7 @@ pub enum Error {
     RuntimeError,
     /// State error: incompatible type provided.
     StateError,
-    /// PluginIO error: {source}.
+    /// Protocol error: {source}.
     ProtocolError { source: ProtocolError },
     /// Hardware error: {source}.
     HardwareError { source: HardwareError },
@@ -107,7 +107,7 @@ mod tests {
         });
         assert_eq!(
             format!("{}", protocol_error),
-            "PluginIO error: I/O error message."
+            "Protocol error: I/O error message."
         );
 
         let hardware_error = Error::from(IncompatibleMode {
@@ -135,7 +135,7 @@ mod tests {
         let error: Error = io_error.into();
         assert_eq!(
             format!("{}", error),
-            "PluginIO error: Board not found or already in use."
+            "Protocol error: Board not found or already in use."
         );
     }
 
@@ -145,7 +145,7 @@ mod tests {
         let error: Error = protocol_error.into();
         assert_eq!(
             format!("{}", error),
-            "PluginIO error: Connection has not been initialized."
+            "Protocol error: Connection has not been initialized."
         );
     }
 
