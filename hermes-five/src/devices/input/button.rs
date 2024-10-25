@@ -5,11 +5,12 @@ use parking_lot::RwLock;
 
 use crate::devices::{Device, Input, InputEvent};
 use crate::errors::Error;
-use crate::protocols::{PinIdOrName, PinModeId, Protocol};
+use crate::hardware::Board;
+use crate::io::{PinIdOrName, PinModeId, PluginIO};
+use crate::pause;
 use crate::utils::events::{EventHandler, EventManager};
 use crate::utils::task::TaskHandler;
 use crate::utils::{task, State};
-use crate::{pause, Board};
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
@@ -29,7 +30,7 @@ pub struct Button {
     // ########################################
     // # Volatile utility data.
     #[cfg_attr(feature = "serde", serde(skip))]
-    protocol: Box<dyn Protocol>,
+    protocol: Box<dyn PluginIO>,
     /// Inner handler to the task running the button value check.
     #[cfg_attr(feature = "serde", serde(skip))]
     handler: Arc<RwLock<Option<TaskHandler>>>,
@@ -148,7 +149,7 @@ impl Button {
 
     /// Private helper method shared by constructors.
     fn start_with<T: Into<PinIdOrName>>(mut self, board: &Board, pin: T) -> Result<Self, Error> {
-        let pin = board.get_hardware().get_pin(pin)?.clone();
+        let pin = board.get_io().get_pin(pin)?.clone();
 
         // Set pin ID and state from pin.
         self.pin = pin.id;
@@ -159,7 +160,7 @@ impl Button {
             true => {
                 self.protocol.set_pin_mode(self.pin, PinModeId::PULLUP)?;
                 self.protocol
-                    .get_hardware()
+                    .get_data()
                     .write()
                     .get_pin_mut(self.pin)?
                     .value = 1;
@@ -170,10 +171,9 @@ impl Button {
         };
 
         // Set reporting for this pin.
-        self.protocol.report_digital_pin(self.pin, true)?;
+        self.protocol.report_digital(self.pin, true)?;
 
         // Create a task to listen hardware value and emit events accordingly.
-        board.attach();
         self.attach();
 
         Ok(self)
@@ -205,7 +205,7 @@ impl Button {
                     loop {
                         let pin_value = self_clone
                             .protocol
-                            .get_hardware()
+                            .get_data()
                             .read()
                             .get_pin(self_clone.pin)?
                             .value
@@ -297,14 +297,14 @@ impl Input for Button {
 mod tests {
     use std::sync::atomic::{AtomicBool, Ordering};
 
-    use crate::mocks::protocol::MockProtocol;
-    use crate::Board;
+    use crate::hardware::Board;
+    use crate::mocks::plugin_io::MockPluginIO;
 
     use super::*;
 
     #[hermes_macros::test]
     fn test_new_button_creation() {
-        let board = Board::from(MockProtocol::default());
+        let board = Board::from(MockPluginIO::default());
         let button = Button::new(&board, 4);
 
         assert!(button.is_ok());
@@ -314,13 +314,13 @@ mod tests {
         assert!(!button.is_inverted());
         assert!(!button.is_pullup());
 
-        board.detach();
         button.detach();
+        board.close();
     }
 
     #[hermes_macros::test]
     fn test_new_inverted_button_creation() {
-        let board = Board::from(MockProtocol::default());
+        let board = Board::from(MockPluginIO::default());
         let button = Button::new_inverted(&board, 4);
 
         assert!(button.is_ok());
@@ -330,13 +330,13 @@ mod tests {
         assert!(button.is_inverted());
         assert!(!button.is_pullup());
 
-        board.detach();
         button.detach();
+        board.close();
     }
 
     #[hermes_macros::test]
     fn test_new_pullup_button_creation() {
-        let board = Board::from(MockProtocol::default());
+        let board = Board::from(MockPluginIO::default());
         let button = Button::new_pullup(&board, 4);
 
         assert!(button.is_ok());
@@ -346,13 +346,13 @@ mod tests {
         assert!(!button.is_inverted());
         assert!(button.is_pullup());
 
-        board.detach();
         button.detach();
+        board.close();
     }
 
     #[hermes_macros::test]
     fn test_new_inverted_pullup_button_creation() {
-        let board = Board::from(MockProtocol::default());
+        let board = Board::from(MockPluginIO::default());
         let button = Button::new_inverted_pullup(&board, 4);
 
         assert!(button.is_ok());
@@ -362,26 +362,26 @@ mod tests {
         assert!(button.is_inverted());
         assert!(button.is_pullup());
 
-        board.detach();
         button.detach();
+        board.close();
     }
 
     #[hermes_macros::test]
     fn test_button_inverted_state_logic() {
-        let board = Board::from(MockProtocol::default());
+        let board = Board::from(MockPluginIO::default());
         let button = Button::new_inverted(&board, 5).unwrap();
         assert_eq!(button.get_state().as_bool(), true);
 
         button.state.write().clone_from(&true); // Simulate a pressed button
         assert_eq!(button.get_state().as_bool(), false);
 
-        board.detach();
         button.detach();
+        board.close();
     }
 
     #[hermes_macros::test]
     fn test_button_events() {
-        let board = Board::from(MockProtocol::default());
+        let board = Board::from(MockPluginIO::default());
         let button = Button::new(&board, 5).unwrap();
 
         // CHANGE
@@ -424,7 +424,7 @@ mod tests {
         // Simulate pin state change in the protocol => take value 0xFF
         button
             .protocol
-            .get_hardware()
+            .get_data()
             .write()
             .get_pin_mut(5)
             .unwrap()
@@ -439,7 +439,7 @@ mod tests {
         // Simulate pin state change in the protocol => takes value 0
         button
             .protocol
-            .get_hardware()
+            .get_data()
             .write()
             .get_pin_mut(5)
             .unwrap()
@@ -450,13 +450,13 @@ mod tests {
         assert!(!change_flag.load(Ordering::SeqCst)); // change switched back to 0
         assert!(released_flag.load(Ordering::SeqCst));
 
-        board.detach();
         button.detach();
+        board.close();
     }
 
     #[hermes_macros::test]
     fn test_button_display() {
-        let board = Board::from(MockProtocol::default());
+        let board = Board::from(MockPluginIO::default());
         let button = Button::new(&board, 4).unwrap();
 
         assert_eq!(
@@ -464,7 +464,7 @@ mod tests {
             String::from("Button (pin=4) [state=true, pullup=false, inverted=false]")
         );
 
-        board.detach();
         button.detach();
+        board.close();
     }
 }

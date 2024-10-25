@@ -1,5 +1,4 @@
-use dyn_clone::DynClone;
-use std::fmt::{Debug, Display};
+//! Configures devices of different (input / output) kinds and their remote controllable capabilities.
 
 mod input;
 mod output;
@@ -16,6 +15,9 @@ pub use crate::devices::output::pwm::PwmOutput;
 pub use crate::devices::output::servo::Servo;
 pub use crate::devices::output::servo::ServoType;
 pub use crate::devices::output::Output;
+
+use dyn_clone::DynClone;
+use std::fmt::{Debug, Display};
 
 /// A trait for devices that can be debugged, cloned, and used in concurrent contexts.
 /// [`Device`] are one of the `Entity` defined in Hermes-Five project: it represents a physical
@@ -60,7 +62,7 @@ pub mod arc_rwlock_serde {
     mod arc_rwlock_serde_tests {
         use serde_json;
 
-        use crate::mocks::output::MockOutputDevice;
+        use crate::mocks::output_device::MockOutputDevice;
 
         #[test]
         fn test_serialize() {

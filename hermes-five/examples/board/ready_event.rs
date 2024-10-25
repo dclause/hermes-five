@@ -1,4 +1,4 @@
-use hermes_five::{Board, BoardEvent};
+use hermes_five::hardware::{Board, BoardEvent};
 
 #[hermes_five::runtime]
 async fn main() {
@@ -7,7 +7,7 @@ async fn main() {
 
     board.on(BoardEvent::OnReady, |board: Board| async move {
         println!("Board connected: {}", board);
-        println!("Pins {:#?}", board.get_hardware().pins);
+        println!("Pins {:#?}", board.get_io().pins);
 
         Ok(())
     });

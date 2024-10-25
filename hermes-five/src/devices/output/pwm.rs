@@ -3,12 +3,12 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 
-use crate::animation::{Animation, Keyframe, Track};
-use crate::board::Board;
+use crate::animations::{Animation, Keyframe, Track};
 use crate::devices::{Device, Output};
 use crate::errors::HardwareError::IncompatibleMode;
 use crate::errors::{Error, StateError};
-use crate::protocols::{Pin, PinIdOrName, PinModeId, Protocol};
+use crate::hardware::Board;
+use crate::io::{Pin, PinIdOrName, PinModeId, PluginIO};
 use crate::utils::{Easing, State};
 
 /// Represents an analog actuator of unspecified type: an [`Output`] [`Device`] that write analog values from a PWM compatible pin.
@@ -33,7 +33,7 @@ pub struct PwmOutput {
     max_value: u16,
     /// The protocol used by the board to communicate with the device.
     #[cfg_attr(feature = "serde", serde(skip))]
-    protocol: Box<dyn Protocol>,
+    protocol: Box<dyn PluginIO>,
     /// Inner handler to the task running the animation.
     #[cfg_attr(feature = "serde", serde(skip))]
     animation: Arc<Option<Animation>>,
@@ -51,7 +51,7 @@ impl PwmOutput {
     /// * `UnknownPin`: this function will bail an error if the pin does not exist for this board.
     /// * `IncompatibleMode`: this function will bail an error if the pin does not support PWM mode.
     pub fn new<T: Into<PinIdOrName>>(board: &Board, pin: T, default: u16) -> Result<Self, Error> {
-        let pin = board.get_hardware().get_pin(pin)?.clone();
+        let pin = board.get_io().get_pin(pin)?.clone();
 
         let mut output = Self {
             pin: pin.id,
@@ -67,7 +67,8 @@ impl PwmOutput {
 
         // Retrieve PWM max value for the pin.
         output.max_value = board
-            .get_hardware()
+            .get_data()
+            .read()
             .get_pin(pin.id)?
             .get_max_possible_value();
 
@@ -108,7 +109,7 @@ impl PwmOutput {
 
     /// Retrieves [`Pin`] information.
     pub fn get_pin_info(&self) -> Result<Pin, Error> {
-        let lock = self.protocol.get_hardware().read();
+        let lock = self.protocol.get_data().read();
         Ok(lock.get_pin(self.pin)?.clone())
     }
 
@@ -208,17 +209,17 @@ impl Output for PwmOutput {
 
 #[cfg(test)]
 mod tests {
-    use crate::board::Board;
     use crate::devices::output::pwm::PwmOutput;
     use crate::devices::Output;
-    use crate::mocks::protocol::MockProtocol;
+    use crate::hardware::Board;
+    use crate::io::PinModeId;
+    use crate::mocks::plugin_io::MockPluginIO;
     use crate::pause;
-    use crate::protocols::PinModeId;
     use crate::utils::{Easing, State};
 
     #[test]
     fn test_creation() {
-        let board = Board::from(MockProtocol::default());
+        let board = Board::from(MockPluginIO::default());
 
         // Default LOW state.
         let output = PwmOutput::new(&board, 8, 0).unwrap();
@@ -241,7 +242,7 @@ mod tests {
 
     #[test]
     fn test_set_value() {
-        let mut output = PwmOutput::new(&Board::from(MockProtocol::default()), 8, 0).unwrap();
+        let mut output = PwmOutput::new(&Board::from(MockPluginIO::default()), 8, 0).unwrap();
         output.set_value(127).unwrap();
         assert_eq!(*output.state.read(), 127);
         assert_eq!(output.get_value(), 127);
@@ -249,7 +250,7 @@ mod tests {
 
     #[test]
     fn test_set_percent() {
-        let mut output = PwmOutput::new(&Board::from(MockProtocol::default()), 8, 0).unwrap();
+        let mut output = PwmOutput::new(&Board::from(MockPluginIO::default()), 8, 0).unwrap();
         output.set_percentage(50).unwrap();
         assert_eq!(*output.state.read(), 127);
         assert_eq!(output.get_value(), 127);
@@ -262,7 +263,7 @@ mod tests {
 
     #[test]
     fn test_set_state() {
-        let mut output = PwmOutput::new(&Board::from(MockProtocol::default()), 11, 127).unwrap();
+        let mut output = PwmOutput::new(&Board::from(MockPluginIO::default()), 11, 127).unwrap();
         assert!(output.set_state(State::Integer(0)).is_ok());
         assert_eq!(*output.state.read(), 0);
         assert!(output.set_state(State::Integer(127)).is_ok());
@@ -292,7 +293,7 @@ mod tests {
 
     #[test]
     fn test_get_pin_info() {
-        let output = PwmOutput::new(&Board::from(MockProtocol::default()), 11, 20).unwrap();
+        let output = PwmOutput::new(&Board::from(MockPluginIO::default()), 11, 20).unwrap();
         let pin_info = output.get_pin_info();
         assert!(pin_info.is_ok());
         assert_eq!(pin_info.unwrap().id, 11);
@@ -300,7 +301,7 @@ mod tests {
 
     #[hermes_macros::test]
     fn test_animation() {
-        let mut output = PwmOutput::new(&Board::from(MockProtocol::default()), 11, 20).unwrap();
+        let mut output = PwmOutput::new(&Board::from(MockPluginIO::default()), 11, 20).unwrap();
         assert!(!output.is_busy());
         // Stop something not started should not fail.
         output.stop();
@@ -313,7 +314,7 @@ mod tests {
 
     #[test]
     fn test_display_impl() {
-        let mut output = PwmOutput::new(&Board::from(MockProtocol::default()), 11, 212).unwrap();
+        let mut output = PwmOutput::new(&Board::from(MockPluginIO::default()), 11, 212).unwrap();
         let _ = output.set_value(127);
         let display_str = format!("{}", output);
         assert_eq!(

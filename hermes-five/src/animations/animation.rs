@@ -1,13 +1,4 @@
-pub use keyframe::Keyframe;
-pub use segment::Segment;
-pub use track::Track;
-
-mod keyframe;
-mod segment;
-mod track;
-
 use std::fmt::{Display, Formatter};
-use std::sync::Arc;
 
 use parking_lot::RwLock;
 
@@ -15,6 +6,9 @@ use crate::errors::Error;
 use crate::utils::events::{EventHandler, EventManager};
 use crate::utils::task;
 use crate::utils::task::TaskHandler;
+
+use crate::animations::{Segment, Track};
+use std::sync::Arc;
 
 /// Lists all events a Animation can emit/listen.
 pub enum AnimationEvent {
@@ -50,9 +44,9 @@ impl From<AnimationEvent> for String {
 /// (sidenote: prefer use [`Servo::sweep()`] helper for this purpose).
 /// ```
 /// use hermes_five::pause;
-/// use hermes_five::animation::{Animation, Keyframe, Segment, Track};
-/// use hermes_five::Board;
-/// use hermes_five::BoardEvent;
+/// use hermes_five::animations::{Animation, Keyframe, Segment, Track};
+/// use hermes_five::hardware::Board;
+/// use hermes_five::hardware::BoardEvent;
 /// use hermes_five::devices::Servo;
 /// use hermes_five::utils::Easing;
 ///
@@ -249,10 +243,10 @@ impl Animation {
     ///
     /// # Example
     /// ```
-    /// use hermes_five::Board;
-    /// use hermes_five::BoardEvent;
+    /// use hermes_five::hardware::Board;
+    /// use hermes_five::hardware::BoardEvent;
     /// use hermes_five::devices::{Output, Led};
-    /// use hermes_five::animation::{Animation, AnimationEvent};
+    /// use hermes_five::animations::{Animation, AnimationEvent};
     /// use hermes_five::utils::Easing;
     ///
     /// #[hermes_five::runtime]
@@ -381,12 +375,11 @@ impl Display for Animation {
 
 #[cfg(test)]
 mod tests {
+    use serial_test::serial;
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
-    use serial_test::serial;
-
-    use crate::animation::Keyframe;
-    use crate::mocks::output::MockOutputDevice;
+    use crate::animations::Keyframe;
+    use crate::mocks::output_device::MockOutputDevice;
     use crate::pause;
 
     use super::*;

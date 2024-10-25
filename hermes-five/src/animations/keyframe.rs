@@ -18,7 +18,7 @@ use crate::utils::{Easing, State};
 /// be the brightness of a LED, or the position of a Servo), over 1000 milliseconds, following the
 /// defined easing function.
 /// ```
-/// use hermes_five::animation::Keyframe;
+/// use hermes_five::animations::Keyframe;
 /// use hermes_five::utils::Easing;
 ///
 /// let keyframe = Keyframe::new(100, 0, 1000).set_transition(Easing::SineInOut);
@@ -59,7 +59,7 @@ impl Keyframe {
     ///
     /// # Example
     /// ```
-    /// use hermes_five::animation::Keyframe;
+    /// use hermes_five::animations::Keyframe;
     ///
     /// let keyframe = Keyframe::new(100, 0, 1000);
     /// ```

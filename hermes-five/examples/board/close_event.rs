@@ -1,4 +1,4 @@
-use hermes_five::{Board, BoardEvent};
+use hermes_five::hardware::{Board, BoardEvent};
 
 #[hermes_five::runtime]
 async fn main() {

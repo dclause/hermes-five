@@ -3,12 +3,12 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 
-use crate::animation::{Animation, Keyframe, Segment, Track};
-use crate::board::Board;
+use crate::animations::{Animation, Keyframe, Segment, Track};
 use crate::devices::{Device, Output};
 use crate::errors::HardwareError::IncompatibleMode;
 use crate::errors::{Error, StateError};
-use crate::protocols::{Pin, PinMode, PinModeId, Protocol};
+use crate::hardware::Board;
+use crate::io::{Pin, PinMode, PinModeId, PluginIO};
 use crate::utils::scale::Scalable;
 use crate::utils::{Easing, State};
 
@@ -36,7 +36,7 @@ pub struct Led {
     #[cfg_attr(feature = "serde", serde(skip))]
     pwm_mode: Option<PinMode>,
     #[cfg_attr(feature = "serde", serde(skip))]
-    protocol: Box<dyn Protocol>,
+    protocol: Box<dyn PluginIO>,
     /// Inner handler to the task running the animation.
     #[cfg_attr(feature = "serde", serde(skip))]
     animation: Arc<Option<Animation>>,
@@ -58,7 +58,7 @@ impl Led {
 
         // Get the hardware corresponding pin.
         let hardware_pin = {
-            let hardware = protocol.get_hardware().read();
+            let hardware = protocol.get_data().read();
             hardware.get_pin(pin)?.clone()
         };
 
@@ -163,7 +163,7 @@ impl Led {
 
     /// Retrieves [`Pin`] information.
     pub fn get_pin_info(&self) -> Result<Pin, Error> {
-        let lock = self.protocol.get_hardware().read();
+        let lock = self.protocol.get_data().read();
         Ok(lock.get_pin(self.pin)?.clone())
     }
 
@@ -307,14 +307,14 @@ impl Output for Led {
 
 #[cfg(test)]
 mod tests {
-    use crate::board::Board;
-    use crate::mocks::protocol::MockProtocol;
+    use crate::hardware::Board;
+    use crate::mocks::plugin_io::MockPluginIO;
     use crate::pause;
 
     use super::*;
 
     fn _setup_led(pin: u16) -> Led {
-        let board = Board::from(MockProtocol::default()); // Assuming a mock Board implementation
+        let board = Board::from(MockPluginIO::default()); // Assuming a mock Board implementation
         Led::new(&board, pin, false).unwrap()
     }
 
@@ -432,7 +432,7 @@ mod tests {
     fn test_default_value() {
         let led = _setup_led(13);
         assert_eq!(led.get_state().as_integer(), 0); // Should be full OFF by default.
-        let led = Led::new(&Board::from(MockProtocol::default()), 13, true).unwrap(); // Setup with default value TRUE
+        let led = Led::new(&Board::from(MockPluginIO::default()), 13, true).unwrap(); // Setup with default value TRUE
         assert_eq!(led.get_default().as_integer(), 0xFF); // Default should be fully ON (255).
         assert_eq!(led.get_state().as_integer(), 0xFF); // State should be equal to default.
     }

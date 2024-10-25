@@ -1,5 +1,6 @@
 use hermes_five::devices::{Output, Servo};
-use hermes_five::{pause, Board, BoardEvent};
+use hermes_five::hardware::{Board, BoardEvent};
+use hermes_five::pause;
 
 #[hermes_five::runtime]
 async fn main() {

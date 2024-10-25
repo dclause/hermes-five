@@ -1,10 +1,10 @@
-use hermes_five::protocols::SerialProtocol;
-use hermes_five::{Board, BoardEvent};
+use hermes_five::hardware::{Board, BoardEvent};
+use hermes_five::io::FirmataIO;
 
 #[hermes_five::runtime]
 async fn main() {
     // Notice how you have to explicitly `open()` the board connection when using the builder.
-    let board = Board::from(SerialProtocol::new("COM4")).open();
+    let board = Board::from(FirmataIO::new("COM4")).open();
 
     board.on(BoardEvent::OnReady, |_: Board| async move {
         // board.pinMode(13, board.MODES.OUTPUT);

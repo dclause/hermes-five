@@ -1,8 +1,8 @@
-/// You may need a pwm output for an actuator that we have not thought of.
-/// This example shows how to use the PwmOutput generic device type to do so.
+//! You may need a pwm output for an actuator that we have not thought of.
+//! This example shows how to use the PwmOutput generic device type to do so.
 use hermes_five::devices::PwmOutput;
-
-use hermes_five::{pause, Board, BoardEvent};
+use hermes_five::hardware::{Board, BoardEvent};
+use hermes_five::pause;
 
 #[hermes_five::runtime]
 async fn main() {

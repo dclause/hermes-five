@@ -2,7 +2,7 @@
 //! Example with DFRobot SEN0192: https://wiki.dfrobot.com/MicroWave_Sensor_SKU__SEN0192
 
 use hermes_five::devices::{DigitalInput, InputEvent};
-use hermes_five::{Board, BoardEvent};
+use hermes_five::hardware::{Board, BoardEvent};
 
 #[hermes_five::runtime]
 async fn main() {

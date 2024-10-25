@@ -1,6 +1,8 @@
-//! Firmata protocol constants
+#![allow(dead_code)]
 
-/// Received Protocol message.
+//! Firmata protocol constants.
+
+/// Received PluginIoData message.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Message {
     Analog,
@@ -15,7 +17,7 @@ pub enum Message {
 }
 
 // ########################################
-// Protocol related functions
+// PluginIoData related functions
 
 /// For non-compatible changes
 pub const PROTOCOL_MAJOR_VERSION: u8 = 2;

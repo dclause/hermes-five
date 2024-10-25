@@ -6,11 +6,12 @@ use parking_lot::RwLock;
 use crate::devices::input::{Input, InputEvent};
 use crate::devices::Device;
 use crate::errors::Error;
-use crate::protocols::{PinIdOrName, PinModeId, Protocol};
+use crate::hardware::Board;
+use crate::io::{PinIdOrName, PinModeId, PluginIO};
+use crate::pause;
 use crate::utils::events::{EventHandler, EventManager};
 use crate::utils::task::TaskHandler;
 use crate::utils::{task, State};
-use crate::{pause, Board};
 
 /// Represents a digital sensor of unspecified type: an [`Input`] [`Device`] that reads digital values
 /// from an INPUT compatible pin.
@@ -29,7 +30,7 @@ pub struct DigitalInput {
     // ########################################
     // # Volatile utility data.
     #[cfg_attr(feature = "serde", serde(skip))]
-    protocol: Box<dyn Protocol>,
+    protocol: Box<dyn PluginIO>,
     /// Inner handler to the task running the button value check.
     #[cfg_attr(feature = "serde", serde(skip))]
     handler: Arc<RwLock<Option<TaskHandler>>>,
@@ -49,7 +50,7 @@ impl DigitalInput {
     /// * `UnknownPin`: this function will bail an error if the DigitalInput pin does not exist for this board.
     /// * `IncompatibleMode`: this function will bail an error if the DigitalInput pin does not support ANALOG mode.
     pub fn new<T: Into<PinIdOrName>>(board: &Board, pin: T) -> Result<Self, Error> {
-        let pin = board.get_hardware().get_pin(pin)?.clone();
+        let pin = board.get_io().get_pin(pin)?.clone();
 
         let mut sensor = Self {
             pin: pin.id,
@@ -63,10 +64,9 @@ impl DigitalInput {
         sensor.protocol.set_pin_mode(sensor.pin, PinModeId::INPUT)?;
 
         // Set reporting for this pin.
-        sensor.protocol.report_digital_pin(sensor.pin, true)?;
+        sensor.protocol.report_digital(sensor.pin, true)?;
 
         // Attaches the event handler.
-        board.attach();
         sensor.attach();
 
         Ok(sensor)
@@ -93,7 +93,7 @@ impl DigitalInput {
                     loop {
                         let pin_value = self_clone
                             .protocol
-                            .get_hardware()
+                            .get_data()
                             .read()
                             .get_pin(self_clone.pin)?
                             .value
@@ -169,14 +169,15 @@ mod tests {
     use crate::devices::input::digital::DigitalInput;
     use crate::devices::input::Input;
     use crate::devices::input::InputEvent;
-    use crate::mocks::protocol::MockProtocol;
-    use crate::{pause, Board};
+    use crate::hardware::Board;
+    use crate::mocks::plugin_io::MockPluginIO;
+    use crate::pause;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
 
     #[hermes_macros::test]
     fn test_new_digital_input() {
-        let board = Board::from(MockProtocol::default());
+        let board = Board::from(MockPluginIO::default());
         let sensor = DigitalInput::new(&board, 2).unwrap();
         assert_eq!(sensor.pin, 2);
         assert!(sensor.get_state().as_bool());
@@ -186,13 +187,13 @@ mod tests {
         assert_eq!(sensor.pin, 3);
         assert!(sensor.get_state().as_bool());
 
-        board.detach();
         sensor.detach();
+        board.close();
     }
 
     #[hermes_macros::test]
     fn test_digital_display() {
-        let board = Board::from(MockProtocol::default());
+        let board = Board::from(MockPluginIO::default());
         let sensor = DigitalInput::new(&board, "D5").unwrap();
         assert!(!sensor.get_state().as_bool());
         assert_eq!(
@@ -200,13 +201,13 @@ mod tests {
             String::from("DigitalInput (pin=5) [state=false]")
         );
 
-        board.detach();
         sensor.detach();
+        board.close();
     }
 
     #[hermes_macros::test]
     fn test_digital_events() {
-        let board = Board::from(MockProtocol::default());
+        let board = Board::from(MockPluginIO::default());
         let button = DigitalInput::new(&board, 5).unwrap();
 
         // CHANGE
@@ -249,7 +250,7 @@ mod tests {
         // Simulate pin state change in the protocol => take value 0xFF
         button
             .protocol
-            .get_hardware()
+            .get_data()
             .write()
             .get_pin_mut(5)
             .unwrap()
@@ -264,7 +265,7 @@ mod tests {
         // Simulate pin state change in the protocol => takes value 0
         button
             .protocol
-            .get_hardware()
+            .get_data()
             .write()
             .get_pin_mut(5)
             .unwrap()
@@ -275,7 +276,7 @@ mod tests {
         assert!(!change_flag.load(Ordering::SeqCst)); // change switched back to 0
         assert!(low_flag.load(Ordering::SeqCst));
 
-        board.detach();
         button.detach();
+        board.close();
     }
 }

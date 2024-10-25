@@ -1,8 +1,8 @@
-/// You may need an ON/OFF actuator that we have not thought of, or that does not really need its own implementation (like a led, sensor, etc.)
-/// This example shows how to use the DigitalOutput generic device type to do so.
+//! You may need an ON/OFF actuator that we have not thought of, or that does not really need its own implementation (like a led, sensor, etc.)
+//! This example shows how to use the DigitalOutput generic device type to do so.
 use hermes_five::devices::DigitalOutput;
-
-use hermes_five::{pause, Board, BoardEvent};
+use hermes_five::hardware::{Board, BoardEvent};
+use hermes_five::pause;
 
 #[hermes_five::runtime]
 async fn main() {

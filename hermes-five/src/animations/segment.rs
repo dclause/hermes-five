@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 use std::time::SystemTime;
 
-use crate::animation::Track;
+use crate::animations::Track;
 use crate::errors::Error;
 use crate::pause;
 
@@ -19,16 +19,16 @@ use crate::pause;
 /// Here is an example of defining a segment to animate a small robot with two actuators (a LED and a servo).
 /// The robot will perform a waving motion using its servo and LED.
 /// ```no_run
-/// use hermes_five::animation::{Keyframe, Segment, Track};
-/// use hermes_five::Board;
+/// use hermes_five::animations::{Keyframe, Segment, Track};
+/// use hermes_five::hardware::Board;
 /// use hermes_five::devices::{Led, Servo};
-/// use hermes_five::protocols::SerialProtocol;
+/// use hermes_five::io::FirmataIO;
 /// use hermes_five::utils::Easing;
 ///
 /// #[hermes_five::runtime]
 /// async fn main() {
 ///     // Define a board on COM4.
-///     let board = Board::from(SerialProtocol::new("COM4")).open();
+///     let board = Board::from(FirmataIO::new("COM4")).open();
 ///
 ///     // Define a servo attached to the board on PIN 9 (default servo position is 90°).
 ///     let servo = Servo::new(&board, 9, 90).unwrap();
@@ -282,9 +282,9 @@ impl Display for Segment {
 mod tests {
     use std::time::SystemTime;
 
-    use crate::animation::Track;
-    use crate::animation::{Keyframe, Segment};
-    use crate::mocks::output::MockOutputDevice;
+    use crate::animations::Track;
+    use crate::animations::{Keyframe, Segment};
+    use crate::mocks::output_device::MockOutputDevice;
 
     #[test]
     fn test_segment_default() {

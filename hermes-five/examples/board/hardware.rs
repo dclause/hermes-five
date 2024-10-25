@@ -1,5 +1,5 @@
-use hermes_five::protocols::PinModeId;
-use hermes_five::{Board, BoardEvent};
+use hermes_five::hardware::{Board, BoardEvent};
+use hermes_five::io::PinModeId;
 
 #[hermes_five::runtime]
 async fn main() {
@@ -8,7 +8,7 @@ async fn main() {
 
     board.on(BoardEvent::OnReady, |mut board: Board| async move {
         println!("Board connected: {}", board);
-        println!("Pins {:#?}", board.get_hardware().pins);
+        println!("Pins {:#?}", board.get_io().pins);
 
         // Example using the low-level capability of board to use hardware.
         board.set_pin_mode(13, PinModeId::OUTPUT)?;

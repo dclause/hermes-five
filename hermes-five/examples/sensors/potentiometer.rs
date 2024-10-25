@@ -2,7 +2,7 @@
 //! https://docs.arduino.cc/built-in-examples/analog/AnalogInput/
 
 use hermes_five::devices::{AnalogInput, InputEvent};
-use hermes_five::{Board, BoardEvent};
+use hermes_five::hardware::{Board, BoardEvent};
 
 #[hermes_five::runtime]
 async fn main() {

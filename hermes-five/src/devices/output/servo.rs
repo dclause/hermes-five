@@ -4,12 +4,12 @@ use std::time::SystemTime;
 
 use parking_lot::RwLock;
 
-use crate::animation::{Animation, Keyframe, Segment, Track};
-use crate::board::Board;
+use crate::animations::{Animation, Keyframe, Segment, Track};
 use crate::devices::{Device, Output};
 use crate::errors::HardwareError::IncompatibleMode;
 use crate::errors::{Error, StateError};
-use crate::protocols::{Pin, PinModeId, Protocol};
+use crate::hardware::Board;
+use crate::io::{Pin, PinModeId, PluginIO};
 use crate::utils::scale::Scalable;
 use crate::utils::{task, Easing, Range, State};
 use crate::{pause, pause_sync};
@@ -73,7 +73,7 @@ pub struct Servo {
     #[cfg_attr(feature = "serde", serde(skip))]
     previous: u16,
     #[cfg_attr(feature = "serde", serde(skip))]
-    protocol: Box<dyn Protocol>,
+    protocol: Box<dyn PluginIO>,
     /// Inner handler to the task running the animation.
     #[cfg_attr(feature = "serde", serde(skip))]
     animation: Arc<Option<Animation>>,
@@ -110,15 +110,14 @@ impl Servo {
         };
 
         // --
-        // The following may seem tedious, but it ensures we attach the servo with the default value
-        // already set.
+        // The following may seem tedious, but it ensures we attach the servo with the default value already set.
         // Check if SERVO MODE exists for this pin.
         servo
             .get_pin_info()?
             .supports_mode(PinModeId::SERVO)
             .ok_or(IncompatibleMode {
                 pin,
-                mode: PinModeId::SERVO,
+                mode: crate::io::PinModeId::SERVO,
                 context: "create a new Servo device",
             })?;
         servo.protocol.servo_config(pin, pwm_range)?;
@@ -167,7 +166,7 @@ impl Servo {
 
     /// Retrieves [`Pin`] information.
     pub fn get_pin_info(&self) -> Result<Pin, Error> {
-        let lock = self.protocol.get_hardware().read();
+        let lock = self.protocol.get_data().read();
         Ok(lock.get_pin(self.pin)?.clone())
     }
 
@@ -224,12 +223,12 @@ impl Servo {
         self
     }
 
-    /// Retrieves the theoretical range of degrees of movement for the servo (some servos can range from 0 to 90°, 180°, 270°, 360°, etc...).
+    /// Retrieves the theoretical range of degrees of movement for the servo (some servos can range from 0 to 90°, 180°, 270°, 360°, etc.).
     pub fn get_degree_range(&self) -> Range<u16> {
         self.degree_range
     }
 
-    /// Set the theoretical range of degrees of movement for the servo (some servos can range from 0 to 90°, 180°, 270°, 360°, etc...).
+    /// Set the theoretical range of degrees of movement for the servo (some servos can range from 0 to 90°, 180°, 270°, 360°, etc.).
     ///
     /// - No matter the order given, the range will always have min <= max
     /// - This may impact the `range` since it will always stay within the given `degree_range`.
@@ -453,21 +452,21 @@ impl Output for Servo {
 mod tests {
     use hermes_five::devices::ServoType;
 
-    use crate::board::Board;
     use crate::devices::{Output, Servo};
-    use crate::mocks::protocol::MockProtocol;
+    use crate::hardware::Board;
+    use crate::io::PinModeId;
+    use crate::mocks::plugin_io::MockPluginIO;
     use crate::pause;
-    use crate::protocols::PinModeId;
     use crate::utils::{Easing, Range, State};
 
     fn _setup_servo(pin: u16) -> Servo {
-        let board = Board::from(MockProtocol::default()); // Assuming a mock Board implementation
+        let board = Board::from(MockPluginIO::default()); // Assuming a mock Board implementation
         Servo::new(&board, pin, 90).unwrap()
     }
 
     #[test]
     fn test_servo_creation() {
-        let board = Board::from(MockProtocol::default());
+        let board = Board::from(MockPluginIO::default());
 
         let servo = Servo::new(&board, 12, 90).unwrap();
         assert_eq!(servo.get_pin(), 12);
@@ -564,16 +563,10 @@ mod tests {
 
     #[test]
     fn test_servo_state() {
-        let mut buf = [0; 8];
         let mut servo = _setup_servo(12);
 
         // Move in range
         assert!(servo.set_state(State::Integer(66)).is_ok());
-        assert!(servo.protocol.read_exact(&mut buf).is_ok());
-        assert_eq!(
-            buf.as_slice(),
-            [0xEC, 0x6C, 0x09, 0x58, 0x04, 0x60, 0x12, 0xF7]
-        );
         assert_eq!(servo.get_state(), State::Integer(66));
 
         // Move outside range
@@ -596,11 +589,6 @@ mod tests {
         // Move inverted range
         let mut servo = _setup_servo(12).set_inverted(true);
         assert!(servo.set_state(State::Integer(66)).is_ok());
-        assert!(servo.protocol.read_exact(&mut buf).is_ok());
-        assert_eq!(
-            buf.as_slice(),
-            [0xEC, 0x4C, 0x0D, 0x58, 0x04, 0x60, 0x12, 0xF7]
-        );
         assert_eq!(servo.get_state(), State::Integer(66));
     }
 

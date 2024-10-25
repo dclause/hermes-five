@@ -1,21 +1,93 @@
+use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 
-use crate::errors::HardwareError::IncompatibleMode;
-use crate::errors::{Error, UnknownError};
+use crate::errors::HardwareError::{IncompatibleMode, UnknownPin};
+use crate::errors::*;
+
+/// Represents the internal data that a [`PluginIo`] handles.
+///
+/// This struct is hidden behind an `Arc<RwLock<PluginIoData>>` to allow safe concurrent access
+/// and modification through the `PluginIoData` type. It encapsulates data relevant
+/// to the protocol, such as pins and I2C communication data.
+#[derive(Clone, Debug, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct PluginIoData {
+    /// All `Pin` instances, representing the hardware's pins.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub pins: HashMap<u16, Pin>,
+    /// A vector of `I2CReply` instances, representing I2C communication data.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub i2c_data: Vec<I2CReply>,
+    /// List pins with digital reporting activated.
+    pub digital_reported_pins: Vec<u16>,
+    /// List pins with analog reporting activated.
+    pub analog_reported_channels: Vec<u8>,
+    /// A string indicating the version of the protocol.
+    pub protocol_version: String,
+    /// A string representing the name of the firmware.
+    pub firmware_name: String,
+    /// A string representing the version of the firmware.
+    pub firmware_version: String,
+    /// A boolean indicating whether the PluginIO is connected.
+    pub connected: bool,
+}
+
+impl PluginIoData {
+    /// Retrieves a reference to a pin by its id or name.
+    ///
+    /// # Arguments
+    /// * `pin`  - The index of the pin to retrieve.
+    ///
+    /// # Errors
+    /// * `UnknownPin` - An `Error` returned if the pin index is out of bounds.
+    pub fn get_pin<T: Into<PinIdOrName>>(&self, pin: T) -> Result<&Pin, Error> {
+        let pin = pin.into();
+        match &pin {
+            PinIdOrName::Id(id) => self.pins.get(id).ok_or(Error::from(UnknownPin { pin })),
+            PinIdOrName::Name(name) => Ok(self
+                .pins
+                .iter()
+                .find(|(_, pin)| pin.name == *name)
+                .ok_or(Error::from(UnknownPin { pin }))?
+                .1),
+        }
+    }
+
+    /// Retrieves a mutable reference to a pin by its id or name.
+    ///
+    /// # Arguments
+    /// * `pin` - The index of the pin to retrieve.
+    ///
+    /// # Errors
+    /// * `UnknownPin` - An `Error` returned if the pin index is out of bounds.
+    pub fn get_pin_mut<T: Into<PinIdOrName>>(&mut self, pin: T) -> Result<&mut Pin, Error> {
+        let pin = pin.into();
+        match &pin {
+            PinIdOrName::Id(id) => self.pins.get_mut(id).ok_or(Error::from(UnknownPin { pin })),
+            PinIdOrName::Name(name) => Ok(self
+                .pins
+                .iter_mut()
+                .find(|(_, &mut ref pin)| pin.name == *name)
+                .ok_or(Error::from(UnknownPin { pin }))?
+                .1),
+        }
+    }
+}
+
+/// Defines an I2C reply.
+#[derive(Default, Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct I2CReply {
+    pub address: u16,
+    pub register: u16,
+    pub data: Vec<u16>,
+}
 
 /// Represents the current state and configuration of a pin.
-///
-/// # Fields
-///
-/// - `id`: The pin ID, which should correspond to the position of the pin in the [`Hardware::pins`] vector.
-/// - `mode`: The currently configured mode of the pin.
-/// - `supported_modes`: A vector of all pin modes supported by this pin.
-/// - `channel`: For analog pins, this is the channel number (e.g., "A0"=>0, "A1"=>1).
-/// - `value`: The pin value.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Default)]
 pub struct Pin {
-    /// The pin id: should correspond also to the position of the pin in the [`Hardware::pins`]
+    /// The pin ID, which also corresponds to the index of the [`PluginIoData::pins`] hashmap.
     pub id: u16,
     /// The pin name: an alternative String representation of the pin name: 'D13', 'A0', 'GPIO13' for instance.
     pub name: String,
@@ -257,11 +329,38 @@ impl Display for PinModeId {
     }
 }
 
-// ########################################
-
 #[cfg(test)]
 mod tests {
-    use crate::protocols::{Pin, PinIdOrName, PinMode, PinModeId};
+    use crate::io::{Pin, PinIdOrName, PinMode, PinModeId};
+    use crate::mocks::create_test_plugin_io_data;
+
+    #[test]
+    fn test_get_pin_success() {
+        assert_eq!(create_test_plugin_io_data().get_pin(3).unwrap().value, 3);
+        assert_eq!(create_test_plugin_io_data().get_pin(11).unwrap().value, 11);
+        assert_eq!(
+            create_test_plugin_io_data().get_pin_mut(3).unwrap().value,
+            3
+        );
+        assert_eq!(
+            create_test_plugin_io_data().get_pin_mut(11).unwrap().value,
+            11
+        );
+    }
+
+    #[test]
+    fn test_get_pin_error() {
+        assert!(create_test_plugin_io_data().get_pin(66).is_err());
+        assert!(create_test_plugin_io_data().get_pin_mut(66).is_err());
+    }
+
+    #[test]
+    fn test_mutate_pin() {
+        let mut hardware = create_test_plugin_io_data();
+        assert_eq!(hardware.get_pin_mut(11).unwrap().value, 11);
+        hardware.get_pin_mut(11).unwrap().value = 255;
+        assert_eq!(hardware.get_pin_mut(11).unwrap().value, 255);
+    }
 
     #[test]
     fn test_pin_supports_mode() {

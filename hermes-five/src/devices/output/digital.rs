@@ -3,12 +3,12 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 
-use crate::animation::{Animation, Keyframe, Track};
-use crate::board::Board;
+use crate::animations::{Animation, Keyframe, Track};
 use crate::devices::{Device, Output};
 use crate::errors::HardwareError::IncompatibleMode;
 use crate::errors::{Error, StateError};
-use crate::protocols::{Pin, PinIdOrName, PinModeId, Protocol};
+use crate::hardware::Board;
+use crate::io::{Pin, PinIdOrName, PinModeId, PluginIO};
 use crate::utils::{Easing, State};
 
 /// Represents a digital actuator of unspecified type: an [`Output`] [`Device`] that write digital values
@@ -30,7 +30,7 @@ pub struct DigitalOutput {
     // ########################################
     // # Volatile utility data.
     #[cfg_attr(feature = "serde", serde(skip))]
-    protocol: Box<dyn Protocol>,
+    protocol: Box<dyn PluginIO>,
     /// Inner handler to the task running the animation.
     #[cfg_attr(feature = "serde", serde(skip))]
     animation: Arc<Option<Animation>>,
@@ -48,7 +48,7 @@ impl DigitalOutput {
     /// * `UnknownPin`: this function will bail an error if the pin does not exist for this board.
     /// * `IncompatibleMode`: this function will bail an error if the pin does not support OUTPUT mode.
     pub fn new<T: Into<PinIdOrName>>(board: &Board, pin: T, default: bool) -> Result<Self, Error> {
-        let pin = board.get_hardware().get_pin(pin)?.clone();
+        let pin = board.get_io().get_pin(pin)?.clone();
 
         let mut output = Self {
             pin: pin.id,
@@ -99,7 +99,7 @@ impl DigitalOutput {
 
     /// Retrieves [`Pin`] information.
     pub fn get_pin_info(&self) -> Result<Pin, Error> {
-        let lock = self.protocol.get_hardware().read();
+        let lock = self.protocol.get_data().read();
         Ok(lock.get_pin(self.pin)?.clone())
     }
 
@@ -196,33 +196,33 @@ impl Output for DigitalOutput {
 
 #[cfg(test)]
 mod tests {
-    use crate::board::Board;
     use crate::devices::output::digital::DigitalOutput;
     use crate::devices::Output;
-    use crate::mocks::protocol::MockProtocol;
+    use crate::hardware::Board;
+    use crate::io::PinModeId;
+    use crate::mocks::plugin_io::MockPluginIO;
     use crate::pause;
-    use crate::protocols::PinModeId;
     use crate::utils::{Easing, State};
 
     #[test]
     fn test_creation() {
-        let board = Board::from(MockProtocol::default());
+        let board = Board::from(MockPluginIO::default());
 
         // Default LOW state.
         let output = DigitalOutput::new(&board, 13, false).unwrap();
         assert_eq!(output.get_pin(), 13);
-        assert_eq!(*output.state.read(), false);
-        assert_eq!(output.get_state().as_bool(), false);
-        assert_eq!(output.get_default().as_bool(), false);
+        assert!(!*output.state.read());
+        assert!(!output.get_state().as_bool());
+        assert!(!output.get_default().as_bool());
         assert!(output.is_low());
         assert!(!output.is_high());
 
         // Default HIGH state.
         let output = DigitalOutput::new(&board, 4, true).unwrap();
         assert_eq!(output.get_pin(), 4);
-        assert_eq!(*output.state.read(), true);
-        assert_eq!(output.get_state().as_bool(), true);
-        assert_eq!(output.get_default().as_bool(), true);
+        assert!(*output.state.read());
+        assert!(output.get_state().as_bool());
+        assert!(output.get_default().as_bool());
         assert!(output.is_high());
         assert!(!output.is_low());
 
@@ -238,43 +238,43 @@ mod tests {
     #[test]
     fn test_set_high() {
         let mut output =
-            DigitalOutput::new(&Board::from(MockProtocol::default()), 4, false).unwrap();
+            DigitalOutput::new(&Board::from(MockPluginIO::default()), 4, false).unwrap();
         output.turn_on().unwrap();
         assert!(output.turn_on().is_ok());
-        assert_eq!(*output.state.read(), true);
+        assert!(*output.state.read());
     }
 
     #[test]
     fn test_set_low() {
         let mut output =
-            DigitalOutput::new(&Board::from(MockProtocol::default()), 5, true).unwrap();
+            DigitalOutput::new(&Board::from(MockPluginIO::default()), 5, true).unwrap();
         assert!(output.turn_off().is_ok());
-        assert_eq!(*output.state.read(), false);
+        assert!(!*output.state.read());
     }
 
     #[test]
     fn test_toggle() {
         let mut output =
-            DigitalOutput::new(&Board::from(MockProtocol::default()), 5, false).unwrap();
+            DigitalOutput::new(&Board::from(MockPluginIO::default()), 5, false).unwrap();
         assert!(output.toggle().is_ok()); // Toggle to HIGH
-        assert_eq!(*output.state.read(), true);
+        assert!(*output.state.read());
         assert!(output.toggle().is_ok()); // Toggle to LOW
-        assert_eq!(*output.state.read(), false);
+        assert!(!*output.state.read());
     }
 
     #[test]
     fn test_set_state() {
         let mut output =
-            DigitalOutput::new(&Board::from(MockProtocol::default()), 13, false).unwrap();
+            DigitalOutput::new(&Board::from(MockPluginIO::default()), 13, false).unwrap();
         assert!(output.set_state(State::Boolean(true)).is_ok());
-        assert_eq!(*output.state.read(), true);
+        assert!(*output.state.read());
         assert!(output.set_state(State::Boolean(false)).is_ok());
-        assert_eq!(*output.state.read(), false);
+        assert!(!*output.state.read());
 
         assert!(output.set_state(State::Integer(1)).is_ok());
-        assert_eq!(*output.state.read(), true);
+        assert!(*output.state.read());
         assert!(output.set_state(State::Integer(0)).is_ok());
-        assert_eq!(*output.state.read(), false);
+        assert!(!*output.state.read());
         assert!(output.set_state(State::Integer(42)).is_err());
 
         assert!(output
@@ -289,7 +289,7 @@ mod tests {
 
     #[test]
     fn test_get_pin_info() {
-        let output = DigitalOutput::new(&Board::from(MockProtocol::default()), 13, false).unwrap();
+        let output = DigitalOutput::new(&Board::from(MockPluginIO::default()), 13, false).unwrap();
         let pin_info = output.get_pin_info();
         assert!(pin_info.is_ok());
         assert_eq!(pin_info.unwrap().id, 13);
@@ -298,7 +298,7 @@ mod tests {
     #[hermes_macros::test]
     fn test_animation() {
         let mut output =
-            DigitalOutput::new(&Board::from(MockProtocol::default()), 13, false).unwrap();
+            DigitalOutput::new(&Board::from(MockPluginIO::default()), 13, false).unwrap();
         assert!(!output.is_busy());
         // Stop something not started should not fail.
         output.stop();
@@ -312,7 +312,7 @@ mod tests {
     #[test]
     fn test_display_impl() {
         let mut output =
-            DigitalOutput::new(&Board::from(MockProtocol::default()), 13, true).unwrap();
+            DigitalOutput::new(&Board::from(MockPluginIO::default()), 13, true).unwrap();
         let _ = output.turn_off();
         let display_str = format!("{}", output);
         assert_eq!(

@@ -1,5 +1,5 @@
 use hermes_five::devices::Led;
-use hermes_five::{Board, BoardEvent};
+use hermes_five::hardware::{Board, BoardEvent};
 
 // /!\ Use of brightness requires a PWM compatible pin.
 // Consult your board schematics to know which ones are compatible.

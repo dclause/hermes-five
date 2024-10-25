@@ -1,72 +1,56 @@
-//! This file contains the `SerialProtocol` code.
-//!
-//! It allows communication of boards connected via a serial port.
-use std::fmt::Debug;
+use crate::errors::Error;
+use crate::errors::ProtocolError::NotInitialized;
+use crate::io::firmata::TransportLayer;
+use log::trace;
+use parking_lot::Mutex;
+use serialport::{DataBits, FlowControl, Parity, SerialPort, StopBits};
+use std::fmt::{Display, Formatter};
 use std::io::{Read, Write};
 use std::sync::Arc;
 use std::time::Duration;
 
-use log::trace;
-use parking_lot::{Mutex, RwLock};
-use serialport::SerialPort;
-use serialport::{DataBits, FlowControl, Parity, StopBits};
-
-use crate::errors::Error;
-use crate::errors::ProtocolError::NotInitialized;
-use crate::protocols::{Hardware, Protocol};
-
-/// The `SerialProtocol` is made to communicate with a remote board using the serial protocol.
-///
-/// # Fields
-/// * `port`: The connection port.
-/// * `io`: A Read/Write io object.
-/// * `hardware`: The base-protocol attributes.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
-pub struct SerialProtocol {
+pub struct Serial {
     /// The connection port.
     port: String,
-
-    /// Indicates whether the protocol as gone through the handshake properly.
-    #[cfg_attr(feature = "serde", serde(skip))]
-    connected: bool,
     /// A Read/Write io object.
     #[cfg_attr(feature = "serde", serde(skip))]
     io: Arc<Mutex<Option<Box<dyn SerialPort>>>>,
-    /// The base-protocol attributes.
-    #[cfg_attr(feature = "serde", serde(skip))]
-    hardware: Arc<RwLock<Hardware>>,
 }
 
-impl SerialProtocol {
-    /// Constructs a new `SerialProtocol` instance for communication through the specified port.
+impl Serial {
+    /// Constructs a new `Serial` transport layer instance for communication through the specified port.
     ///
     /// # Arguments
     /// * `port` - The serial port to use for communication.
     ///
     /// # Example
     /// ```
-    /// use hermes_five::Board;
-    /// use hermes_five::protocols::SerialProtocol;
+    /// use hermes_five::hardware::Board;
+    /// use hermes_five::io::FirmataIO;
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
-    ///     let protocol = SerialProtocol::new("/dev/ttyACM0");
+    ///     let protocol = FirmataIO::new("/dev/ttyACM0");
     ///     let board = Board::from(protocol).open();
     /// }
     /// ```
     pub fn new<P: Into<String>>(port: P) -> Self {
         Self {
-            connected: false,
             port: port.into(),
             io: Arc::new(Mutex::new(None)),
-            hardware: Arc::new(RwLock::new(Hardware::default())),
         }
+    }
+
+    /// Retrieves the configured port.
+    pub fn get_port(&self) -> String {
+        self.port.clone()
     }
 }
 
-impl Default for SerialProtocol {
-    /// Creates a new `SerialProtocol` with the first available port or an empty string if no ports are available.
+impl Default for Serial {
+    /// Creates a new serial transport connection with the first available port or an empty string if no ports are available.
     ///
     /// # Notes
     /// The first available port will be used, None otherwise, which will probably lead to an error
@@ -81,43 +65,14 @@ impl Default for SerialProtocol {
     }
 }
 
+impl Display for Serial {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Serial({})", self.port)
+    }
+}
+
 #[cfg_attr(feature = "serde", typetag::serde)]
-impl Protocol for SerialProtocol {
-    // ########################################
-    // Inner data related functions
-
-    /// Retrieve the internal hardware.
-    fn get_hardware(&self) -> &Arc<RwLock<Hardware>> {
-        &self.hardware
-    }
-
-    fn get_protocol_details(&self) -> String {
-        format!("via port {}", self.port)
-    }
-
-    /// Checks if the communication is opened using the underlying protocol.
-    fn is_connected(&self) -> bool {
-        self.connected && self.io.lock().is_some()
-    }
-
-    /// Sets the protocol inner connected indicator.
-    fn set_connected(&mut self, status: bool) {
-        self.connected = status;
-    }
-
-    // ########################################
-    // Protocol related functions
-
-    /// Opens communication with the specified port.
-    ///
-    /// # Returns
-    /// * `Ok(())` if successful.
-    /// * `Err(Error)` if there is an issue opening the port.
-    ///
-    /// # Notes
-    /// - The method is sync and will block until the serial port is open.
-    /// - This function initializes the `io` object. Ensure the port is valid before calling this method.
-    #[cfg(not(tarpaulin_include))]
+impl TransportLayer for Serial {
     fn open(&mut self) -> Result<(), Error> {
         let connexion = serialport::new(self.port.clone(), 57_600)
             .data_bits(DataBits::Eight)
@@ -131,27 +86,16 @@ impl Protocol for SerialProtocol {
         // Save the IO (required by handshake).
         self.io = Arc::new(Mutex::new(Some(Box::new(connexion))));
 
-        // Perform handshake.
-        self.handshake()?;
-
-        // Reduce timeout.
-        self.io
-            .lock()
-            .as_mut()
-            .unwrap()
-            .set_timeout(Duration::from_millis(200))?;
-
         Ok(())
     }
 
-    /// Gracefully shuts down the serial port communication.
-    ///
-    /// # Returns
-    /// * `Ok(())` if successful.
-    /// * `Err(Error)` if there is an issue closing the port.
     fn close(&mut self) -> Result<(), Error> {
-        self.connected = false;
         *self.io.lock() = None;
+        Ok(())
+    }
+
+    fn set_timeout(&mut self, duration: Duration) -> Result<(), Error> {
+        self.io.lock().as_mut().unwrap().set_timeout(duration)?;
         Ok(())
     }
 
@@ -185,13 +129,7 @@ impl Protocol for SerialProtocol {
     /// This function blocks until the buffer is filled or an error occurs. Ensure proper error handling in calling code.
     fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), Error> {
         let mut lock = self.io.lock();
-        lock.as_mut()
-            .ok_or(NotInitialized)?
-            .read_exact(buf)
-            .map_err(|err| {
-                self.connected = false;
-                err
-            })?;
+        lock.as_mut().ok_or(NotInitialized)?.read_exact(buf)?;
         Ok(())
     }
 }
@@ -204,46 +142,33 @@ impl From<serialport::Error> for Error {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::mocks::serial_port::SerialPortMock;
     use serialport::ErrorKind;
 
-    use crate::mocks::io::SerialPortMock;
-
-    use super::*;
-
-    fn get_test_successful_protocol() -> SerialProtocol {
-        let protocol = SerialProtocol::new("/dev/ttyACM0");
+    fn get_test_successful_protocol() -> Serial {
+        let protocol = Serial::new("/dev/ttyACM0");
         *protocol.io.lock() = Some(Box::new(SerialPortMock::default()));
         protocol
     }
 
-    fn get_test_failing_protocol() -> SerialProtocol {
-        let protocol = SerialProtocol::new("/dev/ttyACM0");
+    fn get_test_failing_protocol() -> Serial {
+        let protocol = Serial::new("/dev/ttyACM0");
         *protocol.io.lock() = Some(Box::new(SerialPortMock::new(ErrorKind::InvalidInput)));
         protocol
     }
 
     #[test]
     fn test_new_serial_protocol() {
-        let protocol = SerialProtocol::new("/dev/ttyACM0");
+        let protocol = Serial::new("/dev/ttyACM0");
         assert_eq!(protocol.port, "/dev/ttyACM0");
         assert!(protocol.io.lock().is_none());
-        assert_eq!(protocol.get_hardware().read().firmware_name, "");
-        assert_eq!(protocol.get_protocol_details(), "via port /dev/ttyACM0");
     }
 
     #[test]
     fn test_default_serial_protocol() {
-        let protocol = SerialProtocol::default();
+        let protocol = Serial::default();
         assert!(protocol.port.len() > 0);
-    }
-
-    #[test]
-    fn test_protocol_setters_getters() {
-        let mut protocol = SerialProtocol::default();
-        assert!(!protocol.connected);
-        assert!(!protocol.is_connected());
-        protocol.set_connected(true);
-        assert!(protocol.connected);
     }
 
     // #[test]
@@ -298,7 +223,7 @@ mod tests {
             description: String::from("test error"),
         };
         let custom_error: Error = serial_error.into();
-        assert_eq!(custom_error.to_string(), "Protocol error: test error.");
+        assert_eq!(custom_error.to_string(), "PluginIO error: test error.");
 
         let serial_error = serialport::Error {
             kind: ErrorKind::Io(std::io::ErrorKind::NotFound),
@@ -307,7 +232,7 @@ mod tests {
         let custom_error: Error = serial_error.into();
         assert_eq!(
             custom_error.to_string(),
-            "Protocol error: Board not found or already in use."
+            "PluginIO error: Board not found or already in use."
         );
 
         let serial_error = serialport::Error {
@@ -315,6 +240,12 @@ mod tests {
             description: String::from("IO error"),
         };
         let custom_error: Error = serial_error.into();
-        assert_eq!(custom_error.to_string(), "Protocol error: IO error.");
+        assert_eq!(custom_error.to_string(), "PluginIO error: IO error.");
+    }
+
+    #[test]
+    fn test_display_serial_protocol() {
+        let protocol = Serial::new("/dev/ttyACM0");
+        assert_eq!(format!("{}", protocol), "Serial(/dev/ttyACM0)");
     }
 }

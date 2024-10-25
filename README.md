@@ -44,11 +44,16 @@ hermes-five = "0.1.0-beta"
 
 ## Features
 
-**Hermes-Five** is a Rust library designed to remotely control Arduino (other supported boards to come) using Rust code.
+**Hermes-Five** is a Rust library designed to remotely control Arduino (or compatible boards) using Rust code.
 
-**_If you wish to control your Hermes compatible robot using a UI (no-code), please consult
-the [HermesStudio](https://github.com/dclause/hermes-studio)
-project._**
+* Configure your remote controllable `Board` (Arduino currently)
+* Control boards though a `Protocol` connection ([`SerialFirmata`] for the moment)
+* Remote control all types of `Device`(s) such as `Output`(s) (LED, servo, etc.) or `Input`(s) (button, switch, sensors,
+* etc.) individually
+* Create and play `Animation` to interpolate movements
+
+**_If you wish to do the same with absolutely no code via a nice-and-shiny interface, please consult
+the [HermesStudio](https://github.com/dclause/hermes-studio) project._**
 
 ### Hello Hermes!
 

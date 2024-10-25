@@ -1,17 +1,12 @@
-use std::fmt::Display;
-use std::ops::{Deref, DerefMut};
-use std::sync::Arc;
-
-use log::trace;
-use parking_lot::{RwLock, RwLockReadGuard};
-
 use crate::errors::Error;
-use crate::pause;
-use crate::protocols::SerialProtocol;
-use crate::protocols::{Hardware, PinModeId, Protocol};
+use crate::io::{FirmataIO, PluginIoData};
+use crate::io::{PinModeId, PluginIO};
 use crate::utils::events::{EventHandler, EventManager};
 use crate::utils::task;
-use crate::utils::task::TaskHandler;
+use log::trace;
+use parking_lot::RwLockReadGuard;
+use std::fmt::Display;
+use std::ops::{Deref, DerefMut};
 
 /// Lists all events a Board can emit/listen.
 pub enum BoardEvent {
@@ -32,8 +27,8 @@ impl From<BoardEvent> for String {
     }
 }
 
-/// Represents a physical board where devices can be attached and control through this API.
-/// The board gives access to [`Hardware`] through a communication [`Protocol`].
+/// Represents a physical board (Arduino most-likely) where your [`crate::devices::Device`] can be attached and controlled through this API.
+/// The board gives access to [`Hardware`] through a communication [`PluginIoData`].
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone)]
 pub struct Board {
@@ -41,10 +36,7 @@ pub struct Board {
     #[cfg_attr(feature = "serde", serde(skip))]
     events: EventManager,
     /// The inner protocol used by this Board.
-    protocol: Box<dyn Protocol>,
-    /// Inner handler to the task running the button value check.
-    #[cfg_attr(feature = "serde", serde(skip))]
-    handler: Arc<RwLock<Option<TaskHandler>>>,
+    protocol: Box<dyn PluginIO>,
 }
 
 impl Default for Board {
@@ -55,19 +47,19 @@ impl Default for Board {
     /// # Example
     ///
     /// ```
-    /// use hermes_five::Board;
-    /// use hermes_five::protocols::SerialProtocol;
+    /// use hermes_five::hardware::Board;
+    /// use hermes_five::io::FirmataIO;
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
     ///     // Following lines are all equivalent:
     ///     let board = Board::run();
     ///     let board = Board::default().open();
-    ///     let board = Board::from(SerialProtocol::default()).open();
+    ///     let board = Board::from(FirmataIO::default()).open();
     /// }
     /// ```
     fn default() -> Self {
-        Self::from(SerialProtocol::default())
+        Self::from(FirmataIO::default())
     }
 }
 
@@ -76,15 +68,15 @@ impl Board {
     ///
     /// # Example
     /// ```
-    /// use hermes_five::Board;
-    /// use hermes_five::protocols::SerialProtocol;
+    /// use hermes_five::hardware::Board;
+    /// use hermes_five::io::FirmataIO;
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
     ///     // Following lines are all equivalent:
     ///     let board = Board::run();
     ///     let board = Board::default().open();
-    ///     let board = Board::from(SerialProtocol::default()).open();
+    ///     let board = Board::from(FirmataIO::default()).open();
     /// }
     /// ```
     pub fn run() -> Self {
@@ -95,19 +87,18 @@ impl Board {
     ///
     /// # Example
     /// ```
-    /// use hermes_five::Board;
-    /// use hermes_five::protocols::SerialProtocol;
+    /// use hermes_five::hardware::Board;
+    /// use hermes_five::io::FirmataIO;
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
-    ///     let board = Board::from(SerialProtocol::new("COM4")).open();
+    ///     let board = Board::from(FirmataIO::new("COM4")).open();
     /// }
     /// ```
-    pub fn from<P: Protocol + 'static>(protocol: P) -> Self {
+    pub fn from<P: PluginIO + 'static>(protocol: P) -> Self {
         Self {
             events: EventManager::default(),
             protocol: Box::new(protocol),
-            handler: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -116,7 +107,7 @@ impl Board {
     /// NOTE: this is private to the crate since board already gives access to protocol methods via Deref.
     /// This method is only used internally in all [`Device::new()`] methods to clone the protocol into the
     /// device.
-    pub fn get_protocol(&self) -> Box<dyn Protocol> {
+    pub fn get_protocol(&self) -> Box<dyn PluginIO> {
         self.protocol.clone()
     }
 
@@ -129,8 +120,8 @@ impl Board {
     /// Have a look at the examples/board folder more detailed examples.
     ///
     /// ```
-    /// use hermes_five::Board;
-    /// use hermes_five::BoardEvent;
+    /// use hermes_five::hardware::Board;
+    /// use hermes_five::hardware::BoardEvent;
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
@@ -162,7 +153,7 @@ impl Board {
     /// Blocking version of [`Self::open()`] method.
     pub fn blocking_open(mut self) -> Result<Self, Error> {
         self.protocol.open()?;
-        trace!("Board is ready: {:#?}", self.get_hardware());
+        trace!("Board is ready: {:#?}", self.get_data().read());
         Ok(self)
     }
 
@@ -174,8 +165,8 @@ impl Board {
     /// Have a look at the examples/board folder more detailed examples.
     ///
     /// ```
-    /// use hermes_five::{Board, pause};
-    /// use hermes_five::BoardEvent;
+    /// use hermes_five::pause;
+    /// use hermes_five::hardware::{Board, BoardEvent};
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
@@ -198,11 +189,6 @@ impl Board {
         let callback_board = self.clone();
         task::run(async move {
             let board = callback_board.blocking_close()?;
-
-            if let Some(handler) = board.handler.read().as_ref() {
-                handler.abort();
-            }
-            *board.handler.write() = None;
             events.emit(BoardEvent::OnClose, board);
             Ok(())
         })
@@ -213,47 +199,13 @@ impl Board {
     /// Blocking version of [`Self::close()`] method.
     pub fn blocking_close(mut self) -> Result<Self, Error> {
         // Detach all pins.
-        let pins = self.get_hardware().pins.clone();
-        for (id, _) in pins {
+        let pins: Vec<u16> = self.get_data().read().pins.keys().copied().collect();
+        for id in pins {
             let _ = self.set_pin_mode(id, PinModeId::OUTPUT);
         }
         self.protocol.close()?;
         trace!("Board is closed");
         Ok(self)
-    }
-
-    // ########################################
-    // Event related functions
-
-    /// Manually attaches the board value change listener. This is only used for input events.
-    /// This should never be needed unless you manually `detach()` the sensor first for some reason
-    /// and want it to start being reactive to events again.
-    pub fn attach(&self) {
-        if self.handler.read().is_none() {
-            let mut self_clone = self.clone();
-            *self.handler.write() = Some(
-                task::run(async move {
-                    // Infinite loop to listen for inputs from the board.
-                    // @todo this is constant polling. Evaluate if this is the right solution and the polling resolution.
-                    loop {
-                        let _ = self_clone.read_and_decode();
-                        pause!(1);
-                    }
-
-                    #[allow(unreachable_code)]
-                    Ok(())
-                })
-                .unwrap(),
-            );
-        }
-    }
-
-    /// Detaches the interval associated with the button.
-    /// This means the button won't react anymore to value changes.
-    pub fn detach(&self) {
-        if let Some(handler) = self.handler.read().as_ref() {
-            handler.abort();
-        }
     }
 
     /// Registers a callback to be executed on a given event on the board.
@@ -265,8 +217,8 @@ impl Board {
     /// # Example
     ///
     /// ```
-    /// use hermes_five::Board;
-    /// use hermes_five::BoardEvent;
+    /// use hermes_five::hardware::Board;
+    /// use hermes_five::hardware::BoardEvent;
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
@@ -291,9 +243,9 @@ impl Board {
     ///
     /// # Example
     /// ```
-    /// use hermes_five::Board;
-    /// use hermes_five::BoardEvent;
-    /// use hermes_five::protocols::PinModeId;
+    /// use hermes_five::hardware::Board;
+    /// use hermes_five::hardware::BoardEvent;
+    /// use hermes_five::io::PinModeId;
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
@@ -301,12 +253,12 @@ impl Board {
     ///
     ///     board.on(BoardEvent::OnReady, |mut board: Board| async move {
     ///         println!("Board connected: {}", board);
-    ///         println!("Pins {:#?}", board.get_hardware().pins);
+    ///         println!("Pins {:#?}", board.get_io().pins);
     ///         Ok(())
     ///     });
     /// }
-    pub fn get_hardware(&self) -> RwLockReadGuard<Hardware> {
-        self.protocol.get_hardware().read()
+    pub fn get_io(&self) -> RwLockReadGuard<PluginIoData> {
+        self.protocol.get_data().read()
     }
 }
 
@@ -317,7 +269,7 @@ impl Display for Board {
 }
 
 impl Deref for Board {
-    type Target = Box<dyn Protocol>;
+    type Target = Box<dyn PluginIO>;
 
     fn deref(&self) -> &Self::Target {
         &self.protocol
@@ -332,14 +284,12 @@ impl DerefMut for Board {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::mocks::plugin_io::MockPluginIO;
+    use crate::mocks::transport_layer::MockTransportLayer;
+    use crate::pause;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
-
-    use crate::mocks::protocol::MockProtocol;
-    use crate::pause;
-    use crate::protocols::Message;
-
-    use super::*;
 
     #[test]
     fn test_board_default() {
@@ -347,7 +297,7 @@ mod tests {
         let board = Board::default();
         assert_eq!(
             board.protocol.get_protocol_name(),
-            "SerialProtocol",
+            "FirmataIO",
             "Default board uses the default protocol"
         );
     }
@@ -355,30 +305,30 @@ mod tests {
     #[test]
     fn test_board_from() {
         // Custom protocol can be used.
-        let board = Board::from(MockProtocol::default());
+        let board = Board::from(MockPluginIO::default());
         assert_eq!(
             board.protocol.get_protocol_name(),
-            "MockProtocol",
+            "MockPluginIO",
             "Board can be created with a custom protocol"
         );
     }
 
     #[hermes_macros::test]
     async fn test_board_open() {
-        let mut protocol = MockProtocol::default();
-        protocol.index = 10;
+        let mut transport = MockTransportLayer::default();
+        transport.read_index = 10;
         // Result for query firmware
-        protocol.buf[10..15].copy_from_slice(&[0xF0, 0x79, 0x01, 0x0C, 0xF7]);
+        transport.read_buf[10..15].copy_from_slice(&[0xF0, 0x79, 0x01, 0x0C, 0xF7]);
         // Result for report capabilities
-        protocol.buf[15..26].copy_from_slice(&[
+        transport.read_buf[15..26].copy_from_slice(&[
             0xF0, 0x6C, 0x00, 0x08, 0x7F, 0x00, 0x08, 0x01, 0x08, 0x7F, 0xF7,
         ]);
         // Result for analog mapping
-        protocol.buf[26..32].copy_from_slice(&[0xF0, 0x6A, 0x7F, 0x7F, 0x7F, 0xF7]);
+        transport.read_buf[26..32].copy_from_slice(&[0xF0, 0x6A, 0x7F, 0x7F, 0x7F, 0xF7]);
 
         let flag = Arc::new(AtomicBool::new(false));
         let moved_flag = flag.clone();
-        let board = Board::from(protocol).open();
+        let board = Board::from(FirmataIO::from(transport)).open();
         board.on(BoardEvent::OnReady, move |board: Board| {
             let captured_flag = moved_flag.clone();
             async move {
@@ -393,17 +343,18 @@ mod tests {
 
     #[test]
     fn test_board_blocking_open() {
-        let mut protocol = MockProtocol::default();
-        protocol.index = 10;
+        let mut transport = MockTransportLayer::default();
+        transport.read_index = 10;
         // Result for query firmware
-        protocol.buf[10..15].copy_from_slice(&[0xF0, 0x79, 0x01, 0x0C, 0xF7]);
+        transport.read_buf[10..15].copy_from_slice(&[0xF0, 0x79, 0x01, 0x0C, 0xF7]);
         // Result for report capabilities
-        protocol.buf[15..26].copy_from_slice(&[
+        transport.read_buf[15..26].copy_from_slice(&[
             0xF0, 0x6C, 0x00, 0x08, 0x7F, 0x00, 0x08, 0x01, 0x08, 0x7F, 0xF7,
         ]);
         // Result for analog mapping
-        protocol.buf[26..32].copy_from_slice(&[0xF0, 0x6A, 0x7F, 0x7F, 0x7F, 0xF7]);
+        transport.read_buf[26..32].copy_from_slice(&[0xF0, 0x6A, 0x7F, 0x7F, 0x7F, 0xF7]);
 
+        let protocol = FirmataIO::from(transport);
         let board = Board::from(protocol).blocking_open().unwrap();
         assert!(board.is_connected());
     }
@@ -413,9 +364,7 @@ mod tests {
         let flag = Arc::new(AtomicBool::new(false));
         let moved_flag = flag.clone();
 
-        let board = Board::from(MockProtocol::default()).open();
-        board.attach(); // Close an attached board should detach it.
-        let board = board.close();
+        let board = Board::from(MockPluginIO::default()).open().close();
 
         board.on(BoardEvent::OnClose, move |board: Board| {
             let captured_flag = moved_flag.clone();
@@ -434,34 +383,32 @@ mod tests {
     #[hermes_macros::test]
     fn test_board_run() {
         let board = Board::run();
-        assert_eq!(board.protocol.get_protocol_name(), "SerialProtocol");
+        assert_eq!(board.protocol.get_protocol_name(), "FirmataIO");
         board.close();
     }
 
     #[test]
     fn test_board_get_hardware() {
-        let board = Board::from(MockProtocol::default());
-        assert_eq!(board.get_hardware().protocol_version, "fake.1.0");
+        let board = Board::from(MockPluginIO::default());
+        assert_eq!(board.get_io().protocol_version, "fake.1.0");
     }
 
     #[test]
     fn test_board_display() {
-        let board = Board::from(MockProtocol::default());
+        let board = Board::from(MockPluginIO::default());
         let output = format!("{}", board);
-        assert_eq!(output, "Board (firmware=Fake protocol, version=fake.2.3, protocol=MockProtocol, connection=\"()\")");
+        assert_eq!(
+            output,
+            "Board (MockPluginIO [firmware=Fake protocol, version=fake.2.3, protocol=fake.1.0])"
+        );
     }
 
     #[test]
     fn test_board_deref() {
-        let mut protocol = MockProtocol::default();
-        protocol.buf[..3].copy_from_slice(&[0xF9, 0x01, 0x19]);
-        let mut board = Board::from(protocol);
-        assert_eq!(board.get_protocol().get_protocol_name(), "MockProtocol");
-        assert_eq!(board.get_protocol_name(), "MockProtocol");
-
-        let result = board.read_and_decode();
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), Message::ReportProtocolVersion);
-        assert_eq!(board.get_hardware().protocol_version, "1.25");
+        let mut transport = MockTransportLayer::default();
+        transport.read_buf[..3].copy_from_slice(&[0xF9, 0x01, 0x19]);
+        let board = Board::from(FirmataIO::from(transport));
+        assert!(!board.get_protocol().is_connected());
+        assert!(!board.is_connected());
     }
 }

@@ -5,16 +5,16 @@ use snafu::Snafu;
 
 pub use crate::errors::Error::*;
 use crate::errors::ProtocolError::IoException;
-use crate::protocols::{PinIdOrName, PinModeId};
+use crate::io::{PinIdOrName, PinModeId};
 
 #[derive(Debug, Snafu)]
 #[snafu(visibility(pub))]
 pub enum Error {
     /// Runtime error: Are you sure your code runs inside #[hermes_five::runtime]?
     RuntimeError,
-    /// State error: uncompatible type provided.
+    /// State error: incompatible type provided.
     StateError,
-    /// Protocol error: {source}.
+    /// PluginIO error: {source}.
     ProtocolError { source: ProtocolError },
     /// Hardware error: {source}.
     HardwareError { source: HardwareError },
@@ -50,7 +50,7 @@ impl From<HardwareError> for Error {
 
 impl From<Utf8Error> for Error {
     fn from(value: Utf8Error) -> Self {
-        Self::UnknownError {
+        UnknownError {
             info: value.to_string(),
         }
     }
@@ -107,7 +107,7 @@ mod tests {
         });
         assert_eq!(
             format!("{}", protocol_error),
-            "Protocol error: I/O error message."
+            "PluginIO error: I/O error message."
         );
 
         let hardware_error = Error::from(IncompatibleMode {
@@ -135,7 +135,7 @@ mod tests {
         let error: Error = io_error.into();
         assert_eq!(
             format!("{}", error),
-            "Protocol error: Board not found or already in use."
+            "PluginIO error: Board not found or already in use."
         );
     }
 
@@ -145,7 +145,7 @@ mod tests {
         let error: Error = protocol_error.into();
         assert_eq!(
             format!("{}", error),
-            "Protocol error: Connection has not been initialized."
+            "PluginIO error: Connection has not been initialized."
         );
     }
 

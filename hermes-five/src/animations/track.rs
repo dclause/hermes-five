@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
 
-use crate::animation::Keyframe;
+use crate::animations::Keyframe;
 use crate::devices::Output;
 use crate::errors::Error;
 use crate::utils::{Range, State};
@@ -18,16 +18,16 @@ use crate::utils::{Range, State};
 /// be the brightness of a LED, or the position of a Servo), over 1000 milliseconds, following the
 /// defined easing function.
 /// ```no_run
-/// use hermes_five::animation::{Keyframe, Track};
-/// use hermes_five::Board;
+/// use hermes_five::animations::{Keyframe, Track};
+/// use hermes_five::hardware::Board;
 /// use hermes_five::devices::Servo;
-/// use hermes_five::protocols::SerialProtocol;
+/// use hermes_five::io::FirmataIO;
 /// use hermes_five::utils::Easing;
 ///
 /// #[hermes_five::runtime]
 /// async fn main() {
 ///     // Defines a board (using serial port on COM4).
-///     let board = Board::from(SerialProtocol::new("COM4")).open();
+///     let board = Board::from(FirmataIO::new("COM4")).open();
 ///     // Defines a servo attached to the board on PIN 9 (default servo position is 90°).
 ///     let servo = Servo::new(&board, 9, 90).unwrap();
 ///     // Creates a track for the servo.
@@ -209,8 +209,8 @@ impl Track {
 
 #[cfg(test)]
 mod tests {
-    use crate::animation::Keyframe;
-    use crate::mocks::output::MockOutputDevice;
+    use crate::animations::Keyframe;
+    use crate::mocks::output_device::MockOutputDevice;
     use crate::utils::Range;
 
     use super::*;

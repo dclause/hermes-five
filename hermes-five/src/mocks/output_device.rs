@@ -40,19 +40,13 @@ impl Device for MockOutputDevice {}
 
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl Output for MockOutputDevice {
-    fn animate<S: Into<State>>(&mut self, _: S, _: u64, _: Easing) {
-        todo!()
+    fn get_state(&self) -> State {
+        self.state.into()
     }
-
-    fn stop(&mut self) {}
 
     fn set_state(&mut self, state: State) -> Result<State, Error> {
         self.state = state.as_integer() as u16;
         Ok(state)
-    }
-
-    fn get_state(&self) -> State {
-        self.state.into()
     }
 
     /// Retrieves the actuator default (or neutral) state.
@@ -60,8 +54,14 @@ impl Output for MockOutputDevice {
         0.into()
     }
 
+    fn animate<S: Into<State>>(&mut self, _: S, _: u64, _: Easing) {
+        todo!()
+    }
+
     /// Indicates the busy status, ie if the device is running an animation.
     fn is_busy(&self) -> bool {
         false
     }
+
+    fn stop(&mut self) {}
 }

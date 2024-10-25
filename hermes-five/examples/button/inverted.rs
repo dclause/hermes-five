@@ -2,7 +2,7 @@
 //! have their press/release state inverted compared to the real value.
 
 use hermes_five::devices::{Button, InputEvent};
-use hermes_five::{Board, BoardEvent};
+use hermes_five::hardware::{Board, BoardEvent};
 
 #[hermes_five::runtime]
 async fn main() {

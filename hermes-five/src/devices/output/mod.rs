@@ -61,7 +61,7 @@ dyn_clone::clone_trait_object!(Output);
 
 #[cfg(test)]
 mod tests {
-    use crate::mocks::output::MockOutputDevice;
+    use crate::mocks::output_device::MockOutputDevice;
 
     use super::*;
 
