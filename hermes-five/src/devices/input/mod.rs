@@ -11,7 +11,7 @@ pub mod digital;
 /// as devices, including debugging, cloning, and concurrency support.
 #[cfg_attr(feature = "serde", typetag::serde(tag = "type"))]
 pub trait Input: Device {
-    /// Retrieves the sensor current state.
+    /// Returns  the sensor current state.
     fn get_state(&self) -> State;
 }
 dyn_clone::clone_trait_object!(Input);
@@ -30,7 +30,7 @@ pub enum InputEvent {
     OnLow,
 }
 
-/// Convert events to string to facilitate usage with [`EventManager`].
+/// Convert events to string to facilitate usage with [`EventManager`](crate::utils::EventManager).
 impl From<InputEvent> for String {
     fn from(value: InputEvent) -> Self {
         let event = match value {

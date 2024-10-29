@@ -9,13 +9,12 @@ use crate::errors::Error;
 use crate::hardware::Board;
 use crate::io::{IoProtocol, PinIdOrName, PinModeId};
 use crate::pause;
-use crate::utils::events::{EventHandler, EventManager};
-use crate::utils::task::TaskHandler;
-use crate::utils::{task, State};
+use crate::utils::task;
+use crate::utils::{EventHandler, EventManager, State, TaskHandler};
 
 /// Represents a digital sensor of unspecified type: an [`Input`] [`Device`] that reads digital values
 /// from an INPUT compatible pin.
-/// https://docs.arduino.cc/built-in-examples/digital/DigitalInput
+/// <https://docs.arduino.cc/built-in-examples/digital/DigitalInput>
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
 pub struct DigitalInput {
@@ -41,10 +40,6 @@ pub struct DigitalInput {
 
 impl DigitalInput {
     /// Creates an instance of a [`DigitalInput`] attached to a given board.
-    ///
-    /// # Parameters
-    /// * `board`: the [`Board`] which the DigitalInput is attached to
-    /// * `pin`: the input pin used to read the DigitalInput value
     ///
     /// # Errors
     /// * `UnknownPin`: this function will bail an error if the DigitalInput pin does not exist for this board.
@@ -75,6 +70,7 @@ impl DigitalInput {
     // ########################################
     // Getters and Setters
 
+    /// Returns the pin (id) used by the device.
     pub fn get_pin(&self) -> u16 {
         self.pin
     }
@@ -130,8 +126,7 @@ impl DigitalInput {
     /// Registers a callback to be executed on a given event on the DigitalInput.
     ///
     /// Available events for an DigitalInput are:
-    /// * `change`: Triggered when the DigitalInput value changes. To use it, register though the [`Self::on()`] method.
-    /// ```
+    /// * `InputEvent::OnChange` | `change`: Triggered when the DigitalInput value changes.
     pub fn on<S, F, T, Fut>(&self, event: S, callback: F) -> EventHandler
     where
         S: Into<String>,

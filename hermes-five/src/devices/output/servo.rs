@@ -4,14 +4,13 @@ use std::time::SystemTime;
 
 use parking_lot::RwLock;
 
-use crate::animations::{Animation, Keyframe, Segment, Track};
+use crate::animations::{Animation, Easing, Keyframe, Segment, Track};
 use crate::devices::{Device, Output};
 use crate::errors::HardwareError::IncompatibleMode;
 use crate::errors::{Error, StateError};
 use crate::hardware::Board;
 use crate::io::{IoProtocol, Pin, PinModeId};
-use crate::utils::scale::Scalable;
-use crate::utils::{task, Easing, Range, State};
+use crate::utils::{task, Range, Scalable, State};
 use crate::{pause, pause_sync};
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -22,6 +21,7 @@ pub enum ServoType {
     Continuous,
 }
 
+/// Represents a Servo controlled by a PWM pin.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
 pub struct Servo {
@@ -82,14 +82,26 @@ pub struct Servo {
 }
 
 impl Servo {
+    /// Creates an instance of a Servo attached to a given board.
+    ///
+    /// # Errors
+    /// * `UnknownPin`: this function will bail an error if the pin does not exist for this board.
+    /// * `IncompatibleMode`: this function will bail an error if the pin does not support SERVO mode.
     pub fn new(board: &Board, pin: u16, default: u16) -> Result<Self, Error> {
         Self::create(board, pin, default, false)
     }
+
+    /// Creates an instance of an inverted Servo attached to a given board (see [`Self::set_inverted`]`).
+    ///
+    /// # Errors
+    /// * `UnknownPin`: this function will bail an error if the pin does not exist for this board.
+    /// * `IncompatibleMode`: this function will bail an error if the pin does not support SERVO mode.
     pub fn new_inverted(board: &Board, pin: u16, default: u16) -> Result<Self, Error> {
         Self::create(board, pin, default, true)
     }
 
-    pub fn create(board: &Board, pin: u16, default: u16, inverted: bool) -> Result<Self, Error> {
+    /// Inner helper.
+    fn create(board: &Board, pin: u16, default: u16, inverted: bool) -> Result<Self, Error> {
         let pwm_range = Range::from([600, 2400]);
 
         let mut servo = Self {
@@ -127,7 +139,7 @@ impl Servo {
         Ok(servo)
     }
 
-    /// Move the servo to the requested position at max speed.
+    /// Moves the servo to the requested position at max speed.
     pub fn to(&mut self, to: u16) -> Result<&Self, Error> {
         // Stops any animation running.
         self.stop();
@@ -136,8 +148,8 @@ impl Servo {
         Ok(self)
     }
 
-    /// Sweep the servo in phases of ms (milliseconds) duration.
-    /// This is an animation and can be stopped by calling [`Led::stop()`].
+    /// Sweeps the servo in phases of ms (milliseconds) duration.
+    /// This is an animation and can be stopped by calling [`Self::stop()`].
     ///
     /// # Parameters
     /// * `ms`: the blink duration in milliseconds
@@ -159,18 +171,18 @@ impl Servo {
     // ########################################
     // Setters and Getters.
 
-    /// Retrieves the PIN (id) used to control the LED.
+    /// Returns the pin (id) used by the device.
     pub fn get_pin(&self) -> u16 {
         self.pin
     }
 
-    /// Retrieves [`Pin`] information.
+    /// Returns [`Pin`] information.
     pub fn get_pin_info(&self) -> Result<Pin, Error> {
         let lock = self.protocol.get_data().read();
         Ok(lock.get_pin(self.pin)?.clone())
     }
 
-    /// Retrieves the servo type.
+    /// Returns the servo type.
     pub fn get_type(&self) -> ServoType {
         self.servo_type
     }
@@ -181,24 +193,21 @@ impl Servo {
         self
     }
 
-    /// Retrieves the servo motion range limitation in degree.
+    /// Returns the servo motion range limitation in degree.
     ///
-    /// A servo has a physical range (cf [`Servo::degree_range`]) corresponding to a command range
-    /// limitation (cf [`Servo::pwn_range`]). Those are intrinsic top the servo itself. On the contrary,
+    /// A servo has a physical range (cf [`Self::set_degree_range`]) corresponding to a command range
+    /// limitation (cf [`Self::set_pwn_range`]). Those are intrinsic top the servo itself. On the contrary,
     /// the motion range limitation here is a limitation you want to set for your servo because of how
     /// it is used in your robot: for example an arm that can turn only 20-40° in motion range.
     pub fn get_range(&self) -> Range<u16> {
         self.range
     }
 
-    /// Set the Servo motion range limitation in degree. This guarantee the servo to stays in the given
+    /// Sets the Servo motion range limitation in degree. This guarantee the servo to stays in the given
     /// range at any time.
     ///
     /// - No matter the order given, the range will always have min <= max
     /// - No matter the values given, the range will always stay within the Servo `degree_range`.
-    ///
-    /// # Parameters
-    /// * `range`: the range limitation
     pub fn set_range<R: Into<Range<u16>>>(mut self, range: R) -> Self {
         let input = range.into();
 
@@ -223,18 +232,15 @@ impl Servo {
         self
     }
 
-    /// Retrieves the theoretical range of degrees of movement for the servo (some servos can range from 0 to 90°, 180°, 270°, 360°, etc.).
+    /// Returns  the theoretical range of degrees of movement for the servo (some servos can range from 0 to 90°, 180°, 270°, 360°, etc.).
     pub fn get_degree_range(&self) -> Range<u16> {
         self.degree_range
     }
 
-    /// Set the theoretical range of degrees of movement for the servo (some servos can range from 0 to 90°, 180°, 270°, 360°, etc.).
+    /// Sets the theoretical range of degrees of movement for the servo (some servos can range from 0 to 90°, 180°, 270°, 360°, etc.).
     ///
     /// - No matter the order given, the range will always have min <= max
     /// - This may impact the `range` since it will always stay within the given `degree_range`.
-    ///
-    /// # Parameters
-    /// * `degree_range`: the range limitation
     pub fn set_degree_range<R: Into<Range<u16>>>(mut self, degree_range: R) -> Self {
         let input = degree_range.into();
 
@@ -263,12 +269,12 @@ impl Servo {
         self
     }
 
-    /// Retrieves the theoretical range of pwm controls the servo response to.
+    /// Returns the theoretical range of pwm controls the servo response to.
     pub fn get_pwn_range(&self) -> Range<u16> {
         self.pwm_range
     }
 
-    /// Set the theoretical range of pwm controls the servo response to.
+    /// Sets the theoretical range of pwm controls the servo response to.
     ///
     /// # Parameters
     /// * `pwm_range`: the range limitation
@@ -279,7 +285,7 @@ impl Servo {
         Ok(self)
     }
 
-    /// Retrieves if the servo command is set to be inverted.
+    /// Returns if the servo command is set to be inverted.
     pub fn is_inverted(&self) -> bool {
         self.inverted
     }
@@ -290,7 +296,7 @@ impl Servo {
         self
     }
 
-    /// Retrieves if the servo command is set to be auto_detach itself.
+    /// Returns if the servo command is set to be auto_detach itself.
     pub fn is_auto_detach(&self) -> bool {
         self.auto_detach
     }
@@ -314,7 +320,7 @@ impl Servo {
         self
     }
 
-    /// Retrieves the delay (in ms) before the servo is auto-detach (if enabled).
+    /// Returns the delay (in ms) before the servo is auto-detach (if enabled).
     pub fn get_detach_delay(&self) -> usize {
         self.detach_delay
     }
@@ -345,12 +351,10 @@ impl Device for Servo {}
 
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl Output for Servo {
-    /// Retrieves the actuator current state.
     fn get_state(&self) -> State {
         (*self.state.read()).into()
     }
-
-    /// Update the Servo position.
+    /// Internal only: you should rather use [`Self::to()`] function.
     fn set_state(&mut self, state: State) -> Result<State, Error> {
         // Convert from state.
         let value = match state {
@@ -417,8 +421,6 @@ impl Output for Servo {
         *self.state.write() = value;
         Ok(value.into())
     }
-
-    /// Retrieves the actuator default (or neutral) state.
     fn get_default(&self) -> State {
         self.default.into()
     }
@@ -431,15 +433,9 @@ impl Output for Servo {
         animation.play();
         self.animation = Arc::new(Some(animation));
     }
-
-    /// Indicates the busy status, ie if the device is running an animation.
     fn is_busy(&self) -> bool {
         self.animation.is_some()
     }
-
-    /// Stops the current animation.
-    /// Any animation running will be stopped after the current running step is executed.
-    /// Any simple move running will be stopped at current position with no reset.
     fn stop(&mut self) {
         if let Some(animation) = Arc::get_mut(&mut self.animation).and_then(Option::as_mut) {
             animation.stop();
@@ -450,14 +446,14 @@ impl Output for Servo {
 
 #[cfg(test)]
 mod tests {
-    use hermes_five::devices::ServoType;
-
+    use crate::animations::Easing;
     use crate::devices::{Output, Servo};
     use crate::hardware::Board;
     use crate::io::PinModeId;
     use crate::mocks::plugin_io::MockIoProtocol;
     use crate::pause;
-    use crate::utils::{Easing, Range, State};
+    use crate::utils::{Range, State};
+    use hermes_five::devices::ServoType;
 
     fn _setup_servo(pin: u16) -> Servo {
         let board = Board::new(MockIoProtocol::default()); // Assuming a mock Board implementation

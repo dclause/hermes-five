@@ -1,4 +1,4 @@
-//! Configures devices of different (input / output) kinds and their remote controllable capabilities.
+//! Defines devices of various [`Input`] / [`Output`] kinds (led, servo, button, sensor, etc.) to be controlled.
 
 mod input;
 mod output;
@@ -20,8 +20,8 @@ use dyn_clone::DynClone;
 use std::fmt::{Debug, Display};
 
 /// A trait for devices that can be debugged, cloned, and used in concurrent contexts.
-/// [`Device`] are one of the `Entity` defined in Hermes-Five project: it represents a physical
-/// device that is plugged to and can be controlled by a [`Board`]. `Device`s come in two flavor:
+/// `Device` are one of the entities defined in Hermes-Five project: it represents a physical
+/// device that is plugged to and can be controlled by a [`Board`](crate::hardware::Board). `Device`s come in two flavor:
 /// - `Actuator`: device that can act on the world
 /// - `Sensor`: device that can sense or measure data from the world
 ///

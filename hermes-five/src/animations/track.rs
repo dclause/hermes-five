@@ -5,7 +5,7 @@ use crate::devices::Output;
 use crate::errors::Error;
 use crate::utils::{Range, State};
 
-/// Represents an animation track within a [`Sequence`] for a given [`Output`].
+/// Represents an animation track within a [`Segment`](crate::animations::Segment) for a given [`Output`](Output) device.
 ///
 /// The `Track` struct manages the state and keyframes for an actuator device through a sequence.
 /// It represents the evolution of the device internal state over the sequence (animation) period
@@ -18,11 +18,10 @@ use crate::utils::{Range, State};
 /// be the brightness of a LED, or the position of a Servo), over 1000 milliseconds, following the
 /// defined easing function.
 /// ```no_run
-/// use hermes_five::animations::{Keyframe, Track};
+/// use hermes_five::animations::{Easing, Keyframe, Track};
 /// use hermes_five::hardware::Board;
 /// use hermes_five::devices::Servo;
 /// use hermes_five::io::Firmata;
-/// use hermes_five::utils::Easing;
 ///
 /// #[hermes_five::runtime]
 /// async fn main() {
@@ -38,13 +37,6 @@ use crate::utils::{Range, State};
 ///         .with_keyframe(Keyframe::new(0, 2000, 3000).set_transition(Easing::SineInOut));
 /// }
 /// ```
-///
-/// # Fields
-///
-/// * `device`: The [`Output`] associated with this track.
-/// * `keyframes`: A list of [`Keyframe`]s defining the animation.
-/// * `previous`: The previous state value of the actuator.
-/// * `current`: The current state value of the actuator.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
 pub struct Track {
@@ -64,12 +56,6 @@ pub struct Track {
 
 impl Track {
     /// Creates a new `Track` associated with the given actuator.
-    ///
-    /// # Arguments
-    /// * `device` - The actuator device this track will control.
-    ///
-    /// # Returns
-    /// A new `Track` instance with the provided actuator and an empty list of keyframes.
     #[allow(private_bounds)]
     pub fn new<T: Output + 'static>(device: T) -> Self {
         let history = device.get_state();
@@ -81,10 +67,7 @@ impl Track {
         }
     }
 
-    /// Compute and return the total duration of the track, which is the end time of the last keyframe.
-    ///
-    /// # Returns
-    /// The duration in milliseconds (0 if there are no keyframes).
+    /// Compute and return the total duration (in ms) of the track. The duration is by definition the end time of the last keyframe.
     pub fn get_duration(&self) -> u64 {
         match !self.keyframes.is_empty() {
             false => 0,
@@ -100,12 +83,6 @@ impl Track {
     }
 
     /// Plays the keyframes within the given timeframe, updating the actuator state accordingly.
-    ///
-    /// # Arguments
-    /// * `timeframe` - A range of timestamps to consider for keyframe playback.
-    ///
-    /// # Returns
-    /// A result indicating success or an error if the state update fails.
     pub(crate) fn play_frame<F: Into<Range<u64>>>(&mut self, timeframe: F) -> Result<(), Error> {
         let timeframe = timeframe.into();
         // Get the keyframe to be played according to the time frame.
@@ -136,14 +113,9 @@ impl Track {
     /// ```
     /// // --|---------------|------------> time
     /// //   |  ####         |
-    /// //   |    ###########|##  this one will lead to the stabled values overtime
+    /// //   |    ###########|##  this one will lead to the stablest values overtime
     /// // ##|####           |
     /// ```
-    /// # Arguments
-    /// * `timeframe` - The range of timestamps to find a matching keyframe for.
-    ///
-    /// # Returns
-    /// An `Option` containing the most relevant `Keyframe` for the given timeframe, if any.
     fn get_best_keyframe<R: Into<Range<u64>>>(&mut self, timeframe: R) -> Option<Keyframe> {
         let timeframe = timeframe.into();
         // Get the keyframe to be played: the last one that
@@ -152,24 +124,41 @@ impl Track {
             .filter(|kf| {
                 // case keyframe starts during the interval
                 kf.get_start() >= timeframe.start && kf.get_start() < timeframe.end ||
-                // case keyframe ends during the interval
-                kf.get_end() >= timeframe.start && kf.get_end() < timeframe.end ||
-                // case keyframe is running during the interval
-                kf.get_start() <= timeframe.start && kf.get_end() > timeframe.end
+                    // case keyframe ends during the interval
+                    kf.get_end() >= timeframe.start && kf.get_end() < timeframe.end ||
+                    // case keyframe is running during the interval
+                    kf.get_start() <= timeframe.start && kf.get_end() > timeframe.end
             })
             .max_by(|a, b| a.get_end().cmp(&b.get_end()))
             .cloned()
     }
 
     /// Updates the internal state history with the new keyframe's target value if it has changed.
-    ///
-    /// # Arguments
-    /// * `new_state` - The new state to be added in history.
     fn update_history(&mut self, new_state: State) {
         if self.current != new_state {
             self.previous = self.current.clone();
             self.current = new_state;
         }
+    }
+
+    /// Returns the device associated with the [`Track`].
+    pub fn get_device(&self) -> &dyn Output {
+        &*self.device
+    }
+    /// Returns the keyframes of this [`Track`].
+    pub fn get_keyframes(&self) -> &Vec<Keyframe> {
+        &self.keyframes
+    }
+
+    #[allow(rustdoc::private_intra_doc_links)]
+    /// Add a new keyframe to this [`Track`].
+    ///
+    /// No validation is done on keyframe validity: at any moment, only one keyframe (the best
+    /// suitable one according to [`Track::get_best_keyframe()`] strategy will be played.
+    /// So some keyframes may be missed if overlapping for instance.
+    pub fn with_keyframe(mut self, keyframe: Keyframe) -> Self {
+        self.keyframes.push(keyframe);
+        self
     }
 }
 
@@ -181,29 +170,6 @@ impl Display for Track {
             self.keyframes.len(),
             self.get_duration()
         )
-    }
-}
-
-// ########################################
-// Implementing basic getters and setters.
-impl Track {
-    /// Returns the device associated with the [`Track`].
-    pub fn get_device(&self) -> &dyn Output {
-        &*self.device
-    }
-    /// Returns the keyframes of this [`Track`].
-    pub fn get_keyframes(&self) -> &Vec<Keyframe> {
-        &self.keyframes
-    }
-
-    /// Add a new keyframe to this [`Track`].
-    ///
-    /// No validation is done on keyframe validity: at any moment, only one keyframe (the best
-    /// suitable one according to [`Track::get_best_keyframe()`] will be played.
-    /// So some keyframes may be missed if overlapping for instance.
-    pub fn with_keyframe(mut self, keyframe: Keyframe) -> Self {
-        self.keyframes.push(keyframe);
-        self
     }
 }
 

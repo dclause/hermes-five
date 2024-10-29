@@ -3,15 +3,18 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 
-use crate::animations::{Animation, Keyframe, Segment, Track};
+use crate::animations::{Animation, Easing, Keyframe, Segment, Track};
 use crate::devices::{Device, Output};
 use crate::errors::HardwareError::IncompatibleMode;
 use crate::errors::{Error, StateError};
 use crate::hardware::Board;
 use crate::io::{IoProtocol, Pin, PinMode, PinModeId};
-use crate::utils::scale::Scalable;
-use crate::utils::{Easing, State};
+use crate::utils::{Scalable, State};
 
+/// Represents a LED controlled by a digital pin.
+/// There are two kinds of pins that can be used:
+/// - OUTPUT: for digital on/off led
+/// - PWM: for more control on the LED brightness
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
 pub struct Led {
@@ -45,14 +48,9 @@ pub struct Led {
 impl Led {
     /// Creates an instance of a LED attached to a given board.
     ///
-    /// # Parameters
-    /// * `board`: the [`Board`] which the LED is attached to
-    /// * `pin`: the pin used to control the LED
-    /// * `default`: the default LED state (boolean on/off)
-    ///
     /// # Errors
-    /// * `UnknownPin`: this function will bail an error if the LED pin does not exist for this board.
-    /// * `IncompatibleMode`: this function will bail an error if the LED pin does not support OUTPUT or PWM mode.
+    /// * `UnknownPin`: this function will bail an error if the pin does not exist for this board.
+    /// * `IncompatibleMode`: this function will bail an error if the pin does not support OUTPUT or PWM mode.
     pub fn new(board: &Board, pin: u16, default: bool) -> Result<Self, Error> {
         let mut protocol = board.get_protocol();
 
@@ -93,19 +91,19 @@ impl Led {
         Ok(led)
     }
 
-    /// Turn the LED on.
+    /// Turns the LED on.
     pub fn turn_on(&mut self) -> Result<&Self, Error> {
         self.set_state(State::Integer(self.brightness as u64))?;
         Ok(self)
     }
 
-    /// Turn the LED off.
+    /// Turns the LED off.
     pub fn turn_off(&mut self) -> Result<&Self, Error> {
         self.set_state(State::Integer(0))?;
         Ok(self)
     }
 
-    /// Toggle the current state, if on then turn off, if off then turn on.
+    /// Toggles the current state, if on then turn off, if off then turn on.
     pub fn toggle(&mut self) -> Result<&Self, Error> {
         match self.is_on() {
             true => self.turn_off(),
@@ -113,11 +111,8 @@ impl Led {
         }
     }
 
-    /// Blink the LED on/off in phases of ms (milliseconds) duration.
+    /// Blinks the LED on/off in phases of milliseconds duration.
     /// This is an animation and can be stopped by calling [`Led::stop()`].
-    ///
-    /// # Parameters
-    /// * `ms`: the blink duration in milliseconds
     pub fn blink(&mut self, ms: u64) -> &Self {
         let mut animation = Animation::from(
             Segment::from(
@@ -135,9 +130,6 @@ impl Led {
 
     /// Pulses the LED on/off (using fading) in phases of ms (milliseconds) duration.
     /// This is an animation and can be stopped by calling [`Led::stop()`].
-    ///
-    /// # Parameters
-    /// * `ms`: the blink duration in milliseconds
     pub fn pulse(&mut self, ms: u64) -> &Self {
         let mut animation = Animation::from(
             Segment::from(
@@ -156,18 +148,18 @@ impl Led {
     // ########################################
     // Getters.
 
-    /// Retrieves the PIN (id) used to control the LED.
+    /// Returns the pin (id) used by the device.
     pub fn get_pin(&self) -> u16 {
         self.pin
     }
 
-    /// Retrieves [`Pin`] information.
+    /// Returns the [`Pin`] information.
     pub fn get_pin_info(&self) -> Result<Pin, Error> {
         let lock = self.protocol.get_data().read();
         Ok(lock.get_pin(self.pin)?.clone())
     }
 
-    /// Retrieves the LED current brightness in percentage (0-100%).
+    /// Returns the LED current brightness in percentage (0-100%).
     pub fn get_brightness(&self) -> u8 {
         match self.pwm_mode {
             None => 100,
@@ -181,9 +173,6 @@ impl Led {
     /// Set the LED brightness (integer between 0-100) in percent of the max brightness. If a number
     /// higher than 100 is used, the brightness is set to 100%.
     /// If the requested brightness is 100%, the LED will reset to simple on/off (OUTPUT) mode.
-    ///
-    /// # Parameters
-    /// * `brightness`: the requested brightness (between 0-100%)
     ///
     /// # Errors
     /// * `IncompatibleMode`: this function will bail an error if the LED pin does not support PWM.
@@ -241,14 +230,12 @@ impl Device for Led {}
 
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl Output for Led {
-    /// Retrieves the actuator current state.
+    /// Returns  the actuator current state.
     fn get_state(&self) -> State {
         (*self.state.read()).into()
     }
 
-    /// Internal only: Update the LED to the target state.
-    ///
-    /// /!\ You should rather use [`Led::turn_on()`], [`Led::turn_off()`], [`Led::set_brightness()`]` functions.`
+    /// Internal only: you should rather use [`Self::turn_on()`], [`Self::turn_off()`], [`Self::set_brightness()`] functions.
     fn set_state(&mut self, state: State) -> Result<State, Error> {
         let value = match state {
             State::Boolean(value) => match value {
@@ -273,13 +260,9 @@ impl Output for Led {
         *self.state.write() = value;
         Ok(value.into())
     }
-
-    /// Retrieves the actuator default (or neutral) state.
     fn get_default(&self) -> State {
         self.default.into()
     }
-
-    /// Animates the LED
     fn animate<S: Into<State>>(&mut self, state: S, duration: u64, transition: Easing) {
         let mut animation = Animation::from(
             Track::new(self.clone())
@@ -288,15 +271,9 @@ impl Output for Led {
         animation.play();
         self.animation = Arc::new(Some(animation));
     }
-
-    /// Indicates the busy status, ie if the device is running an animation.
     fn is_busy(&self) -> bool {
         self.animation.is_some()
     }
-
-    /// Stops the current animation.
-    /// This does not necessarily turn off the LED;
-    /// it will remain in its current state when stopped.
     fn stop(&mut self) {
         if let Some(animation) = Arc::get_mut(&mut self.animation).and_then(Option::as_mut) {
             animation.stop();

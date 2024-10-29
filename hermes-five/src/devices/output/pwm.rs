@@ -3,16 +3,16 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 
-use crate::animations::{Animation, Keyframe, Track};
+use crate::animations::{Animation, Easing, Keyframe, Track};
 use crate::devices::{Device, Output};
 use crate::errors::HardwareError::IncompatibleMode;
 use crate::errors::{Error, StateError};
 use crate::hardware::Board;
 use crate::io::{IoProtocol, Pin, PinIdOrName, PinModeId};
-use crate::utils::{Easing, State};
+use crate::utils::State;
 
 /// Represents an analog actuator of unspecified type: an [`Output`] [`Device`] that write analog values from a PWM compatible pin.
-/// https://docs.arduino.cc/language-reference/en/functions/analog-io/analogWrite/
+/// <https://docs.arduino.cc/language-reference/en/functions/analog-io/analogWrite/>
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
 pub struct PwmOutput {
@@ -41,11 +41,6 @@ pub struct PwmOutput {
 
 impl PwmOutput {
     /// Creates an instance of a [`PwmOutput`] attached to a given board.
-    ///
-    /// # Parameters
-    /// * `board`: the [`Board`] which the PwmOutput is attached to.
-    /// * `pin`: the output pin used to write PWM output value.
-    /// * `default`: the default output value taken by this device.
     ///
     /// # Errors
     /// * `UnknownPin`: this function will bail an error if the pin does not exist for this board.
@@ -79,9 +74,6 @@ impl PwmOutput {
     }
 
     /// Sets the PWM value.
-    ///
-    /// # Parameters
-    /// * `value`: the value to set
     pub fn set_value(&mut self, value: u16) -> Result<&Self, Error> {
         self.set_state(value.into())?;
         Ok(self)
@@ -89,9 +81,6 @@ impl PwmOutput {
 
     /// Sets the PWM value to a percentage of its max value.
     /// NOTE: everything above 100 is considered 100%.
-    ///
-    /// # Parameters
-    /// * `percentage`: the percentage of the value to set
     pub fn set_percentage(&mut self, percentage: u8) -> Result<&Self, Error> {
         let percentage = percentage.min(100) as u16;
         let value = (percentage * self.max_value) / 100;
@@ -102,12 +91,12 @@ impl PwmOutput {
     // ########################################
     // Setters and Getters.
 
-    /// Retrieves the PIN (id) used to control the LED.
+    /// Returns the pin (id) used by the device.
     pub fn get_pin(&self) -> u16 {
         self.pin
     }
 
-    /// Retrieves [`Pin`] information.
+    /// Returns [`Pin`] information.
     pub fn get_pin_info(&self) -> Result<Pin, Error> {
         let lock = self.protocol.get_data().read();
         Ok(lock.get_pin(self.pin)?.clone())
@@ -143,14 +132,11 @@ impl Device for PwmOutput {}
 
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl Output for PwmOutput {
-    /// Retrieves the actuator current state.
     fn get_state(&self) -> State {
         (*self.state.read()).into()
     }
 
-    /// Internal only: Update the LED to the target state.
-    ///
-    /// /!\ You should rather use [`Led::on()`], [`Led::off()`], [`Led::set_brightness()`]` functions.`
+    /// Internal only: you should rather use [`Self::set_value()`] function.
     fn set_state(&mut self, state: State) -> Result<State, Error> {
         let value = match state {
             State::Integer(value) => Ok(value as u16),
@@ -176,13 +162,9 @@ impl Output for PwmOutput {
         *self.state.write() = value;
         Ok(value.into())
     }
-
-    /// Retrieves the actuator default (or neutral) state.
     fn get_default(&self) -> State {
         self.default.into()
     }
-
-    /// Animates the actuator state.
     fn animate<S: Into<State>>(&mut self, state: S, duration: u64, transition: Easing) {
         let mut animation = Animation::from(
             Track::new(self.clone())
@@ -191,14 +173,9 @@ impl Output for PwmOutput {
         animation.play();
         self.animation = Arc::new(Some(animation));
     }
-
-    /// Indicates the busy status, ie if the device is running an animation.
     fn is_busy(&self) -> bool {
         self.animation.is_some()
     }
-
-    /// Stops the current animation.
-    /// This does not necessarily turn off the servo: it will remain in its current state when stopped.
     fn stop(&mut self) {
         if let Some(animation) = Arc::get_mut(&mut self.animation).and_then(Option::as_mut) {
             animation.stop();
@@ -209,13 +186,14 @@ impl Output for PwmOutput {
 
 #[cfg(test)]
 mod tests {
+    use crate::animations::Easing;
     use crate::devices::output::pwm::PwmOutput;
     use crate::devices::Output;
     use crate::hardware::Board;
     use crate::io::PinModeId;
     use crate::mocks::plugin_io::MockIoProtocol;
     use crate::pause;
-    use crate::utils::{Easing, State};
+    use crate::utils::State;
 
     #[test]
     fn test_creation() {

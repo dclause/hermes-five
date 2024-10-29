@@ -8,10 +8,15 @@ use crate::errors::Error;
 use crate::hardware::Board;
 use crate::io::{IoProtocol, PinIdOrName, PinModeId};
 use crate::pause;
-use crate::utils::events::{EventHandler, EventManager};
-use crate::utils::task::TaskHandler;
-use crate::utils::{task, State};
+use crate::utils::task;
+use crate::utils::{EventHandler, EventManager, State, TaskHandler};
 
+/// Represents a simple push button as an input of the board.
+/// <https://docs.arduino.cc/built-in-examples/digital/Button>
+///
+/// This structure is very similar to [`DigitalInput`](crate::devices::DigitalInput) but exposes convenience methods to handle two sorts of buttons:
+/// - pull-down: when the button is configured with a pin to ground by default (ie button press => pin becomes high)
+/// - pull-up: when the button is configured with a pin to +Vin by default (ie button press => pin becomes low)
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
 pub struct Button {
@@ -41,14 +46,10 @@ pub struct Button {
 
 impl Button {
     /// Creates an instance of a PULL-DOWN button attached to a given board:
-    /// https://docs.arduino.cc/built-in-examples/digital/Button/
+    /// <https://docs.arduino.cc/built-in-examples/digital/Button/>
     ///
     /// - Button pressed => pin state HIGH
     /// - Button released => pin state LOW
-    ///
-    /// # Parameters
-    /// * `board`: the [`Board`] which the Button is attached to
-    /// * `pin`: the pin used to read the Button value
     ///
     /// # Errors
     /// * `UnknownPin`: this function will bail an error if the Button pin does not exist for this board.
@@ -67,15 +68,11 @@ impl Button {
     }
 
     /// Creates an instance of an inverted PULL-DOWN button attached to a given board:
-    /// https://docs.arduino.cc/built-in-examples/digital/Button/
+    /// <https://docs.arduino.cc/built-in-examples/digital/Button/>
     ///
     /// /!\ The state value is inverted compared to HIGH/LOW electrical value of the pin.
     /// - Inverted button pressed => pin state LOW
     /// - Inverted button released => pin state HIGH
-    ///
-    /// # Parameters
-    /// * `board`: the [`Board`] which the Button is attached to
-    /// * `pin`: the pin used to read the Button value
     ///
     /// # Errors
     /// * `UnknownPin`: this function will bail an error if the Button pin does not exist for this board.
@@ -94,14 +91,10 @@ impl Button {
     }
 
     /// Creates an instance of a PULL-UP button attached to a given board:
-    /// https://docs.arduino.cc/tutorials/generic/digital-input-pullup/
+    /// <https://docs.arduino.cc/tutorials/generic/digital-input-pullup/>
     ///
     /// - Pullup button pressed => pin state LOW
     /// - Pullup button released => pin state HIGH
-    ///
-    /// # Parameters
-    /// * `board`: the [`Board`] which the Button is attached to
-    /// * `pin`: the pin used to read the Button value
     ///
     /// # Errors
     /// * `UnknownPin`: this function will bail an error if the Button pin does not exist for this board.
@@ -120,16 +113,12 @@ impl Button {
     }
 
     /// Creates an instance of an inverted PULL-UP button attached to a given board:
-    /// https://docs.arduino.cc/tutorials/generic/digital-input-pullup/
+    /// <https://docs.arduino.cc/tutorials/generic/digital-input-pullup/>
     ///
     /// /!\ The state value is inverted compared to HIGH/LOW electrical value of the pin
     /// (therefore equivalent to a standard pull-down button)
     /// - Inverted pullup button pressed => pin state HIGH
     /// - Inverted pullup button released => pin state LOW
-    ///
-    /// # Parameters
-    /// * `board`: the [`Board`] which the Button is attached to
-    /// * `pin`: the pin used to read the Button value
     ///
     /// # Errors
     /// * `UnknownPin`: this function will bail an error if the Button pin does not exist for this board.
@@ -181,12 +170,17 @@ impl Button {
 
     // ########################################
 
-    /// Retrieves if the button is configured in PULL-UP mode.
+    /// Returns the pin (id) used by the device.
+    pub fn get_pin(&self) -> u16 {
+        self.pin
+    }
+
+    /// Returns  if the button is configured in PULL-UP mode.
     pub fn is_pullup(&self) -> bool {
         self.pullup
     }
 
-    /// Retrieves if the logical button value is inverted.
+    /// Returns  if the logical button value is inverted.
     pub fn is_inverted(&self) -> bool {
         self.invert
     }
@@ -254,8 +248,7 @@ impl Button {
     /// Registers a callback to be executed on a given event on the Button.
     ///
     /// Available events for a button are:
-    /// * `change`: Triggered when the button value changes. To use it, register though the [`Self::on()`] method.
-    /// ```
+    /// * `InputEvent::OnChange` | `change`: Triggered when the button value changes.
     pub fn on<S, F, T, Fut>(&self, event: S, callback: F) -> EventHandler
     where
         S: Into<String>,

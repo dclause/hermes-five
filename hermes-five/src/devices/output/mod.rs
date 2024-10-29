@@ -1,7 +1,7 @@
+use crate::animations::Easing;
 use crate::devices::Device;
 use crate::errors::Error;
-use crate::utils::scale::Scalable;
-use crate::utils::{Easing, State};
+use crate::utils::{Scalable, State};
 
 pub mod digital;
 pub mod led;
@@ -14,11 +14,11 @@ pub mod servo;
 /// as devices, including debugging, cloning, and concurrency support.
 #[cfg_attr(feature = "serde", typetag::serde(tag = "type"))]
 pub trait Output: Device {
-    /// Retrieves the actuator current state.
+    /// Returns  the actuator current state.
     fn get_state(&self) -> State;
-    /// Internal only.
+    /// Internal only: you should use the specific device state modifier functions instead.
     fn set_state(&mut self, state: State) -> Result<State, Error>;
-    /// Retrieves the actuator default (or neutral) state.
+    /// Returns  the actuator default (or neutral) state.
     fn get_default(&self) -> State;
     /// Resets the actuator to default (or neutral) state.
     fn reset(&mut self) -> Result<State, Error> {

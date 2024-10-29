@@ -1,19 +1,21 @@
+//! Various utilities and helper functions.
+
 pub use log;
 #[cfg(test)]
 pub use serial_test;
 pub use tokio;
 
-pub use crate::utils::easing::Easing;
-pub use crate::utils::range::Range;
-pub use crate::utils::state::State;
-
-mod easing;
+mod events;
 mod range;
+mod scale;
 mod state;
-
-pub mod events;
-pub mod scale;
 pub mod task;
+
+pub use crate::utils::events::*;
+pub use crate::utils::range::*;
+pub use crate::utils::scale::*;
+pub use crate::utils::state::*;
+pub use crate::utils::task::*;
 
 #[cfg(feature = "serde")]
 // Helper for serialize skip method.

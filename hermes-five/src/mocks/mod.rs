@@ -1,6 +1,6 @@
 #![cfg(not(tarpaulin_include))]
 
-//! Defines mock structure to test the implementations.
+//! Defines mock structure to test the implementations (requires `mock` feature flag).
 
 use crate::io::{IoData, Pin, PinMode, PinModeId};
 use std::collections::HashMap;

@@ -3,17 +3,17 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 
-use crate::animations::{Animation, Keyframe, Track};
+use crate::animations::{Animation, Easing, Keyframe, Track};
 use crate::devices::{Device, Output};
 use crate::errors::HardwareError::IncompatibleMode;
 use crate::errors::{Error, StateError};
 use crate::hardware::Board;
 use crate::io::{IoProtocol, Pin, PinIdOrName, PinModeId};
-use crate::utils::{Easing, State};
+use crate::utils::State;
 
 /// Represents a digital actuator of unspecified type: an [`Output`] [`Device`] that write digital values
 /// from an OUTPUT compatible pin.
-/// https://docs.arduino.cc/language-reference/en/functions/digital-io/digitalwrite/
+/// <https://docs.arduino.cc/language-reference/en/functions/digital-io/digitalwrite/>
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
 pub struct DigitalOutput {
@@ -38,11 +38,6 @@ pub struct DigitalOutput {
 
 impl DigitalOutput {
     /// Creates an instance of a [`DigitalOutput`] attached to a given board.
-    ///
-    /// # Parameters
-    /// * `board`: the [`Board`] which the DigitalOutput is attached to.
-    /// * `pin`: the output pin used to write digital output value.
-    /// * `default`: the default output value taken by this device.
     ///
     /// # Errors
     /// * `UnknownPin`: this function will bail an error if the pin does not exist for this board.
@@ -92,12 +87,12 @@ impl DigitalOutput {
     // ########################################
     // Setters and Getters.
 
-    /// Retrieves the PIN (id) used to control the LED.
+    /// Returns the pin (id) used by the device.
     pub fn get_pin(&self) -> u16 {
         self.pin
     }
 
-    /// Retrieves [`Pin`] information.
+    /// Returns  [`Pin`] information.
     pub fn get_pin_info(&self) -> Result<Pin, Error> {
         let lock = self.protocol.get_data().read();
         Ok(lock.get_pin(self.pin)?.clone())
@@ -131,14 +126,11 @@ impl Device for DigitalOutput {}
 
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl Output for DigitalOutput {
-    /// Retrieves the actuator current state.
     fn get_state(&self) -> State {
         (*self.state.read()).into()
     }
 
-    /// Internal only: Update the LED to the target state.
-    ///
-    /// /!\ You should rather use [`Led::on()`], [`Led::off()`], [`Led::set_brightness()`]` functions.`
+    /// Internal only: you should rather use [`Self::turn_on()`], [`Self::turn_off()`] functions.
     fn set_state(&mut self, state: State) -> Result<State, Error> {
         let value = match state {
             State::Boolean(value) => Ok(value),
@@ -163,12 +155,9 @@ impl Output for DigitalOutput {
         Ok(value.into())
     }
 
-    /// Retrieves the actuator default (or neutral) state.
     fn get_default(&self) -> State {
         self.default.into()
     }
-
-    /// Animates the actuator state.
     fn animate<S: Into<State>>(&mut self, state: S, duration: u64, transition: Easing) {
         let mut animation = Animation::from(
             Track::new(self.clone())
@@ -177,15 +166,9 @@ impl Output for DigitalOutput {
         animation.play();
         self.animation = Arc::new(Some(animation));
     }
-
-    /// Indicates the busy status, ie if the device is running an animation.
     fn is_busy(&self) -> bool {
         self.animation.is_some()
     }
-
-    /// Stops the current animation.
-    /// This does not necessarily turn off the LED;
-    /// it will remain in its current state when stopped.
     fn stop(&mut self) {
         if let Some(animation) = Arc::get_mut(&mut self.animation).and_then(Option::as_mut) {
             animation.stop();
@@ -196,13 +179,14 @@ impl Output for DigitalOutput {
 
 #[cfg(test)]
 mod tests {
+    use crate::animations::Easing;
     use crate::devices::output::digital::DigitalOutput;
     use crate::devices::Output;
     use crate::hardware::Board;
     use crate::io::PinModeId;
     use crate::mocks::plugin_io::MockIoProtocol;
     use crate::pause;
-    use crate::utils::{Easing, State};
+    use crate::utils::State;
 
     #[test]
     fn test_creation() {

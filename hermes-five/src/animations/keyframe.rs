@@ -1,50 +1,44 @@
-use crate::utils::scale::Scalable;
-use crate::utils::{Easing, State};
+use crate::animations::Easing;
+use crate::utils::Scalable;
+use crate::utils::State;
 
 /// Represents a keyframe in an animation sequence.
 ///
-/// A `Keyframe` specifies a target value to be applied to the [`Actuator`] of the
-/// [`Track`] to which this keyframe belongs. The [`Actuator`]'s `state` will be
+/// A `Keyframe` specifies a target value to be applied to the [`Output`](crate::devices::Output) of the
+/// [`Track`](crate::animations::Track) to which this keyframe belongs. The [`Output`](crate::devices::Output)'s state will be
 /// smoothly transitioned from its current state to the target value during the animation.
 /// This transition occurs between the `start` timestamp and the `end` timestamp.
 ///
-/// During this period, a smooth `transition` is applied using an easing function,
+/// During this period, a smooth `transition` is applied using an [`Easing`] function,
 /// which controls how the value changes from the current state to the target state.
 ///
 /// # Example
 ///
 /// If a `Keyframe` is set with a target value of 100, a start time of 0 ms, and an end time of 1000 ms,
-/// the `Actuator`'s value will gradually move towards value 100 (whatever it means to it: let it
+/// the `Output`'s value will gradually move towards value 100 (whatever it means to it: let it
 /// be the brightness of a LED, or the position of a Servo), over 1000 milliseconds, following the
 /// defined easing function.
 /// ```
-/// use hermes_five::animations::Keyframe;
-/// use hermes_five::utils::Easing;
-///
+/// use hermes_five::animations::{Easing, Keyframe};
 /// let keyframe = Keyframe::new(100, 0, 1000).set_transition(Easing::SineInOut);
 /// ```
-///
-/// # Fields
-/// * `target`: The target device state at the end of the keyframe.
-/// * `start`: The start time of the keyframe in milliseconds.
-/// * `end`: The end time of the keyframe in milliseconds.
-/// * `transition`: The easing function applied during the transition.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
 pub struct Keyframe {
-    /// The target value of the keyframe: will be applied as a state for the [`Actuator`] of the
+    /// The target value of the keyframe: will be applied as a state for the [`Output`](crate::devices::Output) of the
     /// [`Track`] this keyframe belong to.
     target: State,
     /// The start time of the keyframe in milliseconds.
     start: u64,
     /// The end time of the keyframe in milliseconds.
     end: u64,
-    /// The easing function applied during the transition (default: Linear).
+    /// The easing function applied during the transition (default: `Easing::Linear`).
     transition: Easing,
 }
 
 impl Keyframe {
-    /// Creates a new `Keyframe` with the specified target value, start, and end times.
+    /// Creates a new `Keyframe` with the specified target value, start, and end times.<br/>
+    /// _default `Easing::linear` function is used.
     ///
     /// # Arguments
     /// * `target` - The target state value.
@@ -54,13 +48,9 @@ impl Keyframe {
     /// # Panic
     /// Panics if timestamps order are wrong: end < start.
     ///
-    /// # Returns
-    /// A new `Keyframe` with the default easing function (Linear).
-    ///
     /// # Example
     /// ```
     /// use hermes_five::animations::Keyframe;
-    ///
     /// let keyframe = Keyframe::new(100, 0, 1000);
     /// ```
     pub fn new<S: Into<State>>(target: S, start: u64, end: u64) -> Keyframe {
@@ -78,15 +68,11 @@ impl Keyframe {
     }
 
     /// Returns the duration of the keyframe.
-    ///
-    /// # Returns
-    /// The duration from `start` to `end` in milliseconds.
     pub fn get_duration(&self) -> u64 {
         self.end - self.start
     }
 
     /// Computes the coefficient of the target value at a given time.
-    ///
     ///
     /// This function calculates the progress of the current time relative to the keyframe's duration,
     /// clamping the time between the `start` and `end` timestamps. It then applies the easing function
@@ -114,58 +100,38 @@ impl Keyframe {
     /// and the easing function results in a coefficient of 0.75 at 600 ms, the output would be 0.75.
     /// This means that 75% of the target value transition (from previous keyframe target to 100)
     /// should be applied at that time.
-    ///
+    /// ```ignore
+    /// use hermes_five::animations::{Easing, Keyframe};
     /// let keyframe = Keyframe::new(100, 0, 1000).set_transition(Easing::QuadOut);
     /// assert_eq!(keyframe.compute_target_coefficient(500), 0.75);
+    /// ```
     pub(crate) fn compute_target_coefficient(&self, time: u64) -> f32 {
         let clamped_time = time.clamp(self.start, self.end) as f32;
         let progress = clamped_time.scale(self.start as f32, self.end as f32, 0.0, 1.0);
         self.transition.call(progress)
     }
-}
 
-// ########################################
-// Implementing basic getters and setters.
-impl Keyframe {
-    /// Retrieves the target state for the keyframe.
-    ///
-    /// # Returns
-    /// The target state value.
+    /// Returns  the target state for the keyframe.
     pub fn get_target(&self) -> State {
         self.target.clone()
     }
 
-    /// Retrieves the start time of the keyframe.
-    ///
-    /// # Returns
-    /// The start time in milliseconds.
+    /// Returns  the start time of the keyframe.
     pub fn get_start(&self) -> u64 {
         self.start
     }
 
-    /// Retrieves the end time of the keyframe.
-    ///
-    /// # Returns
-    /// The end time in milliseconds.
+    /// Returns  the end time of the keyframe.
     pub fn get_end(&self) -> u64 {
         self.end
     }
 
-    /// Retrieves the easing function used in the keyframe.
-    ///
-    /// # Returns
-    /// The easing function.
+    /// Returns  the easing function used in the keyframe.
     pub fn get_transition(&self) -> Easing {
         self.transition
     }
 
     /// Sets a new easing function for the keyframe.
-    ///
-    /// # Arguments
-    /// * `transition` - The new easing function.
-    ///
-    /// # Returns
-    /// A new `Keyframe` with the updated easing function.
     pub fn set_transition(mut self, transition: Easing) -> Self {
         self.transition = transition;
         self

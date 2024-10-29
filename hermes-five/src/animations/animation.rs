@@ -3,9 +3,7 @@ use std::fmt::{Display, Formatter};
 use parking_lot::RwLock;
 
 use crate::errors::Error;
-use crate::utils::events::{EventHandler, EventManager};
-use crate::utils::task;
-use crate::utils::task::TaskHandler;
+use crate::utils::{task, EventHandler, EventManager, TaskHandler};
 
 use crate::animations::{Segment, Track};
 use std::sync::Arc;
@@ -32,23 +30,21 @@ impl From<AnimationEvent> for String {
     }
 }
 
-/// Represents an animation: a collection of ordered [`Segment`]s to be run in sequence.
+/// Represents an animation: a collection of ordered [`Segment`] to be run in sequence.
 ///
-/// An animation can be played, paused, resumed, and stopped. Each [`Segment`] in the animation is
-/// played in order (eventually looped, see [`Segment`]) until all are done.
+/// - An animation can be played, paused, resumed, and stopped.
+/// - Each [`Segment`] in the animation is played in order (eventually looped, see [`Segment`]) until all are done.
 ///
 /// # Example
 ///
 /// Here is an example of an animation made of a single segment that sweeps a servo indefinitely,
 /// from position 0° to 180° and back:
-/// (sidenote: prefer use [`Servo::sweep()`] helper for this purpose).
+/// (sidenote: prefer use [`Servo::sweep()`](crate::devices::Servo::sweep()) helper for this purpose).
 /// ```
 /// use hermes_five::pause;
-/// use hermes_five::animations::{Animation, Keyframe, Segment, Track};
-/// use hermes_five::hardware::Board;
-/// use hermes_five::hardware::BoardEvent;
+/// use hermes_five::animations::{Animation, Easing, Keyframe, Segment, Track};
+/// use hermes_five::hardware::{Board, BoardEvent};
 /// use hermes_five::devices::Servo;
-/// use hermes_five::utils::Easing;
 ///
 /// #[hermes_five::runtime]
 /// async fn main() {
@@ -75,11 +71,6 @@ impl From<AnimationEvent> for String {
 ///     });
 /// }
 /// ```
-///
-/// # Fields
-///
-/// - `segments`: The ordered list of animation [`Segment`]s.
-/// - `current`: The index of the currently running [`Segment`] (starting at 0).
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
 pub struct Animation {
@@ -100,6 +91,17 @@ pub struct Animation {
 }
 
 // ########################################
+
+impl Default for Animation {
+    fn default() -> Self {
+        Self {
+            segments: vec![],
+            current: Arc::new(RwLock::new(0)),
+            interval: Arc::new(RwLock::new(None)),
+            events: Default::default(),
+        }
+    }
+}
 
 impl Animation {
     /// Starts or resumes the animation.
@@ -188,6 +190,11 @@ impl Animation {
         self
     }
 
+    /// Indicates if the animation is currently playing.
+    pub fn is_playing(&self) -> bool {
+        self.interval.read().as_ref().is_some()
+    }
+
     /// Gets the total duration of the animation.
     ///
     /// The duration is determined by the sum of segment durations or u64::MAX if a segment is on repeat mode.
@@ -211,11 +218,6 @@ impl Animation {
         }
     }
 
-    /// Indicates if the animation is currently playing.
-    pub fn is_playing(&self) -> bool {
-        self.interval.read().as_ref().is_some()
-    }
-
     /// Inner helper: cancel the animation and return a flag indicating if it was running.
     fn cancel_animation(&mut self) -> bool {
         let was_running = match self.interval.read().as_ref() {
@@ -231,23 +233,51 @@ impl Animation {
         was_running
     }
 
+    /// Returns the list of segments in the animation.
+    pub fn get_segments(&self) -> &Vec<Segment> {
+        &self.segments
+    }
+
+    /// Sets the list of segments for the animation.
+    pub fn set_segments(mut self, segments: Vec<Segment>) -> Self {
+        self.segments = segments;
+        self
+    }
+
+    /// Adds a new segment to the animation.
+    ///
+    /// This segment will be enqueued at the end of current segment list.
+    pub fn with_segment(mut self, segment: Segment) -> Self {
+        self.segments.push(segment);
+        self
+    }
+
+    /// Returns the index of the currently running segment.
+    pub fn get_current(&self) -> usize {
+        *self.current.read()
+    }
+
+    /// Sets the index of the currently running segment.
+    pub fn set_current(&self, index: usize) {
+        *self.current.write() = index;
+    }
+
     // ########################################
     // Event related functions
 
     /// Registers a callback to be executed on a given event. To use it, register though the [`Self::on()`] method.
     ///
-    /// Available events for an animation are:
-    /// * `OnSegmentDone` | `segment_done`: Triggered when a segment is done. To use it, register though the [`Self::on()`] method.
-    /// * `OnStart` | `start`: Triggered when the animation starts. To use it, register though the [`Self::on()`] method.
-    /// * `OnComplete` | `complete`: Triggered when the animation ends. To use it, register though the [`Self::on()`] method.
+    /// Available events for an animation are defined by the enum: [`AnimationEvent`]:
+    /// - `OnSegmentDone` | `segment_done`: Triggered when a segment is done.
+    /// - `OnStart` | `start`: Triggered when the animation starts.
+    /// - `OnComplete` | `complete`: Triggered when the animation ends.
     ///
     /// # Example
     /// ```
     /// use hermes_five::hardware::Board;
     /// use hermes_five::hardware::BoardEvent;
     /// use hermes_five::devices::{Output, Led};
-    /// use hermes_five::animations::{Animation, AnimationEvent};
-    /// use hermes_five::utils::Easing;
+    /// use hermes_five::animations::{Animation, AnimationEvent, Easing};
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
@@ -283,50 +313,6 @@ impl From<Segment> for Animation {
 impl From<Track> for Animation {
     fn from(track: Track) -> Self {
         Animation::from(Segment::from(track))
-    }
-}
-
-// ########################################
-// Simple getters and setters
-impl Animation {
-    /// Returns the list of segments in the animation.
-    pub fn get_segments(&self) -> &Vec<Segment> {
-        &self.segments
-    }
-
-    /// Sets the list of segments for the animation.
-    pub fn set_segments(mut self, segments: Vec<Segment>) -> Self {
-        self.segments = segments;
-        self
-    }
-
-    /// Adds a new segment to the animation.
-    ///
-    /// This segment will be enqueued at the end of current segment list.
-    pub fn with_segment(mut self, segment: Segment) -> Self {
-        self.segments.push(segment);
-        self
-    }
-
-    /// Returns the index of the currently running segment.
-    pub fn get_current(&self) -> usize {
-        *self.current.read()
-    }
-
-    /// Sets the index of the currently running segment.
-    pub fn set_current(&self, index: usize) {
-        *self.current.write() = index;
-    }
-}
-
-impl Default for Animation {
-    fn default() -> Self {
-        Self {
-            segments: vec![],
-            current: Arc::new(RwLock::new(0)),
-            interval: Arc::new(RwLock::new(None)),
-            events: Default::default(),
-        }
     }
 }
 

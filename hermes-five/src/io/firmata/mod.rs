@@ -5,8 +5,7 @@ use crate::errors::HardwareError::IncompatibleMode;
 use crate::errors::ProtocolError::MessageTooShort;
 use crate::io::firmata::constants::*;
 use crate::io::protocol::IoProtocol;
-use crate::io::serial::Serial;
-use crate::io::{I2CReply, IoData, IoTransport, Pin, PinMode, PinModeId};
+use crate::io::{I2CReply, IoData, IoTransport, Pin, PinMode, PinModeId, Serial};
 use crate::pause;
 use crate::utils::task::TaskHandler;
 use crate::utils::{task, Range};
@@ -17,10 +16,15 @@ use std::fmt::{Debug, Display};
 use std::sync::Arc;
 use std::time::Duration;
 
+/// Implements the [Firmata protocol](https://github.com/firmata/protocol) within an [`IoProtocol`].
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone)]
 pub struct Firmata {
+    /// Transport layer used to communicate with the device.
     transport: Box<dyn IoTransport>,
+
+    // ########################################
+    // # Volatile utility data.
     #[cfg_attr(feature = "serde", serde(skip))]
     data: Arc<RwLock<IoData>>,
     /// Inner handler to the polling task.
@@ -74,25 +78,10 @@ impl Display for Firmata {
 
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl IoProtocol for Firmata {
-    // ########################################
-    // Inner data related functions
-
-    // ########################################
-    // IoData related functions
-
     fn get_data(&self) -> &Arc<RwLock<IoData>> {
         &self.data
     }
 
-    /// Opens communication with the specified port.
-    ///
-    /// # Returns
-    /// * `Ok(())` if successful.
-    /// * `Err(Error)` if there is an issue opening the port.
-    ///
-    /// # Notes
-    /// - The method is sync and will block until the serial port is open.
-    /// - This function initializes the `io` object. Ensure the port is valid before calling this method.
     #[cfg(not(tarpaulin_include))]
     fn open(&mut self) -> Result<(), Error> {
         self.data.write().connected = false;
@@ -109,14 +98,6 @@ impl IoProtocol for Firmata {
         Ok(())
     }
 
-    // ########################################
-    // IoPlugin related functions
-
-    /// Gracefully shuts down the serial port communication.
-    ///
-    /// # Returns
-    /// * `Ok(())` if successful.
-    /// * `Err(Error)` if there is an issue closing the port.
     fn close(&mut self) -> Result<(), Error> {
         self.stop_polling();
         self.data.write().connected = false;
@@ -124,14 +105,10 @@ impl IoProtocol for Firmata {
         Ok(())
     }
 
-    /// Checks if the communication is opened using the underlying protocol.
     fn is_connected(&self) -> bool {
         self.data.read().connected
     }
 
-    /// Set the `mode` of the specified `pin`.
-    ///
-    /// https://github.com/firmata/protocol/blob/master/protocol.md#data-message-expansion
     fn set_pin_mode(&mut self, pin: u16, mode: PinModeId) -> Result<(), Error> {
         {
             let mut lock = self.data.write();
@@ -147,10 +124,6 @@ impl IoProtocol for Firmata {
         self.transport.write(&[SET_PIN_MODE, pin as u8, mode as u8])
     }
 
-    /// Write `level` to the digital `pin`.
-    ///
-    /// Send an DIGITAL_MESSAGE (0x90 - set digital value).
-    /// https://github.com/firmata/protocol/blob/master/protocol.md#message-types
     fn digital_write(&mut self, pin: u16, level: bool) -> Result<(), Error> {
         let port = (pin / 8) as u8;
         let mut value: u16 = 0;
@@ -187,10 +160,6 @@ impl IoProtocol for Firmata {
         self.transport.write(payload)
     }
 
-    /// Write `level` to the analog `pin`.
-    ///
-    /// Send an ANALOG_MESSAGE (0xE0 - set analog value).
-    /// https://github.com/firmata/protocol/blob/master/protocol.md#message-types
     fn analog_write(&mut self, pin: u16, level: u16) -> Result<(), Error> {
         // Set the pin value.
         self.data.write().get_pin_mut(pin)?.value = level;
@@ -223,10 +192,6 @@ impl IoProtocol for Firmata {
         Ok(())
     }
 
-    /// Set the analog reporting `state` of the specified `pin`.
-    ///
-    /// This will activate the reporting of the pin (hence the pin will send us its value periodically)
-    /// https://github.com/firmata/protocol/blob/master/protocol.md
     fn report_analog(&mut self, channel: u8, state: bool) -> Result<(), Error> {
         trace!("Report analog: {}", state);
         self.transport
@@ -253,10 +218,6 @@ impl IoProtocol for Firmata {
         Ok(())
     }
 
-    /// Set the digital reporting `state` of all pins in specified `port`.
-    ///
-    /// This will activate the reporting of all pins in port (hence the pin will send us its value periodically)
-    /// https://github.com/firmata/protocol/blob/master/protocol.md
     fn report_digital(&mut self, pin: u16, state: bool) -> Result<(), Error> {
         let port = (pin / 8) as u8;
         let payload = &[REPORT_DIGITAL | port, u8::from(state)];
@@ -280,13 +241,6 @@ impl IoProtocol for Firmata {
         Ok(())
     }
 
-    /// Set the sampling interval (in ms).
-    ///
-    /// The sampling interval sets how often analog data and i2c data is reported to the
-    /// client. The default for the arduino implementation is 19ms. This means that every
-    /// 19ms analog data will be reported and any i2c devices with read continuous mode
-    /// will be read.
-    /// https://github.com/firmata/protocol/blob/master/protocol.md#sampling-interval
     fn sampling_interval(&mut self, interval: u16) -> Result<(), Error> {
         self.transport.write(&[
             START_SYSEX,
@@ -296,12 +250,6 @@ impl IoProtocol for Firmata {
             END_SYSEX,
         ])
     }
-
-    // ########################################
-    // I2C
-
-    /// Configure the `delay` in microseconds for I2C devices that require a delay between when the
-    /// register is written to and the data in that register can be read.
     fn i2c_config(&mut self, delay: u16) -> Result<(), Error> {
         self.transport.write(&[
             START_SYSEX,
@@ -311,11 +259,6 @@ impl IoProtocol for Firmata {
             END_SYSEX,
         ])
     }
-
-    // ########################################
-    // SERVO
-
-    /// Read `size` bytes from I2C device at the specified `address`.
     fn i2c_read(&mut self, address: i32, size: i32) -> Result<(), Error> {
         self.transport.write(&[
             START_SYSEX,
@@ -328,10 +271,6 @@ impl IoProtocol for Firmata {
         ])
     }
 
-    // ########################################
-    // FIRMATA main function.
-
-    /// Write `data` to the I2C device at the specified `address`.
     fn i2c_write(&mut self, address: i32, data: &[u8]) -> Result<(), Error> {
         let mut buf = vec![START_SYSEX, I2C_REQUEST, address as u8, I2C_WRITE << 3];
 
@@ -345,8 +284,6 @@ impl IoProtocol for Firmata {
         self.transport.write(&buf)
     }
 
-    /// Sends a SERVO_CONFIG command (0x70 - configure servo)
-    /// https://github.com/firmata/protocol/blob/master/servos.md
     fn servo_config(&mut self, pin: u16, pwm_range: Range<u16>) -> Result<(), Error> {
         self.transport.write(&[
             START_SYSEX,
@@ -363,7 +300,7 @@ impl IoProtocol for Firmata {
 
 impl Firmata {
     /// Sends a software reset request.
-    /// https://github.com/firmata/protocol/blob/master/protocol.md
+    /// <https://github.com/firmata/protocol/blob/master/protocol.md>
     fn software_reset(&mut self) -> Result<(), Error> {
         let payload = &[SYSTEM_RESET];
         trace!("Software reset: {:02X?}", payload);
@@ -425,7 +362,7 @@ impl Firmata {
 
     /// Read from the protocol, parse and return its type.
     /// The following method should use Firmata IoPlugin such as defined here:
-    /// https://github.com/firmata/protocol/blob/master/protocol.md
+    /// <https://github.com/firmata/protocol/blob/master/protocol.md>
     fn read_and_decode(&mut self) -> Result<Message, Error> {
         let mut buf = vec![0; 3];
         self.transport.read_exact(&mut buf)?;
@@ -443,7 +380,7 @@ impl Firmata {
     }
 
     /// Handle a REPORT_VERSION_RESPONSE message (0xF9 - return the firmware version).
-    /// https://github.com/firmata/protocol/blob/master/protocol.md#message-types
+    /// <https://github.com/firmata/protocol/blob/master/protocol.md#message-types>
     fn handle_protocol_version(&mut self, buf: &[u8]) -> Result<Message, Error> {
         let mut lock = self.get_data().write();
         lock.protocol_version = format!("{}.{}", buf[1], buf[2]);
@@ -452,7 +389,7 @@ impl Firmata {
     }
 
     /// Handle an ANALOG_MESSAGE message (0xE0 - report state of an analog pin)
-    /// https://github.com/firmata/protocol/blob/master/protocol.md#data-message-expansion
+    /// <https://github.com/firmata/protocol/blob/master/protocol.md#data-message-expansion>
     fn handle_analog_message(&mut self, buf: &[u8]) -> Result<Message, Error> {
         let pin = (buf[0] as u16 & 0x0F) + 14;
         let value = (buf[1] as u16) | ((buf[2] as u16) << 7);
@@ -462,7 +399,7 @@ impl Firmata {
     }
 
     /// Handle a DIGITAL_MESSAGE message (0x90 - report state of a digital pin/port)
-    /// https://github.com/firmata/protocol/blob/master/protocol.md#data-message-expansion
+    /// <https://github.com/firmata/protocol/blob/master/protocol.md#data-message-expansion>
     fn handle_digital_message(&mut self, buf: &[u8]) -> Result<Message, Error> {
         let port = (buf[0] as u16) & 0x0F;
         let value = (buf[1] as u16) | ((buf[2] as u16) << 7);
@@ -479,7 +416,7 @@ impl Firmata {
     }
 
     /// Handle a START_SYSEX message: dispatch to various message/command/response using the sysex format.
-    /// https://github.com/firmata/protocol/blob/master/protocol.md#sysex-message-format
+    /// <https://github.com/firmata/protocol/blob/master/protocol.md#sysex-message-format>
     fn handle_sysex_message(&mut self, buf: &mut Vec<u8>) -> Result<Message, Error> {
         if buf[1] == END_SYSEX || buf[2] == END_SYSEX {
             return Ok(Message::EmptyResponse);
@@ -508,7 +445,7 @@ impl Firmata {
     }
 
     /// Handle an ANALOG_MAPPING_RESPONSE message (0x6A - reply with analog pins mapping info).
-    /// https://github.com/firmata/protocol/blob/master/protocol.md#analog-mapping-query
+    /// <https://github.com/firmata/protocol/blob/master/protocol.md#analog-mapping-query>
     fn handle_analog_mapping_response(&mut self, buf: &[u8]) -> Result<Message, Error> {
         let mut lock = self.get_data().write();
         let mut i = 2;
@@ -531,7 +468,7 @@ impl Firmata {
     }
 
     /// Handle a CAPABILITY_RESPONSE message (0x6C - reply with supported modes and resolution)
-    /// https://github.com/firmata/protocol/blob/master/protocol.md#capability-query
+    /// <https://github.com/firmata/protocol/blob/master/protocol.md#capability-query>
     fn handle_capability_response(&mut self, buf: &[u8]) -> Result<Message, Error> {
         let mut id = 0;
         let mut i = 2;
@@ -569,7 +506,7 @@ impl Firmata {
     }
 
     /// Handle a REPORT_FIRMWARE message (0x79 - report name and version of the firmware).
-    /// https://github.com/firmata/protocol/blob/master/protocol.md#query-firmware-name-and-version
+    /// <https://github.com/firmata/protocol/blob/master/protocol.md#query-firmware-name-and-version>
     fn handle_firmware_report(&mut self, buf: &[u8]) -> Result<Message, Error> {
         if buf.len() < 5 {
             return Err(Error::from(MessageTooShort {
@@ -593,7 +530,7 @@ impl Firmata {
     }
 
     /// Handle an I2C_REPLY message (0x6E - read and decode an i2c message)
-    /// https://github.com/firmata/protocol/blob/master/i2c.md
+    /// <https://github.com/firmata/protocol/blob/master/i2c.md>
     fn handle_i2c_reply(&mut self, buf: &[u8]) -> Result<Message, Error> {
         if buf.len() < 8 {
             return Err(Error::from(MessageTooShort {
@@ -617,7 +554,7 @@ impl Firmata {
     }
 
     /// Handle a PIN_STATE_RESPONSE message (0x6E - report pin current mode and state)
-    /// https://github.com/firmata/protocol/blob/master/protocol.md#pin-state-query
+    /// <https://github.com/firmata/protocol/blob/master/protocol.md#pin-state-query>
     fn handle_pin_state_response(&mut self, buf: &[u8]) -> Result<Message, Error> {
         let pin = buf[2] as u16;
         if buf.len() < 4 || buf[3] == END_SYSEX {
@@ -684,8 +621,7 @@ impl Firmata {
 mod tests {
     use crate::io::constants::Message;
     use crate::io::protocol::IoProtocol;
-    use crate::io::serial::Serial;
-    use crate::io::{Firmata, PinModeId};
+    use crate::io::{Firmata, PinModeId, Serial};
     use crate::mocks::create_test_plugin_io_data;
     use crate::utils::Range;
     use hermes_five::mocks::transport_layer::MockTransportLayer;

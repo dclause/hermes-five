@@ -4,7 +4,7 @@ use std::fmt::{Debug, Display, Formatter};
 use crate::errors::HardwareError::{IncompatibleMode, UnknownPin};
 use crate::errors::*;
 
-/// Represents the internal data that a [`IoProtocol`] handles.
+/// Represents the internal data that a [`IoProtocol`](crate::io::IoProtocol) handles.
 ///
 /// This struct is hidden behind an `Arc<RwLock<IoData>>` to allow safe concurrent access
 /// and modification through the `IoData` type. It encapsulates data relevant
@@ -33,10 +33,7 @@ pub struct IoData {
 }
 
 impl IoData {
-    /// Retrieves a reference to a pin by its id or name.
-    ///
-    /// # Arguments
-    /// * `pin`  - The index of the pin to retrieve.
+    /// Returns  a reference to a pin by its id or name.
     ///
     /// # Errors
     /// * `UnknownPin` - An `Error` returned if the pin index is out of bounds.
@@ -53,10 +50,7 @@ impl IoData {
         }
     }
 
-    /// Retrieves a mutable reference to a pin by its id or name.
-    ///
-    /// # Arguments
-    /// * `pin` - The index of the pin to retrieve.
+    /// Returns  a mutable reference to a pin by its id or name.
     ///
     /// # Errors
     /// * `UnknownPin` - An `Error` returned if the pin index is out of bounds.
@@ -103,24 +97,11 @@ pub struct Pin {
 
 impl Pin {
     /// Verifies if a pin supports the given mode and returns it if it does.
-    ///
-    /// # Arguments
-    /// * `mode`: The ID of the mode to retrieve.
-    ///
-    /// # Returns
-    /// * `None` if the mode is not supported.
-    /// * `PinMode` the `PinMode` configuration if supported
     pub fn supports_mode(&self, mode: PinModeId) -> Option<PinMode> {
         self.supported_modes.iter().find(|m| m.id == mode).copied()
     }
 
     /// Validates that the pin is in the given mode.
-    ///
-    /// # Arguments
-    /// * `mode`: The ID of the mode to check: the pin should be in that mode.
-    ///
-    /// # Errors
-    /// *`IncompatibleMode`: the pin's current mode does not match the expected mode.
     pub fn validate_current_mode(&self, mode: PinModeId) -> Result<(), Error> {
         match self.mode.id == mode {
             true => Ok(()),
@@ -201,10 +182,6 @@ impl Display for PinIdOrName {
 // ########################################
 
 /// Represents a mode configuration for a pin.
-///
-/// # Fields
-/// - `id`: The ID of the mode.
-/// - `resolution`: The resolution (number of bits) this mode uses.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Default, Copy)]
 pub struct PinMode {

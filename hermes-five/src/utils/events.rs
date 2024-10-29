@@ -32,7 +32,7 @@ impl EventManager {
     /// Register event handler for a specific event name.
     ///
     /// # Parameters
-    /// * `event` - The event name (any type that matches an Into<String>)
+    /// * `event` - The event name (any type that matches an `Into<String>`)
     /// * `callback` - An async moved callback that accepts a single parameter as an argument.
     ///                The argument can be anything that might be both `Send + Sync`.
     ///                You can trick multiple parameters by turning them in a single tuple.
@@ -48,7 +48,7 @@ impl EventManager {
     /// # Example
     ///
     /// ```
-    /// use hermes_five::utils::events::EventManager;
+    /// use hermes_five::utils::EventManager;
     /// use hermes_five::pause;
     ///
     /// #[hermes_five::runtime]
@@ -120,7 +120,7 @@ impl EventManager {
     /// # Example
     ///
     /// ```
-    /// use hermes_five::utils::events::EventManager;
+    /// use hermes_five::utils::EventManager;
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
@@ -166,7 +166,7 @@ impl EventManager {
     /// # Example
     ///
     /// ```
-    /// use hermes_five::utils::events::EventManager;
+    /// use hermes_five::utils::EventManager;
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {

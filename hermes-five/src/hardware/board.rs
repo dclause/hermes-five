@@ -1,12 +1,13 @@
-use crate::errors::Error;
-use crate::io::{Firmata, IoData, IoTransport};
-use crate::io::{IoProtocol, PinModeId};
-use crate::utils::events::{EventHandler, EventManager};
-use crate::utils::task;
 use log::trace;
 use parking_lot::RwLockReadGuard;
 use std::fmt::Display;
 use std::ops::{Deref, DerefMut};
+
+use crate::errors::Error;
+use crate::io::{Firmata, IoData, IoTransport};
+use crate::io::{IoProtocol, PinModeId};
+use crate::utils::task;
+use crate::utils::{EventHandler, EventManager};
 
 /// Lists all events a Board can emit/listen.
 pub enum BoardEvent {
@@ -28,7 +29,7 @@ impl From<BoardEvent> for String {
 }
 
 /// Represents a physical board (Arduino most-likely) where your [`crate::devices::Device`] can be attached and controlled through this API.
-/// The board gives access to [`Hardware`] through a communication [`IoData`].
+/// The board gives access to [`IoData`] through a communication [`IoProtocol`].
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone)]
 pub struct Board {
@@ -42,7 +43,7 @@ pub struct Board {
 impl Default for Board {
     /// Default implementation for a board.
     ///
-    /// This method creates a board using the default [`Firmata`] protocol with [`Serial`] transport layer.
+    /// This method creates a board using the default [`Firmata`] protocol with [`Serial`](crate::io::Serial) transport layer.
     /// The port will be auto-detected as the first available serial port matching a board.
     ///
     /// **_/!\ The board will NOT be connected until the [`Board::open`] method is called._**
@@ -69,7 +70,7 @@ impl Default for Board {
 impl Board {
     /// Creates and open a default board (using default protocol).
     ///
-    /// This method creates a board using the default [`Firmata`] protocol with [`Serial`] transport layer.
+    /// This method creates a board using the default [`Firmata`] protocol with [`Serial`](crate::io::Serial) transport layer.
     /// The port will be auto-detected as the first available serial port matching a board.
     ///
     /// # Example
@@ -108,7 +109,7 @@ impl Board {
         }
     }
 
-    /// Retrieves the protocol used.
+    /// Returns  the protocol used.
     ///
     /// NOTE: this is private to the crate since board already gives access to protocol methods via Deref.
     /// This method is only used internally in all [`Device::new()`] methods to clone the protocol into the
@@ -274,7 +275,7 @@ impl Board {
 /// ```
 /// use hermes_five::hardware::Board;
 /// use hermes_five::io::Firmata;
-/// use hermes_five::io::serial::Serial;
+/// use hermes_five::io::Serial;
 ///
 /// #[hermes_five::runtime]
 /// async fn main() {
@@ -313,7 +314,7 @@ impl DerefMut for Board {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::serial::Serial;
+    use crate::io::Serial;
     use crate::mocks::plugin_io::MockIoProtocol;
     use crate::mocks::transport_layer::MockTransportLayer;
     use crate::pause;

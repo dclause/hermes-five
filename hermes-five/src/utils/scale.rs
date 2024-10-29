@@ -12,7 +12,7 @@ pub trait FromF64 {
 pub trait Scalable {
     /// Map a value from one scale to another.
     /// This is equivalent to Arduino map() method:
-    /// https://www.arduino.cc/reference/en/language/functions/math/map/
+    /// <https://www.arduino.cc/reference/en/language/functions/math/map/>
     ///
     /// # Parameters
     /// * `self`:  the value to map

@@ -3,9 +3,10 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 
+use crate::animations::Easing;
 use crate::devices::{Device, Output};
 use crate::errors::Error;
-use crate::utils::{Easing, State};
+use crate::utils::State;
 
 /// Mock [`Output`] for testing purposes.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -49,7 +50,7 @@ impl Output for MockOutputDevice {
         Ok(state)
     }
 
-    /// Retrieves the actuator default (or neutral) state.
+    /// Returns  the actuator default (or neutral) state.
     fn get_default(&self) -> State {
         0.into()
     }

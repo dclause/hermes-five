@@ -9,6 +9,9 @@ use std::io::{Read, Write};
 use std::sync::Arc;
 use std::time::Duration;
 
+/// Represents an [`IoTransport`] layer based on a serial connection.
+///
+/// Uses [serialport](https://crates.io/crates/serialport) crate.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
 pub struct Serial {
@@ -21,9 +24,6 @@ pub struct Serial {
 
 impl Serial {
     /// Constructs a new `Serial` transport layer instance for communication through the specified port.
-    ///
-    /// # Arguments
-    /// * `port` - The serial port to use for communication.
     ///
     /// # Example
     /// ```
@@ -43,7 +43,7 @@ impl Serial {
         }
     }
 
-    /// Retrieves the configured port.
+    /// Returns  the configured port.
     pub fn get_port(&self) -> String {
         self.port.clone()
     }
@@ -99,34 +99,12 @@ impl IoTransport for Serial {
         Ok(())
     }
 
-    /// Write bytes to the internal connection. For more details see [`std::io::Write::write`].
-    ///
-    /// # Arguments
-    /// * `buf` - The data to write.
-    ///
-    /// # Returns
-    /// * `Ok(())` if all bytes were successfully written.
-    /// * `Err(Error)` if there was an issue writing data.
-    ///
-    /// # Notes
-    /// This function blocks until the write operation is complete. Ensure proper error handling in calling code.
     fn write(&mut self, buf: &[u8]) -> Result<(), Error> {
         let mut lock = self.io.lock();
         lock.as_mut().ok_or(NotInitialized)?.write_all(buf)?;
         Ok(())
     }
 
-    /// Reads from the internal connection. For more details see [`std::io::Read::read_exact`].
-    ///
-    /// # Arguments
-    /// * `buf` - The buffer to fill with read data.
-    ///
-    /// # Returns
-    /// * `Ok(())` if the buffer was filled successfully.
-    /// * `Err(Error)` if there was an issue reading data.
-    ///
-    /// # Notes
-    /// This function blocks until the buffer is filled or an error occurs. Ensure proper error handling in calling code.
     fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), Error> {
         let mut lock = self.io.lock();
         lock.as_mut().ok_or(NotInitialized)?.read_exact(buf)?;

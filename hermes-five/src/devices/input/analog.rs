@@ -9,13 +9,12 @@ use crate::errors::Error;
 use crate::hardware::Board;
 use crate::io::{IoProtocol, PinIdOrName, PinModeId};
 use crate::pause;
-use crate::utils::events::{EventHandler, EventManager};
-use crate::utils::task::TaskHandler;
-use crate::utils::{task, State};
+use crate::utils::task;
+use crate::utils::{EventHandler, EventManager, State, TaskHandler};
 
 /// Represents an analog sensor of unspecified type: an [`Input`] [`Device`] that reads analog values
 /// from an ANALOG compatible pin.
-/// https://docs.arduino.cc/built-in-examples/analog/AnalogInput
+/// <https://docs.arduino.cc/built-in-examples/analog/AnalogInput>
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
 pub struct AnalogInput {
@@ -41,11 +40,7 @@ pub struct AnalogInput {
 
 impl AnalogInput {
     /// Creates an instance of an [`AnalogInput`] attached to a given board:
-    /// https://docs.arduino.cc/built-in-examples/analog/AnalogInput/
-    ///
-    /// # Parameters
-    /// * `board`: the [`Board`] which the AnalogInput is attached to
-    /// * `analog_pin`: the analog pin used to read the AnalogInput value
+    /// <https://docs.arduino.cc/built-in-examples/analog/AnalogInput/>
     ///
     /// # Errors
     /// * `UnknownPin`: this function will bail an error if the AnalogInput pin does not exist for this board.
@@ -73,6 +68,11 @@ impl AnalogInput {
         sensor.attach();
 
         Ok(sensor)
+    }
+
+    /// Returns the pin (id) used by the device.
+    pub fn get_pin(&self) -> u16 {
+        self.pin
     }
 
     // ########################################

@@ -1,80 +1,80 @@
 use simple_easing::*;
 
-/// Represents a set of easing method.
+/// Represents a set of easing function.
 ///
 /// An easing function is a temporal function that takes a time between 0 and 1 (beginning / end)
 /// and associate to it a number value according to an ease curve.
 ///
-/// See https://easings.net for a representation of easing methods.
+/// See <https://easings.net> for a representation of easing methods.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Default, Clone, Copy, Debug, PartialEq)]
 pub enum Easing {
-    /// https://easings.net/#easeInBack
+    /// <https://easings.net/#easeInBack>
     BackIn,
-    /// https://easings.net/#easeInOutBack
+    /// <https://easings.net/#easeInOutBack>
     BackInOuT,
-    /// https://easings.net/#easeOutBack
+    /// <https://easings.net/#easeOutBack>
     BackOut,
-    /// https://easings.net/#easeInBounce
+    /// <https://easings.net/#easeInBounce>
     BounceIn,
-    /// https://easings.net/#easeInOutBounce
+    /// <https://easings.net/#easeInOutBounce>
     BounceInOut,
-    /// https://easings.net/#easeOutBounce
+    /// <https://easings.net/#easeOutBounce>
     BounceOut,
-    /// https://easings.net/#easeInCirc
+    /// <https://easings.net/#easeInCirc>
     CircIn,
-    /// https://easings.net/#easeInOutCirc
+    /// <https://easings.net/#easeInOutCirc>
     CircInOut,
-    /// https://easings.net/#easeOutCirc
+    /// <https://easings.net/#easeOutCirc>
     CircOut,
-    /// https://easings.net/#easeInCubic
+    /// <https://easings.net/#easeInCubic>
     CubicIn,
-    /// https://easings.net/#easeInOutCubic
+    /// <https://easings.net/#easeInOutCubic>
     CubicInOut,
-    /// https://easings.net/#easeOutCubic
+    /// <https://easings.net/#easeOutCubic>
     CubicOut,
-    /// https://easings.net/#easeInElastic
+    /// <https://easings.net/#easeInElastic>
     ElasticIn,
-    /// https://easings.net/#easeInOutElastic
+    /// <https://easings.net/#easeInOutElastic>
     ElasticInOut,
-    /// https://easings.net/#easeOutElastic
+    /// <https://easings.net/#easeOutElastic>
     ElasticOut,
-    /// https://easings.net/#easeInExpo
+    /// <https://easings.net/#easeInExpo>
     ExpoIn,
-    /// https://easings.net/#easeInOutExpo
+    /// <https://easings.net/#easeInOutExpo>
     ExpoInOut,
-    /// https://easings.net/#easeOutExpo
+    /// <https://easings.net/#easeOutExpo>
     ExpoOut,
     // Applies no transformation (default).
     #[default]
     Linear,
-    /// https://easings.net/#easeInQuad
+    /// <https://easings.net/#easeInQuad>
     QuadIn,
-    /// https://easings.net/#easeInOutQuad
+    /// <https://easings.net/#easeInOutQuad>
     QuadInOut,
-    /// https://easings.net/#easeOutQuad
+    /// <https://easings.net/#easeOutQuad>
     QuadOut,
-    /// https://easings.net/#easeInQuart
+    /// <https://easings.net/#easeInQuart>
     QuartIn,
-    /// https://easings.net/#easeInOutQuart
+    /// <https://easings.net/#easeInOutQuart>
     QuartInOut,
-    /// https://easings.net/#easeOutQuart
+    /// <https://easings.net/#easeOutQuart>
     QuartOut,
-    /// https://easings.net/#easeInQuint
+    /// <https://easings.net/#easeInQuint>
     QuintIn,
-    /// https://easings.net/#easeInOutQuint
+    /// <https://easings.net/#easeInOutQuint>
     QuintInOut,
-    /// https://easings.net/#easeOutQuint
+    /// <https://easings.net/#easeOutQuint>
     QuintOut,
     // A linear easing that goes from 1.0 to 0.0.
     Reverse,
     // A linear easing that goes from 0.0 to 1.0 and back to 0.0. That might be used in combination with other easing functions.
     RoundTrip,
-    /// https://easings.net/#easeInSine
+    /// <https://easings.net/#easeInSine>
     SineIn,
-    /// https://easings.net/#easeInOutSine
+    /// <https://easings.net/#easeInOutSine>
     SineInOut,
-    /// https://easings.net/#easeOutSine
+    /// <https://easings.net/#easeOutSine>
     SineOut,
 }
 
@@ -380,7 +380,7 @@ mod tests {
     #[test]
     fn test_sine_out() {
         assert_easing_approx_equal(Easing::SineOut, 0.0, 0.0);
-        assert_easing_approx_equal(Easing::SineOut, 0.5, 0.707107);
+        assert_easing_approx_equal(Easing::SineOut, 0.5, std::f32::consts::FRAC_1_SQRT_2);
         assert_easing_approx_equal(Easing::SineOut, 1.0, 1.0);
     }
 }

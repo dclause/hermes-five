@@ -64,24 +64,27 @@ hermes-five = "0.1.0-beta"
 
 ## Features
 
+**Hermes-Five** is a Rust library designed to "remotely" control Arduino (or compatible) boards as well as all types of
+input/output devices (led, servo, button, sensors, etc.) connected to it. <br/>
+It can be compared to _[Johnny-Five](https://johnny-five.io/)_ in the javascript ecosystem.
 **Hermes-Five** is a Rust library designed to "remotely" control Arduino (or compatible boards) using Rust code.
 
-* Configure your controllable `Board` (Arduino currently)
-* Control boards though a `Protocol` connection ([`SerialFirmata`] for the moment)
-* Control all types of `Device`(s) such as `Output`(s) (LED, servo, etc.) or `Input`(s) (button, switch, sensors,
+* Define remotely controllable `Board` (Arduino currently)
+* Control boards though an `IoProtocol` connection (`Serial` for the moment)
+* Control all types of `Device` such as `Output` (LED, servo, etc.) or `Input` (button, switch, sensors,
 * etc.) individually
-* Create and play `Animation` to interpolate movements
+* Create and play `Animation` with auto-interpolate movements
 
 **_If you wish to do the same with absolutely no code via a nice-and-shiny interface, please consult
-the [HermesStudio](https://github.com/dclause/hermes-studio) project._**
+the [Hermes-Studio](https://github.com/dclause/hermes-studio) project._**
 
 ### Hello Hermes!
 
 The following code demonstrates the simplest program we could imagine: blink the Arduino embedded led on pin 13.
 
 ```rust
-use hermes_five::{Board, BoardEvent};
-use hermes_five::devices::{Actuator, Led};
+use hermes_five::hardware::{Board, BoardEvent};
+use hermes_five::devices::Led;
 
 #[hermes_five::runtime]
 async fn main() {

@@ -10,7 +10,7 @@ use crate::io::{PinIdOrName, PinModeId};
 #[derive(Debug, Snafu)]
 #[snafu(visibility(pub))]
 pub enum Error {
-    /// Runtime error: Are you sure your code runs inside #[hermes_five::runtime]?
+    /// Runtime error: Are you sure your code runs inside `#[hermes_five::runtime]`?
     RuntimeError,
     /// State error: incompatible type provided.
     StateError,
@@ -99,7 +99,7 @@ mod tests {
         let runtime_error = RuntimeError;
         assert_eq!(
             format!("{}", runtime_error),
-            "Runtime error: Are you sure your code runs inside #[hermes_five::runtime]?"
+            "Runtime error: Are you sure your code runs inside `#[hermes_five::runtime]`?"
         );
 
         let protocol_error = Error::from(IoException {

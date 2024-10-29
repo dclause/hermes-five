@@ -5,25 +5,24 @@ use crate::animations::Track;
 use crate::errors::Error;
 use crate::pause;
 
-/// Represents an [`Animation`] unit, called a `Segment`.
+/// Represents an [`Animation`](crate::animations::Animation) unit, called a `Segment`.
 ///
-/// A `Segment` is composed of multiple [`Track`]s, each containing sets of [`Keyframe`] associated with an [`Actuator`].
+/// A `Segment` is composed of multiple [`Track`](Track)s, each containing sets of [`Keyframe`](Track) associated with an [`Output`](crate::devices::Output).
 ///
 /// The `Segment` plays the keyframes of its track in a logical and temporal order.
 /// - A segment searches for keyframe to execute and updates the associated devices based on a given
 ///   number of times per second, as defined by its `fps` property.
-/// - A segment can be set to repeat in a loop within an [`Animation`] from a starting point in time called `loopback`.
+/// - A segment can be set to repeat in a loop within an [`Animation`](crate::animations::Animation) from a starting point in time called `loopback`.
 ///
 /// # Example
 ///
 /// Here is an example of defining a segment to animate a small robot with two actuators (a LED and a servo).
 /// The robot will perform a waving motion using its servo and LED.
 /// ```no_run
-/// use hermes_five::animations::{Keyframe, Segment, Track};
+/// use hermes_five::animations::{Easing, Keyframe, Segment, Track};
 /// use hermes_five::hardware::Board;
 /// use hermes_five::devices::{Led, Servo};
 /// use hermes_five::io::Firmata;
-/// use hermes_five::utils::Easing;
 ///
 /// #[hermes_five::runtime]
 /// async fn main() {
@@ -55,17 +54,6 @@ use crate::pause;
 ///         .set_repeat(true);
 /// }
 /// ```
-///
-/// # Fields
-///
-/// - `repeat`: Determines whether the segment should replay in a loop starting from the `loopback` time (default: false).
-/// - `loopback`: The time in milliseconds when the animation will restart the loop if `repeat` is true (default: 0).
-/// - `speed`: Controls the speed of the animation as a percentage of standard time (default: 100). For example:
-///     - 50% means time moves twice as slow, so 1000ms lasts 2000ms in real time.
-///     - 200% means time moves twice as fast, so 1000ms lasts 500ms in real time.
-/// - `fps`: The number of frames per second for running the animation (default: 40). Higher fps results in smoother animations, though the desired fps is not always guaranteed to be reached (especially at high fps values).
-/// - `tracks`: The tracks associated with this segment.
-/// - `current_time`: The current time in milliseconds of the segment's playback.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
 pub struct Segment {
@@ -195,11 +183,6 @@ impl Segment {
     pub fn get_progress(&self) -> u64 {
         self.current_time
     }
-}
-
-// ########################################
-// Implementing basic getters and setters.
-impl Segment {
     /// Checks if the segment should repeat.
     pub fn is_repeat(&self) -> bool {
         self.repeat
