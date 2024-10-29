@@ -3,7 +3,7 @@
 //! <h1 align="center">HERMES-FIVE - The Rust Robotics & IoT Platform</h1>
 //! <div style="text-align:center;font-style:italic;">Hermes-Five is an open-source IoT and Robotics programming framework - written in Rust.</div>
 //! <br/>
-//! <img align="right" style="height:200px" alt="Schema sample of blinking led using Arduino UNO" src="https://raw.githubusercontent.com/dclause/hermes-five/refs/heads/develop/docs/public/examples/led/led-blink.gif?raw=true" />
+//! <img height="0" style="float:right;height:200px!important;" alt="Schema sample of blinking led using Arduino UNO" src="https://github.com/dclause/hermes-five/blob/develop/docs/public/examples/led/led-blink.gif?raw=true" />
 //!
 //! # Documentation
 //!

@@ -11,7 +11,7 @@ use crate::errors::{Error, RuntimeError, UnknownError};
 
 /// Represents the result of a TaskResult.
 /// A task may return either () or Result<(), Error> for flexibility which
-/// will be converted to TaskResult sent to the runtime..
+/// will be converted to TaskResult sent to the runtime.
 pub enum TaskResult {
     Ok,
     Err(Error),
