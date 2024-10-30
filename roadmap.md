@@ -17,7 +17,7 @@ The project is currently moving towards **release version 0.1**.
 The purpose for this release is to create a proof-of-concept of the project:
 
 - determine the API syntax (which may vary until stable 1.0)
-- build the underlying requirements (events, tasks, multi-tasking, etc..)
+- build the underlying requirements (events, tasks, multi-tasking, etc.)
 - validate Firmata protocol as a communication choice
 - demonstrate both input/ouput device communication with simple examples (led, servo, button, potentiometer)
 

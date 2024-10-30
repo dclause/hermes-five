@@ -22,12 +22,12 @@ use crate::pause;
 /// use hermes_five::animations::{Easing, Keyframe, Segment, Track};
 /// use hermes_five::hardware::Board;
 /// use hermes_five::devices::{Led, Servo};
-/// use hermes_five::io::Firmata;
+/// use hermes_five::io::FirmataIo;
 ///
 /// #[hermes_five::runtime]
 /// async fn main() {
 ///     // Define a board on COM4.
-///     let board = Board::new(Firmata::new("COM4")).open();
+///     let board = Board::new(FirmataIo::new("COM4")).open();
 ///
 ///     // Define a servo attached to the board on PIN 9 (default servo position is 90°).
 ///     let servo = Servo::new(&board, 9, 90).unwrap();
@@ -301,8 +301,10 @@ mod tests {
 
     #[test]
     fn test_segment_reset() {
-        let mut segment = Segment::default();
-        segment.current_time = 100;
+        let mut segment = Segment {
+            current_time: 100,
+            ..Default::default()
+        };
         segment.reset();
         assert_eq!(segment.get_progress(), 0);
     }
@@ -338,7 +340,7 @@ mod tests {
         let elapsed = start.elapsed().unwrap().as_millis();
         assert!(play_once.is_ok());
         assert!(
-            elapsed >= 500 && elapsed < 550,
+            (500..550).contains(&elapsed),
             "Play once takes longer approx. the time of the longest track: {}",
             elapsed
         );
@@ -361,7 +363,7 @@ mod tests {
         let elapsed = start.elapsed().unwrap().as_millis();
         assert!(play.is_ok());
         assert!(
-            elapsed >= 100 && elapsed < 150,
+            (100..150).contains(&elapsed),
             "Play takes the same time as play once: {}",
             elapsed
         );

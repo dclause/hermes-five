@@ -7,7 +7,7 @@ use hermes_five::io::PinModeId;
 
 #[hermes_five::runtime]
 async fn main() {
-    // Default board: uses Firmata protocol with Serial transport layer the via the first available port.
+    // Default board: uses FirmataIo protocol with Serial transport layer the via the first available port.
     let board = Board::run();
 
     board.on(BoardEvent::OnReady, |mut board: Board| async move {

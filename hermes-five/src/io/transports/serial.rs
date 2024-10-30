@@ -28,11 +28,11 @@ impl Serial {
     /// # Example
     /// ```
     /// use hermes_five::hardware::Board;
-    /// use hermes_five::io::Firmata;
+    /// use hermes_five::io::FirmataIo;
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
-    ///     let protocol = Firmata::new("/dev/ttyACM0");
+    ///     let protocol = FirmataIo::new("/dev/ttyACM0");
     ///     let board = Board::new(protocol).open();
     /// }
     /// ```
@@ -146,7 +146,7 @@ mod tests {
     #[test]
     fn test_default_serial_protocol() {
         let protocol = Serial::default();
-        assert!(protocol.port.len() > 0);
+        assert!(!protocol.port.is_empty());
     }
 
     // #[test]

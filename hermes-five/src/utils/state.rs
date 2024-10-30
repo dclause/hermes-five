@@ -192,7 +192,7 @@ impl State {
             _ => vec![],
         }
     }
-    /// Extracts the hashmap value if it is an hashmap.
+    /// Extracts the hashmap value if it is a hashmap.
     pub fn as_object(&self) -> HashMap<String, State> {
         match self {
             State::Object(map) => map.clone(),
@@ -260,32 +260,32 @@ mod tests {
 
     #[test]
     fn test_as_boolean() {
-        assert_eq!(State::Null.as_bool(), false);
+        assert!(!State::Null.as_bool());
 
-        assert_eq!(State::Boolean(false).as_bool(), false);
-        assert_eq!(State::Boolean(true).as_bool(), true);
+        assert!(!State::Boolean(false).as_bool());
+        assert!(State::Boolean(true).as_bool());
 
-        assert_eq!(State::Integer(0).as_bool(), false);
-        assert_eq!(State::Integer(10).as_bool(), true);
+        assert!(!State::Integer(0).as_bool());
+        assert!(State::Integer(10).as_bool());
 
-        assert_eq!(State::Signed(-10).as_bool(), false);
-        assert_eq!(State::Signed(0).as_bool(), false);
-        assert_eq!(State::Signed(10).as_bool(), true);
+        assert!(!State::Signed(-10).as_bool());
+        assert!(!State::Signed(0).as_bool());
+        assert!(State::Signed(10).as_bool());
 
-        assert_eq!(State::Float(-0.5).as_bool(), false);
-        assert_eq!(State::Float(0.0).as_bool(), false);
-        assert_eq!(State::Float(10.5).as_bool(), true);
+        assert!(!State::Float(-0.5).as_bool());
+        assert!(!State::Float(0.0).as_bool());
+        assert!(State::Float(10.5).as_bool());
 
-        assert_eq!(State::String(String::from("")).as_bool(), false);
-        assert_eq!(State::String(" ".into()).as_bool(), true);
+        assert!(!State::String(String::from("")).as_bool());
+        assert!(State::String(" ".into()).as_bool());
 
-        assert_eq!(State::Array(vec!()).as_bool(), false);
-        assert_eq!(State::Array(vec![1.into()]).as_bool(), true);
+        assert!(!State::Array(vec!()).as_bool());
+        assert!(State::Array(vec![1.into()]).as_bool());
 
         let mut map = HashMap::new();
-        assert_eq!(State::Object(map.clone()).as_bool(), false);
+        assert!(!State::Object(map.clone()).as_bool());
         map.insert("key".to_string(), State::Integer(42));
-        assert_eq!(State::Object(map).as_bool(), true);
+        assert!(State::Object(map).as_bool());
     }
 
     #[test]
@@ -403,16 +403,16 @@ mod tests {
 
     #[test]
     fn test_is_null() {
-        assert_eq!(State::Null.is_null(), true);
-        assert_eq!(State::Boolean(false).is_null(), false);
-        assert_eq!(State::Boolean(true).is_null(), false);
-        assert_eq!(State::Integer(42).is_null(), false);
-        assert_eq!(State::Signed(-12).is_null(), false);
-        assert_eq!(State::Signed(12).is_null(), false);
-        assert_eq!(State::Float(69.5).is_null(), false);
-        assert_eq!(State::String(String::from("test")).is_null(), false);
-        assert_eq!(State::Array(vec![1.into()]).is_null(), false);
-        assert_eq!(State::Object(HashMap::new()).is_null(), false);
+        assert!(State::Null.is_null());
+        assert!(!State::Boolean(false).is_null());
+        assert!(!State::Boolean(true).is_null());
+        assert!(!State::Integer(42).is_null());
+        assert!(!State::Signed(-12).is_null());
+        assert!(!State::Signed(12).is_null());
+        assert!(!State::Float(69.5).is_null());
+        assert!(!State::String(String::from("test")).is_null());
+        assert!(!State::Array(vec![1.into()]).is_null());
+        assert!(!State::Object(HashMap::new()).is_null());
     }
 
     #[test]
@@ -444,11 +444,11 @@ mod tests {
         let state: State = (-42i64).into();
         assert_eq!(state, State::Signed(-42));
 
-        let state: State = 3.140f32.into();
-        assert!(matches!(state, State::Float(f) if (f - 3.14).abs() < 0.00001),);
+        let state: State = std::f32::consts::PI.into();
+        assert!(matches!(state, State::Float(f) if (f - std::f64::consts::PI).abs() < 0.00001),);
 
-        let state: State = 3.14f64.into();
-        assert_eq!(state, State::Float(3.14));
+        let state: State = std::f64::consts::PI.into();
+        assert_eq!(state, State::Float(std::f64::consts::PI));
 
         let state: State = true.into();
         assert_eq!(state, State::Boolean(true));
@@ -506,6 +506,7 @@ mod tests {
 
     #[test]
     fn test_display_float() {
+        #[allow(clippy::approx_constant)]
         let state = State::Float(3.14);
         assert_eq!(state.to_string(), "3.14");
     }

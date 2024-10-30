@@ -129,7 +129,7 @@ impl Servo {
             .supports_mode(PinModeId::SERVO)
             .ok_or(IncompatibleMode {
                 pin,
-                mode: crate::io::PinModeId::SERVO,
+                mode: PinModeId::SERVO,
                 context: "create a new Servo device",
             })?;
         servo.protocol.servo_config(pin, pwm_range)?;

@@ -49,7 +49,8 @@ cd my_awesome_project
 hermes-five = "0.1.0-beta"
 ```
 
-- Change `src/main.rs` file as need (see [examples](/examples))
+- Change `src/main.rs` file as need (
+  see [examples](https://github.com/dclause/hermes-five/tree/develop/hermes-five/examples))
 
 > [!TIP]
 > Available feature flags are:
@@ -136,7 +137,7 @@ toward release 0.1
 In short:
 
 - [version 0.1](/roadmap.md#release-version-01): proof-of-concept;
-    - basics concepts and underlying requirements (events, tasks, multi-tasking, etc..)
+    - basics concepts and underlying requirements (events, tasks, multi-tasking, etc.)
     - API syntax
     - Firmata communication to read/write data for basic input/ouput
 - [version 0.2](/roadmap.md#release-version-02): PoC of swapping the underlying bricks

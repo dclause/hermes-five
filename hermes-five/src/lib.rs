@@ -17,11 +17,11 @@
 //! of input/output devices (led, servo, button, sensors, etc.) connected to it.<br/>
 //! It can be compared to _[Johnny-Five](https://johnny-five.io/)_ in the javascript ecosystem.
 //!
-//! - Define remotely controllable [`Board`](crate::hardware::Board) (Arduino currently)
-//! - Control boards though an [`IoProtocol`](crate::io::IoProtocol) connection ([`Serial`](crate::io::Serial) for the moment)
-//! - Remote control all types of [`Device`](crate::devices::Device)s such as [`Output`](crate::devices::Output)s (LED, servo, etc.) or [`Input`](crate::devices::Input)s (button, switch, sensors,
+//! - Define remotely controllable [`Board`](hardware::Board) (Arduino currently)
+//! - Control boards though an [`IoProtocol`](io::IoProtocol) connection ([`Serial`](io::Serial) for the moment)
+//! - Remote control all types of [`Device`](devices::Device)s such as [`Output`](devices::Output)s (LED, servo, etc.) or [`Input`](devices::Input)s (button, switch, sensors,
 //! - etc.) individually
-//! - Create and play [`Animation`](crate::animations::Animation) with auto-interpolate movements
+//! - Create and play [`Animation`](animations::Animation) with auto-interpolate movements
 //!
 //! **_If you wish to do the same with absolutely no code via a nice-and-shiny interface, please consult the [Hermes-Studio](https://github.com/dclause/hermes-studio) project._**
 //!

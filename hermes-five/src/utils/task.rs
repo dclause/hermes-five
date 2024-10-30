@@ -255,9 +255,9 @@ mod tests {
         assert!(task.is_ok(), "An Ok(()) task do not panic the runtime");
 
         let task = task::run(async move {
-            return Err(UnknownError {
+            Err(UnknownError {
                 info: "wow panic!".to_string(),
-            });
+            })
         });
 
         assert!(task.is_ok(), "A panicking task do not panic the runtime");

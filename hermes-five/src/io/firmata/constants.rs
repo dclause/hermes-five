@@ -80,7 +80,7 @@ pub const I2C_REPLY: u8 = 0x77;
 pub const I2C_CONFIG: u8 = 0x78;
 /// Report name and version of the firmware
 pub const REPORT_FIRMWARE: u8 = 0x79;
-/// Analog write (PWM, Servo, etc) to any pin
+/// Analog write (PWM, Servo, etc.) to any pin
 pub const EXTENDED_ANALOG: u8 = 0x6F;
 /// Ask for a pin's current mode and value
 pub const PIN_STATE_QUERY: u8 = 0x6D;
@@ -90,7 +90,7 @@ pub const PIN_STATE_RESPONSE: u8 = 0x6E;
 pub const CAPABILITY_QUERY: u8 = 0x6B;
 /// Reply with supported modes and resolution
 pub const CAPABILITY_RESPONSE: u8 = 0x6C;
-/// Ask for mapping of analog to pin numbers
+/// Ask for mapping of analog to pins id
 pub const ANALOG_MAPPING_QUERY: u8 = 0x69;
 /// Reply with mapping info
 pub const ANALOG_MAPPING_RESPONSE: u8 = 0x6A;

@@ -65,6 +65,7 @@ mod tests {
     fn test_range_copy_clone() {
         let range1 = Range { start: 2, end: 8 };
         let range2 = range1; // Copy
+        #[allow(clippy::clone_on_copy)]
         let range3 = range1.clone(); // Clone
 
         assert_eq!(range1.start, range2.start);

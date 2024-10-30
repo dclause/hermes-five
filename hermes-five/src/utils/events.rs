@@ -88,7 +88,7 @@ impl EventManager {
         let boxed_callback =
             Box::new(
                 move |arg: Arc<dyn Any + Send + Sync>| match arg.downcast::<T>() {
-                    Ok(arg) => (callback)((*arg).clone()).boxed(),
+                    Ok(arg) => callback((*arg).clone()).boxed(),
                     Err(_) => Box::pin(async { Ok(()) }),
                 },
             );

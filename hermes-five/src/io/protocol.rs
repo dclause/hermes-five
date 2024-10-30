@@ -5,7 +5,7 @@ use std::fmt::{Debug, Display};
 use std::sync::Arc;
 
 use crate::errors::*;
-use crate::io::firmata::Firmata;
+use crate::io::firmata::FirmataIo;
 use crate::io::{IoData, PinModeId};
 use crate::utils::Range;
 use dyn_clone::DynClone;
@@ -105,6 +105,6 @@ pub trait IoProtocol: DynClone + Send + Sync + Debug + Display {
 #[cfg(not(tarpaulin_include))]
 impl Default for Box<dyn IoProtocol> {
     fn default() -> Self {
-        Box::new(Firmata::default())
+        Box::new(FirmataIo::default())
     }
 }

@@ -4,7 +4,7 @@ use std::fmt::Display;
 use std::ops::{Deref, DerefMut};
 
 use crate::errors::Error;
-use crate::io::{Firmata, IoData, IoTransport};
+use crate::io::{FirmataIo, IoData, IoTransport};
 use crate::io::{IoProtocol, PinModeId};
 use crate::utils::task;
 use crate::utils::{EventHandler, EventManager};
@@ -43,7 +43,7 @@ pub struct Board {
 impl Default for Board {
     /// Default implementation for a board.
     ///
-    /// This method creates a board using the default [`Firmata`] protocol with [`Serial`](crate::io::Serial) transport layer.
+    /// This method creates a board using the default [`FirmataIo`] protocol with [`Serial`](crate::io::Serial) transport layer.
     /// The port will be auto-detected as the first available serial port matching a board.
     ///
     /// **_/!\ The board will NOT be connected until the [`Board::open`] method is called._**
@@ -52,38 +52,38 @@ impl Default for Board {
     ///
     /// ```
     /// use hermes_five::hardware::Board;
-    /// use hermes_five::io::Firmata;
+    /// use hermes_five::io::FirmataIo;
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
     ///     // Following lines are all equivalent:
     ///     let board = Board::run();
     ///     let board = Board::default().open();
-    ///     let board = Board::new(Firmata::default()).open();
+    ///     let board = Board::new(FirmataIo::default()).open();
     /// }
     /// ```
     fn default() -> Self {
-        Self::new(Firmata::default())
+        Self::new(FirmataIo::default())
     }
 }
 
 impl Board {
     /// Creates and open a default board (using default protocol).
     ///
-    /// This method creates a board using the default [`Firmata`] protocol with [`Serial`](crate::io::Serial) transport layer.
+    /// This method creates a board using the default [`FirmataIo`] protocol with [`Serial`](crate::io::Serial) transport layer.
     /// The port will be auto-detected as the first available serial port matching a board.
     ///
     /// # Example
     /// ```
     /// use hermes_five::hardware::Board;
-    /// use hermes_five::io::Firmata;
+    /// use hermes_five::io::FirmataIo;
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
     ///     // Following lines are all equivalent:
     ///     let board = Board::run();
     ///     let board = Board::default().open();
-    ///     let board = Board::new(Firmata::default()).open();
+    ///     let board = Board::new(FirmataIo::default()).open();
     /// }
     /// ```
     pub fn run() -> Self {
@@ -95,11 +95,11 @@ impl Board {
     /// # Example
     /// ```
     /// use hermes_five::hardware::Board;
-    /// use hermes_five::io::Firmata;
+    /// use hermes_five::io::FirmataIo;
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
-    ///     let board = Board::new(Firmata::new("COM4")).open();
+    ///     let board = Board::new(FirmataIo::new("COM4")).open();
     /// }
     /// ```
     pub fn new<P: IoProtocol + 'static>(protocol: P) -> Self {
@@ -269,12 +269,12 @@ impl Board {
     }
 }
 
-/// Creates a board using the given transport layer with the Firmata protocol.
+/// Creates a board using the given transport layer with the FirmataIo protocol.
 ///
 /// # Example
 /// ```
 /// use hermes_five::hardware::Board;
-/// use hermes_five::io::Firmata;
+/// use hermes_five::io::FirmataIo;
 /// use hermes_five::io::Serial;
 ///
 /// #[hermes_five::runtime]
@@ -286,7 +286,7 @@ impl<T: IoTransport> From<T> for Board {
     fn from(transport: T) -> Self {
         Self {
             events: Default::default(),
-            protocol: Box::new(Firmata::from(transport)),
+            protocol: Box::new(FirmataIo::from(transport)),
         }
     }
 }
@@ -327,7 +327,7 @@ mod tests {
         let board = Board::default();
         assert_eq!(
             board.protocol.get_protocol_name(),
-            "Firmata",
+            "FirmataIo",
             "Default board uses the default protocol"
         );
     }
@@ -345,15 +345,17 @@ mod tests {
         let board = Board::from(Serial::default());
         assert_eq!(
             board.protocol.get_protocol_name(),
-            "Firmata",
+            "FirmataIo",
             "Board can be created with a custom transport"
         );
     }
 
     #[hermes_macros::test]
     async fn test_board_open() {
-        let mut transport = MockTransportLayer::default();
-        transport.read_index = 10;
+        let mut transport = MockTransportLayer {
+            read_index: 10,
+            ..Default::default()
+        };
         // Result for query firmware
         transport.read_buf[10..15].copy_from_slice(&[0xF0, 0x79, 0x01, 0x0C, 0xF7]);
         // Result for report capabilities
@@ -365,7 +367,7 @@ mod tests {
 
         let flag = Arc::new(AtomicBool::new(false));
         let moved_flag = flag.clone();
-        let board = Board::new(Firmata::from(transport)).open();
+        let board = Board::new(FirmataIo::from(transport)).open();
         board.on(BoardEvent::OnReady, move |board: Board| {
             let captured_flag = moved_flag.clone();
             async move {
@@ -380,8 +382,10 @@ mod tests {
 
     #[test]
     fn test_board_blocking_open() {
-        let mut transport = MockTransportLayer::default();
-        transport.read_index = 10;
+        let mut transport = MockTransportLayer {
+            read_index: 10,
+            ..Default::default()
+        };
         // Result for query firmware
         transport.read_buf[10..15].copy_from_slice(&[0xF0, 0x79, 0x01, 0x0C, 0xF7]);
         // Result for report capabilities
@@ -391,7 +395,7 @@ mod tests {
         // Result for analog mapping
         transport.read_buf[26..32].copy_from_slice(&[0xF0, 0x6A, 0x7F, 0x7F, 0x7F, 0xF7]);
 
-        let protocol = Firmata::from(transport);
+        let protocol = FirmataIo::from(transport);
         let board = Board::new(protocol).blocking_open().unwrap();
         assert!(board.is_connected());
     }
@@ -420,7 +424,7 @@ mod tests {
     #[hermes_macros::test]
     fn test_board_run() {
         let board = Board::run();
-        assert_eq!(board.protocol.get_protocol_name(), "Firmata");
+        assert_eq!(board.protocol.get_protocol_name(), "FirmataIo");
         board.close();
     }
 
@@ -444,7 +448,7 @@ mod tests {
     fn test_board_deref() {
         let mut transport = MockTransportLayer::default();
         transport.read_buf[..3].copy_from_slice(&[0xF9, 0x01, 0x19]);
-        let board = Board::new(Firmata::from(transport));
+        let board = Board::new(FirmataIo::from(transport));
         assert!(!board.get_protocol().is_connected());
         assert!(!board.is_connected());
     }

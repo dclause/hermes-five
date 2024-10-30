@@ -1,11 +1,11 @@
 //! This example shows the minimal requirement: a board to control.
 //!
 //! The board(s) may be defined in various way as they can use different [`IoProtocol`] / [`IoTransport`].
-//! A board uses a 'protocol' which defines how to communicate with the software. The default is [`Firmata`] which itself
+//! A board uses a 'protocol' which defines how to communicate with the software. The default is [`FirmataIo`] which itself
 //! can use various [`IoTransport`] underneath (serial, bluetooth, wifi, etc.).
 
 use hermes_five::hardware::{Board, BoardEvent};
-use hermes_five::io::Firmata;
+use hermes_five::io::FirmataIo;
 use hermes_five::io::Serial;
 
 #[hermes_five::runtime]
@@ -18,10 +18,10 @@ async fn main() {
     // Board::default().open();
 
     // You can customize the protocol used by the board with `Board::new()`. All the following examples are equivalent:
-    Board::new(Firmata::default());
-    Board::new(Firmata::new("COM3")); // custom port
-    Board::new(Firmata::from(Serial::new("COM3"))); // custom transport
-    let _ = Board::from(Serial::default()); // Firmata + serial with default port.
+    Board::new(FirmataIo::default());
+    Board::new(FirmataIo::new("COM3")); // custom port
+    Board::new(FirmataIo::from(Serial::new("COM3"))); // custom transport
+    let _ = Board::from(Serial::default()); // FirmataIo + serial with default port.
 
     // Beware: the program will stop here since no work as been registered through the `BoardEvent::OnReady` event.
     // Find more about this in the 'examples/board/creation.rs' example.

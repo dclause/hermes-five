@@ -12,14 +12,14 @@ use crate::utils::{task, Range};
 use log::trace;
 use parking_lot::RwLock;
 use std::collections::HashMap;
-use std::fmt::{Debug, Display};
+use std::fmt::{Debug, Display, Formatter};
 use std::sync::Arc;
 use std::time::Duration;
 
 /// Implements the [Firmata protocol](https://github.com/firmata/protocol) within an [`IoProtocol`].
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone)]
-pub struct Firmata {
+pub struct FirmataIo {
     /// Transport layer used to communicate with the device.
     transport: Box<dyn IoTransport>,
 
@@ -32,7 +32,7 @@ pub struct Firmata {
     handler: Arc<RwLock<Option<TaskHandler>>>,
 }
 
-impl Default for Firmata {
+impl Default for FirmataIo {
     fn default() -> Self {
         Self {
             transport: Box::new(Serial::default()),
@@ -41,7 +41,7 @@ impl Default for Firmata {
         }
     }
 }
-impl Firmata {
+impl FirmataIo {
     pub fn new<P: Into<String>>(port: P) -> Self {
         Self {
             transport: Box::new(Serial::new(port)),
@@ -51,7 +51,7 @@ impl Firmata {
     }
 }
 
-impl<T: IoTransport + 'static> From<T> for Firmata {
+impl<T: IoTransport + 'static> From<T> for FirmataIo {
     fn from(transport: T) -> Self {
         Self {
             transport: Box::new(transport),
@@ -61,23 +61,8 @@ impl<T: IoTransport + 'static> From<T> for Firmata {
     }
 }
 
-impl Display for Firmata {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let data = self.data.read();
-        write!(
-            f,
-            "{} [firmware={}, version={}, protocol={}, transport={}]",
-            self.get_protocol_name(),
-            data.firmware_name,
-            data.firmware_version,
-            data.protocol_version,
-            self.transport
-        )
-    }
-}
-
 #[cfg_attr(feature = "serde", typetag::serde)]
-impl IoProtocol for Firmata {
+impl IoProtocol for FirmataIo {
     fn get_data(&self) -> &Arc<RwLock<IoData>> {
         &self.data
     }
@@ -298,7 +283,7 @@ impl IoProtocol for Firmata {
     }
 }
 
-impl Firmata {
+impl FirmataIo {
     /// Sends a software reset request.
     /// <https://github.com/firmata/protocol/blob/master/protocol.md>
     fn software_reset(&mut self) -> Result<(), Error> {
@@ -316,7 +301,7 @@ impl Firmata {
         // for instance the report_analog and report_digital on some pins may continue otherwise.
         self.software_reset()?;
 
-        // The Firmata protocol is supposed to send the protocol and firmware version automatically,
+        // The FirmataIo protocol is supposed to send the protocol and firmware version automatically,
         // but it doesn't always do so. The while-loop here ensures that we are now in sync with
         // receiving the expected data. This prevents an initial 'read_and_decode()' call that would
         // otherwise result in a long timeout while waiting to detect the situation
@@ -358,10 +343,10 @@ impl Firmata {
     }
 
     // ########################################
-    // Firmata read & handle functions
+    // FirmataIo read & handle functions
 
     /// Read from the protocol, parse and return its type.
-    /// The following method should use Firmata IoPlugin such as defined here:
+    /// The following method should use Firmata protocol such as defined here:
     /// <https://github.com/firmata/protocol/blob/master/protocol.md>
     fn read_and_decode(&mut self) -> Result<Message, Error> {
         let mut buf = vec![0; 3];
@@ -617,32 +602,47 @@ impl Firmata {
     }
 }
 
+impl Display for FirmataIo {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let data = self.data.read();
+        write!(
+            f,
+            "{} [firmware={}, version={}, protocol={}, transport={}]",
+            self.get_protocol_name(),
+            data.firmware_name,
+            data.firmware_version,
+            data.protocol_version,
+            self.transport
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::io::constants::Message;
     use crate::io::protocol::IoProtocol;
-    use crate::io::{Firmata, PinModeId, Serial};
+    use crate::io::{FirmataIo, PinModeId, Serial};
     use crate::mocks::create_test_plugin_io_data;
     use crate::utils::Range;
     use hermes_five::mocks::transport_layer::MockTransportLayer;
     use parking_lot::lock_api::RwLock;
     use std::sync::Arc;
 
-    fn _create_mock_protocol() -> Firmata {
-        let mut protocol = Firmata::from(MockTransportLayer::default());
+    fn _create_mock_protocol() -> FirmataIo {
+        let mut protocol = FirmataIo::from(MockTransportLayer::default());
         protocol.data = Arc::new(RwLock::new(create_test_plugin_io_data()));
         protocol
     }
 
-    fn _create_mock_protocol_with_data(data: &[u8]) -> Firmata {
+    fn _create_mock_protocol_with_data(data: &[u8]) -> FirmataIo {
         let mut transport = MockTransportLayer::default();
         transport.read_buf[..data.len()].copy_from_slice(data);
-        let mut protocol = Firmata::from(transport);
+        let mut protocol = FirmataIo::from(transport);
         protocol.data = Arc::new(RwLock::new(create_test_plugin_io_data()));
         protocol
     }
 
-    fn _get_mock_transport(protocol: &Firmata) -> &MockTransportLayer {
+    fn _get_mock_transport(protocol: &FirmataIo) -> &MockTransportLayer {
         protocol
             .transport
             .as_any()
@@ -660,16 +660,16 @@ mod tests {
 
     #[test]
     fn test_creation() {
-        let protocol = Firmata::default();
+        let protocol = FirmataIo::default();
         let transport = protocol.transport.as_any().downcast_ref::<Serial>();
         assert!(transport.is_some());
 
-        let protocol = Firmata::new("try");
+        let protocol = FirmataIo::new("try");
         let transport = protocol.transport.as_any().downcast_ref::<Serial>();
         assert!(transport.is_some());
         assert_eq!(transport.unwrap().get_port(), String::from("try"));
 
-        let protocol = Firmata::from(MockTransportLayer::default());
+        let protocol = FirmataIo::from(MockTransportLayer::default());
         let transport = protocol
             .transport
             .as_any()
@@ -1313,7 +1313,7 @@ mod tests {
         // assert_eq!(protocol.get_protocol_name(), "MockIoProtocol");
         assert_eq!(
             format!("{}", boxed_protocol),
-            "Firmata [firmware=Fake protocol, version=fake.2.3, protocol=fake.1.0, transport=MockTransportLayer]"
+            "FirmataIo [firmware=Fake protocol, version=fake.2.3, protocol=fake.1.0, transport=MockTransportLayer]"
         )
     }
 }

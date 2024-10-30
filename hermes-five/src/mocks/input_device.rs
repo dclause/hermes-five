@@ -24,7 +24,7 @@ impl MockInputDevice {
     }
 
     pub fn get_locked_value(&self) -> u16 {
-        self.lock.read().clone()
+        *self.lock.read()
     }
 }
 

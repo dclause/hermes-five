@@ -102,8 +102,8 @@ mod tests {
         assert_eq!(100.scale::<i8>(0, 100, -50, 50), 50);
 
         assert_eq!(0.scale::<i16>(0, 100, 180, 0), 180);
-        assert_eq!(-0.75.scale::<i16>(0, -1, 0, 180), 135);
-        assert_eq!(-0.25.scale::<i16>(-1, 0, 180, 0), 45);
+        assert_eq!((-0.75).scale::<i16>(0, -1, 0, 180), 135);
+        assert_eq!((-0.25).scale::<i16>(-1, 0, 180, 0), 45);
         assert_eq!(100.scale::<i16>(0, 100, 180, 0), 0);
 
         assert_eq!(0.scale::<i32>(0, 100, 180, 0), 180);

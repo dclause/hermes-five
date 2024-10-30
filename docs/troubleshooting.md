@@ -15,7 +15,7 @@ consider [opening an issue](https://github.com/dclause/hermes-five/issues) for h
 
 This error type appears in cases of issues related to board communication.
 
-::: details Error: _Task failed: "Protocol error: The filename, directory name, or volume label syntax is incorrect.""_
+::: details Error: _Task failed: "Protocol error: The filename, directory name, or volume label syntax is incorrect."_
 When running the basic sample code from [Getting Started](/getting-started) section, the program ends right away with
 the error:   
 **_Task failed: "Protocol error: The filename, directory name, or volume label syntax is incorrect."_**
