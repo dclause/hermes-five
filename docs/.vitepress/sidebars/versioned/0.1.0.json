@@ -1,0 +1,37 @@
+{
+  "/": [
+    {
+      "text": "Introduction",
+      "collapsed": false,
+      "items": [
+        {
+          "text": "Getting started",
+          "link": "/getting-started"
+        },
+        {
+          "text": "Concepts & Overview",
+          "link": "/concepts"
+        },
+        {
+          "text": "Troubleshooting",
+          "link": "/troubleshooting"
+        }
+      ]
+    },
+    {
+      "text": "API & Examples",
+      "collapsed": false,
+      "items": [
+        {
+          "text": "Board"
+        },
+        {
+          "text": "Led"
+        },
+        {
+          "text": "Servo"
+        }
+      ]
+    }
+  ]
+}

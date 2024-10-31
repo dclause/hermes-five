@@ -1,6 +1,10 @@
+---
+outline: deep
+---
+
 # Getting started
 
-![PC-MEGA-serial.png](/communication/PC-MEGA-serial.png)
+![intro image](/intro.png)
 
 ## Pre-requisites
 
@@ -68,7 +72,7 @@ cargo run
 
 You should see the embedded LED of your Arduino board blink.
 
-**If any issue occurred, please refer to the [Troubleshooting](/troubleshooting) section.**
+**If any issue occurred, please refer to the [Troubleshooting](./troubleshooting) section.**
 
 ## What's Next?
 

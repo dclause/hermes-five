@@ -3,6 +3,11 @@
     --vp-c-brand-1: var(--vp-c-red-1);
     --vp-c-brand-2: var(--vp-c-red-2);
     --vp-c-brand-3: var(--vp-c-red-3);
+    --c-info: var(--vp-c-indigo-1);
+    --c-tip: var(--vp-c-green-1);
+    --c-warning: #c17100;
+    --c-danger: var(--vp-c-red-1);
+    --vp-code-line-height: 1.3
 }
 
 html:not(.dark) .logo,
@@ -14,4 +19,139 @@ html:not(.dark) img.icon {
 img#icon,
 img.icon {
     filter: invert(71%) sepia(85%) saturate(3249%) hue-rotate(309deg) brightness(99%) contrast(95%);
+}
+
+img[src*='#center'] {
+    display: block;
+    margin: auto;
+}
+
+/* ############################################################### */
+
+.vp-doc div[class*='language-'], .vp-block, .vp-doc .custom-block div[class*='language-'] {
+    border-radius: 0;
+    border-left: 3px solid var(--vp-code-block-color);
+    overflow-x: initial;
+}
+.vp-doc div[class*='language-'] pre, .vp-block pre, .vp-doc .custom-block div[class*='language-'] pre {
+    padding: 15px 0;
+}
+.vp-doc [class*='language-'] .has-focused-lines .line:not(.has-focus) {
+    filter: blur(0.195rem);
+}
+
+/* ############################################################### */
+
+.VPSidebarItem .items {
+    margin-left: 10px;
+    padding-left: 10px;
+    border-left: 1px solid var(--vp-c-divider);
+}
+
+.VPSidebarItem.is-active .indicator {
+    left: -11px;
+    background-color: var(--vp-c-brand-1);
+}
+/* ############################################################### */
+
+.VPNavBarMenuLink.active {
+    position: relative;
+}
+.VPNavBarMenuLink.active::after {
+    display: block;
+    content: "";
+    border-bottom: 3px solid var(--vp-c-brand-1);
+    width: 100%;
+    left: 0;
+    bottom: 0;
+    position: absolute;
+}
+
+/* ############################################################### */
+
+.custom-block {
+    background-color: hsl(197, 37%, 96%) !important;
+    color: var(--c-text) !important;
+    position: relative;
+    border: none;
+    border-radius: 0;
+    border-top-right-radius: 2px;
+    border-bottom-right-radius: 2px;
+    border-left: 7px black solid;
+    padding: 8px 16px 8px 28px;
+    overflow-x: visible !important;
+}
+
+.dark .custom-block {
+    background-color: hsl(197, 37%, 8%) !important;
+}
+
+.custom-block a {
+    color: var(--vp-c-brand-1) !important;
+}
+
+.custom-block a:hover {
+    color: var(--vp-c-brand-2) !important;
+    text-decoration: underline;
+}
+
+.custom-block::before {
+    border-radius: 100%;
+    color: #fff;
+    font-size: 18px;
+    line-height: 32px;
+    left: -19px;
+    position: absolute;
+    height: 32px;
+    width: 32px;
+    text-align: center;
+    top: 14px;
+}
+
+.custom-block.info {
+    border-color: var(--c-info);
+}
+.custom-block.info::before {
+    background-color: var(--c-info);
+    content: "i";
+    font-weight: 700;
+}
+.custom-block.info .custom-block-title {
+    color: var(--c-info);
+}
+
+.custom-block.tip {
+    border-color: var(--c-tip);
+}
+.custom-block.tip::before {
+    background-color: var(--c-tip);
+    content: "?";
+    font-weight: 700;
+}
+.custom-block.tip .custom-block-title {
+    color: var(--c-tip);
+}
+
+.custom-block.warning {
+    border-color: var(--c-warning);
+}
+.custom-block.warning::before {
+    background-color: var(--c-warning);
+    content: "!";
+    font-weight: 700;
+}
+.custom-block.warning .custom-block-title {
+    color: var(--c-warning);
+}
+
+.custom-block.danger {
+    border-color: var(--c-danger);
+}
+.custom-block.danger::before {
+    background-color: var(--c-danger);
+    content: "!";
+    font-weight: 700;
+}
+.custom-block.danger .custom-block-title {
+    color: var(--c-danger);
 }

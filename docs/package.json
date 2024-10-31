@@ -1,10 +1,14 @@
 {
-  "devDependencies": {
-    "vitepress": "^1.4.0"
-  },
   "scripts": {
     "docs:dev": "vitepress dev",
     "docs:build": "vitepress build",
     "docs:preview": "vitepress preview"
+  },
+  "devDependencies": {
+    "@types/node": "^22.8.4",
+    "typescript": "^5.6.3",
+    "vitepress": "^1.4.0",
+    "vitepress-plugin-tabs": "^0.5.0",
+    "vitepress-versioning-plugin": "git+https://github.com/dclause/vitepress-versioning-plugin.git#dist"
   }
 }
