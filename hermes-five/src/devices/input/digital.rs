@@ -89,7 +89,7 @@ impl DigitalInput {
                     loop {
                         let pin_value = self_clone
                             .protocol
-                            .get_data()
+                            .get_io()
                             .read()
                             .get_pin(self_clone.pin)?
                             .value
@@ -125,8 +125,36 @@ impl DigitalInput {
 
     /// Registers a callback to be executed on a given event on the DigitalInput.
     ///
-    /// Available events for an DigitalInput are:
-    /// * `InputEvent::OnChange` | `change`: Triggered when the DigitalInput value changes.
+    /// Available events for a button are:
+    /// - **`InputEvent::OnChange` | `change`:** Triggered when the input value changes.    
+    ///   _The callback must receive the following parameter: `|value: bool| { ... }`_
+    /// - **`InputEvent::OnHigh` | `high`:** Triggered when the input value changes.     
+    ///   _The callback must receive the void parameter: `|_:()| { ... }`_
+    ///- **`InputEvent::OnLow` | `low`:** Triggered when the input value changes.    
+    ///   _The callback must receive the void parameter: `|_:()| { ... }`_
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use hermes_five::devices::{DigitalInput, InputEvent};
+    /// use hermes_five::hardware::{Board, BoardEvent};
+    ///
+    /// #[hermes_five::runtime]
+    /// async fn main() {
+    ///     let board = Board::run();
+    ///     board.on(BoardEvent::OnReady, |board: Board| async move {
+    ///
+    ///         // Register a sensor on pin 7.
+    ///         let sensor = DigitalInput::new(&board, 7)?;
+    ///         // Triggered function when the sensor state changes.
+    ///         sensor.on(InputEvent::OnChange, |value: bool| async move {
+    ///             println!("Sensor value changed: {}", value);
+    ///             Ok(())
+    ///         });
+    ///
+    ///         Ok(())
+    ///     });
+    /// }
     pub fn on<S, F, T, Fut>(&self, event: S, callback: F) -> EventHandler
     where
         S: Into<String>,
@@ -174,12 +202,12 @@ mod tests {
     fn test_new_digital_input() {
         let board = Board::new(MockIoProtocol::default());
         let sensor = DigitalInput::new(&board, 2).unwrap();
-        assert_eq!(sensor.pin, 2);
+        assert_eq!(sensor.get_pin(), 2);
         assert!(sensor.get_state().as_bool());
         sensor.detach();
 
         let sensor = DigitalInput::new(&board, "D3").unwrap();
-        assert_eq!(sensor.pin, 3);
+        assert_eq!(sensor.get_pin(), 3);
         assert!(sensor.get_state().as_bool());
 
         sensor.detach();
@@ -245,7 +273,7 @@ mod tests {
         // Simulate pin state change in the protocol => take value 0xFF
         button
             .protocol
-            .get_data()
+            .get_io()
             .write()
             .get_pin_mut(5)
             .unwrap()
@@ -260,7 +288,7 @@ mod tests {
         // Simulate pin state change in the protocol => takes value 0
         button
             .protocol
-            .get_data()
+            .get_io()
             .write()
             .get_pin_mut(5)
             .unwrap()

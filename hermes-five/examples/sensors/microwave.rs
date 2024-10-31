@@ -11,10 +11,22 @@ async fn main() {
     board.on(BoardEvent::OnReady, |board: Board| async move {
         // Register a sensor on pin 7.
         let sensor = DigitalInput::new(&board, 7)?;
-        //
-        // Triggered function when the button state changes.
+
+        // Triggered function when the sensor state changes.
         sensor.on(InputEvent::OnChange, |value: bool| async move {
             println!("Sensor value changed: {}", value);
+            Ok(())
+        });
+
+        // Triggered function when the sensor state changes to high.
+        sensor.on(InputEvent::OnHigh, |_: ()| async move {
+            println!("Moving object detected");
+            Ok(())
+        });
+
+        // Triggered function when the sensor state changes to low.
+        sensor.on(InputEvent::OnLow, |_: ()| async move {
+            println!("Moving object detection lost");
             Ok(())
         });
 

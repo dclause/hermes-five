@@ -178,7 +178,7 @@ impl Servo {
 
     /// Returns [`Pin`] information.
     pub fn get_pin_info(&self) -> Result<Pin, Error> {
-        let lock = self.protocol.get_data().read();
+        let lock = self.protocol.get_io().read();
         Ok(lock.get_pin(self.pin)?.clone())
     }
 

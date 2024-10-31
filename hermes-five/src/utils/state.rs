@@ -543,6 +543,7 @@ mod tests {
     }
 
     #[cfg(feature = "serde")]
+    #[cfg(test)]
     mod serde_tests {
         use serde_json;
 
@@ -578,9 +579,9 @@ mod tests {
 
         #[test]
         fn test_serialize_float() {
-            let state = State::Float(3.14);
+            let state = State::Float(42.42);
             let json = serde_json::to_string(&state).unwrap();
-            assert_eq!(json, "3.14");
+            assert_eq!(json, "42.42");
         }
 
         #[test]
@@ -636,9 +637,9 @@ mod tests {
 
         #[test]
         fn test_deserialize_float() {
-            let json = "3.14";
+            let json = "42.42";
             let state: State = serde_json::from_str(json).unwrap();
-            assert_eq!(state, State::Float(3.14));
+            assert_eq!(state, State::Float(42.42));
         }
 
         #[test]

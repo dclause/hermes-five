@@ -1,13 +1,12 @@
-use log::trace;
-use parking_lot::RwLockReadGuard;
-use std::fmt::Display;
-use std::ops::{Deref, DerefMut};
-
 use crate::errors::Error;
 use crate::io::{FirmataIo, IoData, IoTransport};
 use crate::io::{IoProtocol, PinModeId};
 use crate::utils::task;
 use crate::utils::{EventHandler, EventManager};
+use log::trace;
+use parking_lot::RwLockReadGuard;
+use std::fmt::Display;
+use std::ops::{Deref, DerefMut};
 
 /// Lists all events a Board can emit/listen.
 pub enum BoardEvent {
@@ -160,7 +159,7 @@ impl Board {
     /// Blocking version of [`Self::open()`] method.
     pub fn blocking_open(mut self) -> Result<Self, Error> {
         self.protocol.open()?;
-        trace!("Board is ready: {:#?}", self.get_data().read());
+        trace!("Board is ready: {:#?}", self.get_io());
         Ok(self)
     }
 
@@ -206,7 +205,7 @@ impl Board {
     /// Blocking version of [`Self::close()`] method.
     pub fn blocking_close(mut self) -> Result<Self, Error> {
         // Detach all pins.
-        let pins: Vec<u16> = self.get_data().read().pins.keys().copied().collect();
+        let pins: Vec<u16> = self.get_io().pins.keys().copied().collect();
         for id in pins {
             let _ = self.set_pin_mode(id, PinModeId::OUTPUT);
         }
@@ -215,11 +214,13 @@ impl Board {
         Ok(self)
     }
 
-    /// Registers a callback to be executed on a given event on the board.
+    /// Registers a callback to be executed on a given event.
     ///
-    /// Available events for a board are:
-    /// * `ready`: Triggered when the board is connected and ready to run. To use it, register though the [`Self::on()`] method.
-    /// * `exit`: Triggered when the board is disconnected. To use it, register though the [`Self::on()`] method.
+    /// Available events for a board are defined by the enum: [`BoardEvent`]:
+    /// - **`OnRead` | `ready`:** Triggered when the board is connected and ready to run.    
+    ///    _The callback must receive the following parameter: `|_: Board| { ... }`_
+    /// - **`OnClose` | `close`:** Triggered when the board is disconnected.        
+    ///    _The callback must receive the following parameter: `|_: Board| { ... }`_
     ///
     /// # Example
     ///
@@ -265,7 +266,7 @@ impl Board {
     ///     });
     /// }
     pub fn get_io(&self) -> RwLockReadGuard<IoData> {
-        self.protocol.get_data().read()
+        self.protocol.get_io().read()
     }
 }
 
@@ -451,5 +452,39 @@ mod tests {
         let board = Board::new(FirmataIo::from(transport));
         assert!(!board.get_protocol().is_connected());
         assert!(!board.is_connected());
+    }
+}
+
+#[cfg(feature = "serde")]
+#[cfg(test)]
+mod serde_tests {
+    use crate::hardware::Board;
+    use crate::io::FirmataIo;
+    use crate::mocks::plugin_io::MockIoProtocol;
+
+    #[test]
+    fn test_board_serialize() {
+        let board = Board::new(FirmataIo::new("mock"));
+        let json = serde_json::to_string(&board).unwrap();
+        assert_eq!(
+            json,
+            r#"{"protocol":{"type":"FirmataIo","transport":{"type":"Serial","port":"mock"}}}"#
+        );
+
+        let board = Board::new(MockIoProtocol::default());
+        let json = serde_json::to_string(&board).unwrap();
+        assert_eq!(json, r#"{"protocol":{"type":"MockIoProtocol"}}"#);
+    }
+
+    #[test]
+    fn test_board_deserialize() {
+        let json =
+            r#"{"protocol":{"type":"FirmataIo","transport":{"type":"Serial","port":"mock"}}}"#;
+        let board: Board = serde_json::from_str(json).unwrap();
+        assert_eq!(board.get_protocol_name(), "FirmataIo");
+
+        let json = r#"{"protocol":{"type":"MockIoProtocol"}}"#;
+        let board: Board = serde_json::from_str(json).unwrap();
+        assert_eq!(board.get_protocol_name(), "MockIoProtocol");
     }
 }

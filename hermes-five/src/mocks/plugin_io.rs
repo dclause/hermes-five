@@ -13,6 +13,7 @@ use std::sync::Arc;
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
 pub struct MockIoProtocol {
+    #[cfg_attr(feature = "serde", serde(skip))]
     pub connected: bool,
     #[cfg_attr(feature = "serde", serde(skip))]
     pub data: Arc<RwLock<IoData>>,
@@ -43,7 +44,7 @@ impl Display for MockIoProtocol {
 
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl IoProtocol for MockIoProtocol {
-    fn get_data(&self) -> &Arc<RwLock<IoData>> {
+    fn get_io(&self) -> &Arc<RwLock<IoData>> {
         &self.data
     }
 
@@ -100,6 +101,10 @@ impl IoProtocol for MockIoProtocol {
         Ok(())
     }
 
+    fn servo_config(&mut self, _: u16, _: Range<u16>) -> Result<(), Error> {
+        Ok(())
+    }
+
     fn i2c_config(&mut self, _: u16) -> Result<(), Error> {
         Ok(())
     }
@@ -109,10 +114,6 @@ impl IoProtocol for MockIoProtocol {
     }
 
     fn i2c_write(&mut self, _: i32, _: &[u8]) -> Result<(), Error> {
-        Ok(())
-    }
-
-    fn servo_config(&mut self, _: u16, _: Range<u16>) -> Result<(), Error> {
         Ok(())
     }
 }

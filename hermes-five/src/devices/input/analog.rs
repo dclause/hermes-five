@@ -89,7 +89,7 @@ impl AnalogInput {
                     loop {
                         let pin_value = self_clone
                             .protocol
-                            .get_data()
+                            .get_io()
                             .read()
                             .get_pin(self_clone.pin)?
                             .value;
@@ -118,10 +118,32 @@ impl AnalogInput {
         }
     }
 
-    /// Registers a callback to be executed on a given event on the AnalogInput.
+    /// Registers a callback to be executed on a given event.
     ///
-    /// Available events for an AnalogInput are:
-    /// * `change`: Triggered when the AnalogInput value changes. To use it, register though the [`Self::on()`] method.
+    /// Available events for an analog input are:
+    /// - **`InputEvent::OnChange` | `change`**: Triggered when the AnalogInput value changes.    
+    ///   _The callback must receive the following parameter: `|value: u16| { ... }`_
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use hermes_five::hardware::{Board, BoardEvent};
+    /// use hermes_five::devices::{AnalogInput, InputEvent};
+    ///
+    /// #[hermes_five::runtime]
+    /// async fn main() {
+    ///     let board = Board::run();
+    ///     board.on(BoardEvent::OnReady, |_: Board| async move {
+    ///         // Register a Sensor on pin 14 (A0).
+    ///         let potentiometer = AnalogInput::new(&board, "A0")?;
+    ///         // Triggered function when the sensor state changes.
+    ///         potentiometer.on(InputEvent::OnChange, |value: u16| async move {
+    ///             println!("Sensor value changed: {}", value);
+    ///             Ok(())
+    ///         });
+    ///     });
+    /// }
+    /// ```
     pub fn on<S, F, T, Fut>(&self, event: S, callback: F) -> EventHandler
     where
         S: Into<String>,
@@ -169,12 +191,12 @@ mod tests {
     fn test_new_analog_input() {
         let board = Board::new(MockIoProtocol::default());
         let sensor = AnalogInput::new(&board, 14).unwrap();
-        assert_eq!(sensor.pin, 14);
+        assert_eq!(sensor.get_pin(), 14);
         assert_eq!(sensor.get_state().as_integer(), 100);
         sensor.detach();
 
         let sensor = AnalogInput::new(&board, "A22").unwrap();
-        assert_eq!(sensor.pin, 22);
+        assert_eq!(sensor.get_pin(), 22);
         assert_eq!(sensor.get_state().as_integer(), 222);
 
         sensor.detach();
@@ -218,7 +240,7 @@ mod tests {
         // Simulate pin state change in the protocol => take value 0xFF
         sensor
             .protocol
-            .get_data()
+            .get_io()
             .write()
             .get_pin_mut(pin)
             .unwrap()

@@ -148,11 +148,7 @@ impl Button {
         match self.pullup {
             true => {
                 self.protocol.set_pin_mode(self.pin, PinModeId::PULLUP)?;
-                self.protocol
-                    .get_data()
-                    .write()
-                    .get_pin_mut(self.pin)?
-                    .value = 1;
+                self.protocol.get_io().write().get_pin_mut(self.pin)?.value = 1;
             }
             false => {
                 self.protocol.set_pin_mode(self.pin, PinModeId::INPUT)?;
@@ -199,7 +195,7 @@ impl Button {
                     loop {
                         let pin_value = self_clone
                             .protocol
-                            .get_data()
+                            .get_io()
                             .read()
                             .get_pin(self_clone.pin)?
                             .value
@@ -248,7 +244,35 @@ impl Button {
     /// Registers a callback to be executed on a given event on the Button.
     ///
     /// Available events for a button are:
-    /// * `InputEvent::OnChange` | `change`: Triggered when the button value changes.
+    /// - **`InputEvent::OnChange` | `change`:** Triggered when the button value changes.    
+    ///   _The callback must receive the following parameter: `|value: u16| { ... }`_
+    /// - **`InputEvent::OnRelease` | `released`:** Triggered when the button value changes.     
+    ///   _The callback must receive the void parameter: `|_:()| { ... }`_
+    /// - **`InputEvent::OnPress` | `pressed`:** Triggered when the button value changes.     
+    ///   _The callback must receive the void parameter: `|_:()| { ... }`_
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use hermes_five::devices::{Button, InputEvent};
+    /// use hermes_five::hardware::{Board, BoardEvent};
+    ///
+    /// #[hermes_five::runtime]
+    /// async fn main() {
+    ///     let board = Board::run();
+    ///     board.on(BoardEvent::OnReady, |board: Board| async move {
+    ///
+    ///         // Register a Button on pin 2.
+    ///         let button = Button::new(&board, 2)?;
+    ///         // Triggered function when the button is pressed.
+    ///         button.on(InputEvent::OnPress, |_: ()| async move {
+    ///             println!("Push button pressed");
+    ///             Ok(())
+    ///         });
+    ///
+    ///         Ok(())
+    ///     });
+    /// }
     pub fn on<S, F, T, Fut>(&self, event: S, callback: F) -> EventHandler
     where
         S: Into<String>,
@@ -302,7 +326,7 @@ mod tests {
 
         assert!(button.is_ok());
         let button = button.unwrap();
-        assert_eq!(button.pin, 4);
+        assert_eq!(button.get_pin(), 4);
         assert_eq!(button.get_state().as_bool(), true);
         assert!(!button.is_inverted());
         assert!(!button.is_pullup());
@@ -318,7 +342,7 @@ mod tests {
 
         assert!(button.is_ok());
         let button = button.unwrap();
-        assert_eq!(button.pin, 4);
+        assert_eq!(button.get_pin(), 4);
         assert_eq!(button.get_state().as_bool(), false);
         assert!(button.is_inverted());
         assert!(!button.is_pullup());
@@ -334,7 +358,7 @@ mod tests {
 
         assert!(button.is_ok());
         let button = button.unwrap();
-        assert_eq!(button.pin, 4);
+        assert_eq!(button.get_pin(), 4);
         assert_eq!(button.get_state().as_bool(), true);
         assert!(!button.is_inverted());
         assert!(button.is_pullup());
@@ -350,7 +374,7 @@ mod tests {
 
         assert!(button.is_ok());
         let button = button.unwrap();
-        assert_eq!(button.pin, 4);
+        assert_eq!(button.get_pin(), 4);
         assert_eq!(button.get_state().as_bool(), false);
         assert!(button.is_inverted());
         assert!(button.is_pullup());
@@ -417,7 +441,7 @@ mod tests {
         // Simulate pin state change in the protocol => take value 0xFF
         button
             .protocol
-            .get_data()
+            .get_io()
             .write()
             .get_pin_mut(5)
             .unwrap()
@@ -432,7 +456,7 @@ mod tests {
         // Simulate pin state change in the protocol => takes value 0
         button
             .protocol
-            .get_data()
+            .get_io()
             .write()
             .get_pin_mut(5)
             .unwrap()
@@ -442,6 +466,156 @@ mod tests {
 
         assert!(!change_flag.load(Ordering::SeqCst)); // change switched back to 0
         assert!(released_flag.load(Ordering::SeqCst));
+
+        button.detach();
+        board.close();
+    }
+
+    #[hermes_macros::test]
+    fn test_inverted_button_events() {
+        let board = Board::new(MockIoProtocol::default());
+        let button = Button::new_inverted(&board, 5).unwrap();
+
+        // CHANGE
+        let change_flag = Arc::new(AtomicBool::new(true));
+        let moved_change_flag = change_flag.clone();
+        button.on(InputEvent::OnChange, move |new_state: bool| {
+            let captured_flag = moved_change_flag.clone();
+            async move {
+                captured_flag.store(new_state, Ordering::SeqCst);
+                Ok(())
+            }
+        });
+
+        // PRESSED
+        let pressed_flag = Arc::new(AtomicBool::new(false));
+        let moved_pressed_flag = pressed_flag.clone();
+        button.on(InputEvent::OnPress, move |_: ()| {
+            let captured_flag = moved_pressed_flag.clone();
+            async move {
+                captured_flag.store(true, Ordering::SeqCst);
+                Ok(())
+            }
+        });
+
+        // RELEASED
+        let released_flag = Arc::new(AtomicBool::new(false));
+        let moved_released_flag = released_flag.clone();
+        button.on(InputEvent::OnRelease, move |_: ()| {
+            let captured_flag = moved_released_flag.clone();
+            async move {
+                captured_flag.store(true, Ordering::SeqCst);
+                Ok(())
+            }
+        });
+
+        assert!(change_flag.load(Ordering::SeqCst)); // true by default
+        assert!(!pressed_flag.load(Ordering::SeqCst));
+        assert!(!released_flag.load(Ordering::SeqCst));
+
+        // Simulate pin state change in the protocol => take value 0xFF
+        button
+            .protocol
+            .get_io()
+            .write()
+            .get_pin_mut(5)
+            .unwrap()
+            .value = 0xFF;
+
+        pause!(500);
+
+        assert!(!change_flag.load(Ordering::SeqCst)); // changed to false
+        assert!(pressed_flag.load(Ordering::SeqCst));
+        assert!(!released_flag.load(Ordering::SeqCst));
+
+        // Simulate pin state change in the protocol => takes value 0
+        button
+            .protocol
+            .get_io()
+            .write()
+            .get_pin_mut(5)
+            .unwrap()
+            .value = 0;
+
+        pause!(500);
+
+        assert!(change_flag.load(Ordering::SeqCst)); // change switched back to true
+        assert!(released_flag.load(Ordering::SeqCst));
+
+        button.detach();
+        board.close();
+    }
+
+    #[hermes_macros::test]
+    fn test_pullup_button_events() {
+        let board = Board::new(MockIoProtocol::default());
+        let button = Button::new_pullup(&board, 5).unwrap();
+
+        // CHANGE
+        let change_flag = Arc::new(AtomicBool::new(false));
+        let moved_change_flag = change_flag.clone();
+        button.on(InputEvent::OnChange, move |new_state: bool| {
+            let captured_flag = moved_change_flag.clone();
+            async move {
+                captured_flag.store(new_state, Ordering::SeqCst);
+                Ok(())
+            }
+        });
+
+        // PRESSED
+        let pressed_flag = Arc::new(AtomicBool::new(false));
+        let moved_pressed_flag = pressed_flag.clone();
+        button.on(InputEvent::OnPress, move |_: ()| {
+            let captured_flag = moved_pressed_flag.clone();
+            async move {
+                captured_flag.store(true, Ordering::SeqCst);
+                Ok(())
+            }
+        });
+
+        // RELEASED
+        let released_flag = Arc::new(AtomicBool::new(false));
+        let moved_released_flag = released_flag.clone();
+        button.on(InputEvent::OnRelease, move |_: ()| {
+            let captured_flag = moved_released_flag.clone();
+            async move {
+                captured_flag.store(true, Ordering::SeqCst);
+                Ok(())
+            }
+        });
+
+        assert!(!change_flag.load(Ordering::SeqCst)); // false by default
+        assert!(!pressed_flag.load(Ordering::SeqCst));
+        assert!(!released_flag.load(Ordering::SeqCst));
+
+        // Simulate pin state change in the protocol => take value 0xFF
+        button
+            .protocol
+            .get_io()
+            .write()
+            .get_pin_mut(5)
+            .unwrap()
+            .value = 0xFF;
+
+        pause!(500);
+
+        assert!(change_flag.load(Ordering::SeqCst)); // changed to true
+        assert!(!pressed_flag.load(Ordering::SeqCst));
+        assert!(released_flag.load(Ordering::SeqCst));
+
+        // Simulate pin state change in the protocol => takes value 0
+        button
+            .protocol
+            .get_io()
+            .write()
+            .get_pin_mut(5)
+            .unwrap()
+            .value = 0;
+
+        pause!(500);
+
+        assert!(!change_flag.load(Ordering::SeqCst)); // change switched back to false
+        assert!(pressed_flag.load(Ordering::SeqCst));
 
         button.detach();
         board.close();

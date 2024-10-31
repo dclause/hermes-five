@@ -12,7 +12,7 @@ async fn main() {
         // Register a Sensor on pin 14 (A0).
         let potentiometer = AnalogInput::new(&board, "A0")?;
         //
-        // Triggered function when the button state changes.
+        // Triggered function when the sensor state changes.
         potentiometer.on(InputEvent::OnChange, |value: u16| async move {
             println!("Sensor value changed: {}", value);
             Ok(())

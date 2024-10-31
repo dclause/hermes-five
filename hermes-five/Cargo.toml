@@ -46,8 +46,8 @@ name = "animation_animation"
 path = "examples/animation/animation.rs"
 
 [[example]]
-name = "animation_multiple_animation"
-path = "examples/animation/multiple_animation.rs"
+name = "animation_multiple_animations"
+path = "examples/animation/multiple_animations.rs"
 
 # ########################################
 # BOARD examples

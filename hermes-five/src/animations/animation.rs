@@ -265,13 +265,16 @@ impl Animation {
     // ########################################
     // Event related functions
 
-    /// Registers a callback to be executed on a given event. To use it, register though the [`Self::on()`] method.
+    /// Registers a callback to be executed on a given event.
     ///
     /// Available events for an animation are defined by the enum: [`AnimationEvent`]:
-    /// - `OnSegmentDone` | `segment_done`: Triggered when a segment is done.
-    /// - `OnStart` | `start`: Triggered when the animation starts.
-    /// - `OnComplete` | `complete`: Triggered when the animation ends.
-    ///
+    /// - **`OnSegmentDone` | `segment_done`**: Triggered when a segment is done.    
+    ///    _The callback must receive the following parameter: `|_: Segment| { ... }`_
+    /// - **`OnStart` | `start`**: Triggered when the animation starts.    
+    ///    _The callback must receive the following parameter: `|_: Animation| { ... }`_
+    /// - **`OnComplete` | `complete`**: Triggered when the animation ends.    
+    ///    _The callback must receive the following parameter: `|_: Animation| { ... }`_
+    /// 
     /// # Example
     /// ```
     /// use hermes_five::hardware::Board;
@@ -284,8 +287,17 @@ impl Animation {
     ///     let board = Board::run();
     ///     board.on(BoardEvent::OnReady, |board: Board| async move {
     ///         let mut led = Led::new(&board, 11, false)?;
-    ///         // Fade the LED to 50% brightness in 500ms.
-    ///         led.animate(50, 500, Easing::Linear);
+    ///         // This is a dummy animation (does nothing).
+    ///         let animation = Animation::default();
+    ///
+    ///         animation.on(AnimationEvent::OnStart, |_: Animation| async move {
+    ///             println!("Animation has started");
+    ///             Ok(())
+    ///         });
+    ///         animation.on(AnimationEvent::OnComplete, |_: Animation| async move {
+    ///             println!("Animation done");
+    ///             Ok(())
+    ///         });
     ///         Ok(())
     ///     });
     /// }

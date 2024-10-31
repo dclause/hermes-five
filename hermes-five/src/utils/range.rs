@@ -93,6 +93,7 @@ mod tests {
     }
 
     #[cfg(feature = "serde")]
+    #[cfg(test)]
     mod serde_tests {
         use serde_json;
 

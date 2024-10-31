@@ -10,7 +10,7 @@ use crate::pause;
 use crate::utils::task::TaskHandler;
 use crate::utils::{task, Range};
 use log::trace;
-use parking_lot::RwLock;
+use parking_lot::{RwLock, RwLockReadGuard};
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::sync::Arc;
@@ -63,7 +63,7 @@ impl<T: IoTransport + 'static> From<T> for FirmataIo {
 
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl IoProtocol for FirmataIo {
-    fn get_data(&self) -> &Arc<RwLock<IoData>> {
+    fn get_io(&self) -> &Arc<RwLock<IoData>> {
         &self.data
     }
 
@@ -235,6 +235,20 @@ impl IoProtocol for FirmataIo {
             END_SYSEX,
         ])
     }
+
+    fn servo_config(&mut self, pin: u16, pwm_range: Range<u16>) -> Result<(), Error> {
+        self.transport.write(&[
+            START_SYSEX,
+            SERVO_CONFIG,
+            pin as u8,
+            pwm_range.start as u8 & SYSEX_REALTIME,
+            (pwm_range.start >> 7) as u8 & SYSEX_REALTIME,
+            pwm_range.end as u8 & SYSEX_REALTIME,
+            (pwm_range.end >> 7) as u8 & SYSEX_REALTIME,
+            END_SYSEX,
+        ])
+    }
+
     fn i2c_config(&mut self, delay: u16) -> Result<(), Error> {
         self.transport.write(&[
             START_SYSEX,
@@ -244,6 +258,7 @@ impl IoProtocol for FirmataIo {
             END_SYSEX,
         ])
     }
+
     fn i2c_read(&mut self, address: i32, size: i32) -> Result<(), Error> {
         self.transport.write(&[
             START_SYSEX,
@@ -267,19 +282,6 @@ impl IoProtocol for FirmataIo {
         buf.push(END_SYSEX);
 
         self.transport.write(&buf)
-    }
-
-    fn servo_config(&mut self, pin: u16, pwm_range: Range<u16>) -> Result<(), Error> {
-        self.transport.write(&[
-            START_SYSEX,
-            SERVO_CONFIG,
-            pin as u8,
-            pwm_range.start as u8 & SYSEX_REALTIME,
-            (pwm_range.start >> 7) as u8 & SYSEX_REALTIME,
-            pwm_range.end as u8 & SYSEX_REALTIME,
-            (pwm_range.end >> 7) as u8 & SYSEX_REALTIME,
-            END_SYSEX,
-        ])
     }
 }
 
@@ -313,7 +315,7 @@ impl FirmataIo {
         self.query_analog_mapping()?;
         while self.read_and_decode()? != Message::AnalogMappingResponse {}
 
-        // println!("PINS {:#?}", self.get_data());
+        // println!("PINS {:#?}", self.get_io());
         // self.set_connected(true);
         Ok(())
     }
@@ -367,7 +369,7 @@ impl FirmataIo {
     /// Handle a REPORT_VERSION_RESPONSE message (0xF9 - return the firmware version).
     /// <https://github.com/firmata/protocol/blob/master/protocol.md#message-types>
     fn handle_protocol_version(&mut self, buf: &[u8]) -> Result<Message, Error> {
-        let mut lock = self.get_data().write();
+        let mut lock = self.get_io().write();
         lock.protocol_version = format!("{}.{}", buf[1], buf[2]);
         trace!("Received protocol version: {}", lock.protocol_version);
         Ok(Message::ReportProtocolVersion)
@@ -379,7 +381,7 @@ impl FirmataIo {
         let pin = (buf[0] as u16 & 0x0F) + 14;
         let value = (buf[1] as u16) | ((buf[2] as u16) << 7);
         trace!("Received analog message: pin({})={}", pin, value);
-        self.get_data().write().get_pin_mut(pin)?.value = value;
+        self.get_io().write().get_pin_mut(pin)?.value = value;
         Ok(Message::Analog)
     }
 
@@ -392,9 +394,9 @@ impl FirmataIo {
 
         for i in 0..8 {
             let pin = (8 * port) + i;
-            let mode: PinModeId = self.get_data().read().get_pin(pin)?.mode.id;
+            let mode: PinModeId = self.get_io().read().get_pin(pin)?.mode.id;
             if mode == PinModeId::INPUT || mode == PinModeId::PULLUP {
-                self.get_data().write().get_pin_mut(pin)?.value = (value >> (i & 0x07)) & 0x01;
+                self.get_io().write().get_pin_mut(pin)?.value = (value >> (i & 0x07)) & 0x01;
             }
         }
         Ok(Message::Digital)
@@ -432,7 +434,7 @@ impl FirmataIo {
     /// Handle an ANALOG_MAPPING_RESPONSE message (0x6A - reply with analog pins mapping info).
     /// <https://github.com/firmata/protocol/blob/master/protocol.md#analog-mapping-query>
     fn handle_analog_mapping_response(&mut self, buf: &[u8]) -> Result<Message, Error> {
-        let mut lock = self.get_data().write();
+        let mut lock = self.get_io().write();
         let mut i = 2;
         while buf[i] != END_SYSEX {
             if buf[i] != SYSEX_REALTIME {
@@ -457,7 +459,7 @@ impl FirmataIo {
     fn handle_capability_response(&mut self, buf: &[u8]) -> Result<Message, Error> {
         let mut id = 0;
         let mut i = 2;
-        let mut lock = self.get_data().write();
+        let mut lock = self.get_io().write();
         lock.pins = HashMap::new();
 
         while buf[i] != END_SYSEX {
@@ -502,7 +504,7 @@ impl FirmataIo {
         }
         let major = buf[2];
         let minor = buf[3];
-        let mut lock = self.get_data().write();
+        let mut lock = self.get_io().write();
         lock.firmware_version = format!("{}.{}", major, minor);
         trace!("Received firmware version: {}", lock.firmware_version);
         if buf.len() > 5 {
@@ -534,7 +536,7 @@ impl FirmataIo {
             reply.data.push((buf[i] as u16) | (buf[i + 1] as u16) << 7);
             i += 2;
         }
-        self.get_data().write().i2c_data.push(reply);
+        self.get_io().write().i2c_data.push(reply);
         Ok(Message::I2CReply)
     }
 
@@ -550,7 +552,7 @@ impl FirmataIo {
             }));
         }
 
-        let mut lock = self.get_data().write();
+        let mut lock = self.get_io().write();
         let pin = lock.get_pin_mut(pin)?;
         // Check if the state announce by the protocol is plausible and fetch it.
         let mode = PinModeId::from_u8(buf[3])?;
@@ -740,7 +742,7 @@ mod tests {
             _format_as_hex(&transport.write_buf[..3])
         );
         {
-            let lock = protocol.get_data().read();
+            let lock = protocol.get_io().read();
             let pin = lock.get_pin(0).unwrap();
             assert_eq!(pin.value, 170, "Pin value updated");
         }
@@ -770,7 +772,7 @@ mod tests {
             _format_as_hex(&transport.write_buf[..7])
         );
         {
-            let lock = protocol.get_data().read();
+            let lock = protocol.get_io().read();
             let pin = lock.get_pin(22).unwrap();
             assert_eq!(pin.value, 17000, "Pin value updated");
         }
@@ -799,7 +801,7 @@ mod tests {
         );
 
         {
-            let lock = protocol.get_data().read();
+            let lock = protocol.get_io().read();
             let pin = lock.get_pin(13).unwrap();
             assert_eq!(pin.value, 1);
             let pin = lock.get_pin(11).unwrap();
@@ -819,7 +821,7 @@ mod tests {
         let mut protocol = _create_mock_protocol();
 
         {
-            let lock = protocol.get_data().read();
+            let lock = protocol.get_io().read();
             let pin = lock.get_pin(8).unwrap();
             assert_eq!(pin.mode.id, PinModeId::PWM);
         }
@@ -835,7 +837,7 @@ mod tests {
         );
 
         {
-            let lock = protocol.get_data().read();
+            let lock = protocol.get_io().read();
             let pin = lock.get_pin(8).unwrap();
             assert_eq!(pin.mode.id, PinModeId::OUTPUT);
         }
@@ -1023,7 +1025,7 @@ mod tests {
 
         assert_eq!(result.unwrap(), Message::ReportProtocolVersion);
         {
-            let lock = protocol.get_data().read();
+            let lock = protocol.get_io().read();
             assert_eq!(lock.to_owned().protocol_version, "1.25");
         }
     }
@@ -1040,7 +1042,7 @@ mod tests {
         );
         assert_eq!(result.unwrap(), Message::Analog);
         {
-            let lock = transport.get_data().read();
+            let lock = transport.get_io().read();
             assert_eq!(lock.to_owned().get_pin(15).unwrap().value, 222);
         }
     }
@@ -1049,7 +1051,7 @@ mod tests {
     fn test_handle_digital_message() {
         let mut protocol = _create_mock_protocol_with_data(&[0x91, 0x00, 0x00]);
         {
-            let lock = protocol.get_data().read();
+            let lock = protocol.get_io().read();
             assert_eq!(lock.to_owned().get_pin(10).unwrap().value, 10);
             assert_eq!(lock.to_owned().get_pin(12).unwrap().value, 12);
         }
@@ -1062,7 +1064,7 @@ mod tests {
         );
         assert_eq!(result.unwrap(), Message::Digital);
         {
-            let lock = protocol.get_data().read();
+            let lock = protocol.get_io().read();
             assert_eq!(lock.to_owned().get_pin(10).unwrap().value, 0);
             assert_eq!(lock.to_owned().get_pin(12).unwrap().value, 12);
         }
@@ -1106,7 +1108,7 @@ mod tests {
     fn test_handle_analog_mapping_response() {
         let mut protocol = _create_mock_protocol_with_data(&[0xF0, 0x6A, 0x01, 0x7F, 0x7F, 0xF7]);
         {
-            let lock = protocol.get_data().read();
+            let lock = protocol.get_io().read();
             assert_eq!(lock.to_owned().get_pin(0).unwrap().channel, None);
         }
         let result = protocol.read_and_decode();
@@ -1117,7 +1119,7 @@ mod tests {
         );
         assert_eq!(result.unwrap(), Message::AnalogMappingResponse);
         {
-            let lock = protocol.get_data().read();
+            let lock = protocol.get_io().read();
             assert_eq!(lock.to_owned().get_pin(0).unwrap().channel, Some(1));
         }
 
@@ -1144,7 +1146,7 @@ mod tests {
         );
         assert_eq!(result.unwrap(), Message::CapabilityResponse);
         {
-            let lock = protocol.get_data().read();
+            let lock = protocol.get_io().read();
             let hardware = lock.to_owned();
             assert_eq!(hardware.pins.len(), 2, "{:?}", hardware.pins);
             assert_eq!(hardware.get_pin(0).unwrap().supported_modes.len(), 1);
@@ -1165,7 +1167,7 @@ mod tests {
         );
         assert_eq!(result.unwrap(), Message::ReportFirmwareVersion);
         {
-            let lock = protocol.get_data().read();
+            let lock = protocol.get_io().read();
             assert_eq!(lock.to_owned().firmware_version, "1.12");
             assert_eq!(lock.to_owned().firmware_name, "Fake protocol");
         }
@@ -1178,7 +1180,7 @@ mod tests {
         assert!(result.is_ok(), "{:?}", result);
         assert_eq!(result.unwrap(), Message::ReportFirmwareVersion);
         {
-            let lock = protocol.get_data().read();
+            let lock = protocol.get_io().read();
             assert_eq!(lock.to_owned().firmware_version, "2.64");
             assert_eq!(lock.to_owned().firmware_name, "foobar");
         }
@@ -1200,7 +1202,7 @@ mod tests {
         ]);
         // By default, the value of pin 3 is 3 and mode is OUTPUT:
         {
-            let lock = protocol.get_data().read();
+            let lock = protocol.get_io().read();
             assert_eq!(
                 lock.to_owned().get_pin(3).unwrap().mode.id,
                 PinModeId::OUTPUT
@@ -1214,7 +1216,7 @@ mod tests {
         assert_eq!(result.unwrap(), Message::PinStateResponse);
         // Now, the value of pin 3 is 30 and mode is INPUT:
         {
-            let lock = protocol.get_data().read();
+            let lock = protocol.get_io().read();
             assert_eq!(
                 lock.to_owned().get_pin(3).unwrap().mode.id,
                 PinModeId::INPUT
@@ -1296,7 +1298,7 @@ mod tests {
         let result = protocol.read_and_decode();
         assert!(result.is_ok(), "{:?}", result);
         {
-            let data = protocol.get_data().read();
+            let data = protocol.get_io().read();
             assert_eq!(data.i2c_data.len(), 1);
             assert_eq!(data.i2c_data[0].address, 64);
             assert_eq!(data.i2c_data[0].register, 8);

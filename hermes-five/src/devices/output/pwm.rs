@@ -61,11 +61,7 @@ impl PwmOutput {
         output.protocol.set_pin_mode(output.pin, PinModeId::PWM)?;
 
         // Retrieve PWM max value for the pin.
-        output.max_value = board
-            .get_data()
-            .read()
-            .get_pin(pin.id)?
-            .get_max_possible_value();
+        output.max_value = board.get_io().get_pin(pin.id)?.get_max_possible_value();
 
         // Resets the output to default value.
         output.reset()?;
@@ -98,7 +94,7 @@ impl PwmOutput {
 
     /// Returns [`Pin`] information.
     pub fn get_pin_info(&self) -> Result<Pin, Error> {
-        let lock = self.protocol.get_data().read();
+        let lock = self.protocol.get_io().read();
         Ok(lock.get_pin(self.pin)?.clone())
     }
 
