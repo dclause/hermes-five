@@ -1,5 +1,5 @@
 # Build (from VitePress) and deploy (from docs folder) documentation site to GitHub Pages
-name: Deploy DOCUMENTATION
+name: Deploy docs
 
 on:
   push:

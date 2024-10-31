@@ -10,7 +10,7 @@ async fn main() {
 
     board.on(BoardEvent::OnReady, |board: Board| async move {
         // Register a Servo on pin 9.
-        let mut servo = Servo::new(&board, 9, 90)?;
+        let servo = Servo::new(&board, 9, 90)?;
 
         // Restricts the servo range of motion.
         let mut servo = servo.set_range([30, 150]);

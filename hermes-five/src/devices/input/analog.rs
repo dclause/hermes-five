@@ -133,7 +133,8 @@ impl AnalogInput {
     /// #[hermes_five::runtime]
     /// async fn main() {
     ///     let board = Board::run();
-    ///     board.on(BoardEvent::OnReady, |_: Board| async move {
+    ///     board.on(BoardEvent::OnReady, |board: Board| async move {
+    ///
     ///         // Register a Sensor on pin 14 (A0).
     ///         let potentiometer = AnalogInput::new(&board, "A0")?;
     ///         // Triggered function when the sensor state changes.
@@ -141,6 +142,8 @@ impl AnalogInput {
     ///             println!("Sensor value changed: {}", value);
     ///             Ok(())
     ///         });
+    ///
+    ///         Ok(())
     ///     });
     /// }
     /// ```

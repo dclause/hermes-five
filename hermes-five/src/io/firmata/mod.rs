@@ -10,7 +10,7 @@ use crate::pause;
 use crate::utils::task::TaskHandler;
 use crate::utils::{task, Range};
 use log::trace;
-use parking_lot::{RwLock, RwLockReadGuard};
+use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::sync::Arc;
