@@ -78,7 +78,7 @@ pub enum ProtocolError {
 pub enum HardwareError {
     /// Pin ({pin}) not compatible with mode ({mode}) - {context}
     IncompatibleMode {
-        pin: u16,
+        pin: u8,
         mode: PinModeId,
         context: &'static str,
     },

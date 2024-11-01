@@ -64,7 +64,7 @@ impl IoProtocol for MockIoProtocol {
         self.connected
     }
 
-    fn set_pin_mode(&mut self, pin: u16, mode: PinModeId) -> Result<(), Error> {
+    fn set_pin_mode(&mut self, pin: u8, mode: PinModeId) -> Result<(), Error> {
         let mut lock = self.data.write();
         let pin_instance = lock.get_pin_mut(pin)?;
         let _mode = pin_instance.supports_mode(mode).ok_or(IncompatibleMode {
@@ -76,7 +76,7 @@ impl IoProtocol for MockIoProtocol {
         Ok(())
     }
 
-    fn digital_write(&mut self, pin: u16, level: bool) -> Result<(), Error> {
+    fn digital_write(&mut self, pin: u8, level: bool) -> Result<(), Error> {
         let mut lock = self.data.write();
         let pin_instance = lock.get_pin_mut(pin)?;
         pin_instance.validate_current_mode(PinModeId::OUTPUT)?;
@@ -84,7 +84,7 @@ impl IoProtocol for MockIoProtocol {
         Ok(())
     }
 
-    fn analog_write(&mut self, pin: u16, level: u16) -> Result<(), Error> {
+    fn analog_write(&mut self, pin: u8, level: u16) -> Result<(), Error> {
         self.data.write().get_pin_mut(pin)?.value = level;
         Ok(())
     }
@@ -93,7 +93,7 @@ impl IoProtocol for MockIoProtocol {
         Ok(())
     }
 
-    fn report_digital(&mut self, _: u16, _: bool) -> Result<(), Error> {
+    fn report_digital(&mut self, _: u8, _: bool) -> Result<(), Error> {
         Ok(())
     }
 
@@ -101,7 +101,7 @@ impl IoProtocol for MockIoProtocol {
         Ok(())
     }
 
-    fn servo_config(&mut self, _: u16, _: Range<u16>) -> Result<(), Error> {
+    fn servo_config(&mut self, _: u8, _: Range<u16>) -> Result<(), Error> {
         Ok(())
     }
 
@@ -109,11 +109,11 @@ impl IoProtocol for MockIoProtocol {
         Ok(())
     }
 
-    fn i2c_read(&mut self, _: i32, _: i32) -> Result<(), Error> {
+    fn i2c_read(&mut self, _: u8, _: u8) -> Result<(), Error> {
         Ok(())
     }
 
-    fn i2c_write(&mut self, _: i32, _: &[u8]) -> Result<(), Error> {
+    fn i2c_write(&mut self, _: u8, _: &[u8]) -> Result<(), Error> {
         Ok(())
     }
 }

@@ -205,7 +205,7 @@ impl Board {
     /// Blocking version of [`Self::close()`] method.
     pub fn blocking_close(mut self) -> Result<Self, Error> {
         // Detach all pins.
-        let pins: Vec<u16> = self.get_io().pins.keys().copied().collect();
+        let pins: Vec<u8> = self.get_io().pins.keys().copied().collect();
         for id in pins {
             let _ = self.set_pin_mode(id, PinModeId::OUTPUT);
         }

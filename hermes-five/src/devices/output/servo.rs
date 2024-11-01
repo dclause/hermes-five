@@ -28,7 +28,7 @@ pub struct Servo {
     // ########################################
     // # Basics
     /// The pin (id) of the [`Board`] used to control the Servo.
-    pin: u16,
+    pin: u8,
     /// The current Servo state.
     #[cfg_attr(feature = "serde", serde(with = "crate::devices::arc_rwlock_serde"))]
     state: Arc<RwLock<u16>>,
@@ -87,7 +87,7 @@ impl Servo {
     /// # Errors
     /// * `UnknownPin`: this function will bail an error if the pin does not exist for this board.
     /// * `IncompatibleMode`: this function will bail an error if the pin does not support SERVO mode.
-    pub fn new(board: &Board, pin: u16, default: u16) -> Result<Self, Error> {
+    pub fn new(board: &Board, pin: u8, default: u16) -> Result<Self, Error> {
         Self::create(board, pin, default, false)
     }
 
@@ -96,12 +96,12 @@ impl Servo {
     /// # Errors
     /// * `UnknownPin`: this function will bail an error if the pin does not exist for this board.
     /// * `IncompatibleMode`: this function will bail an error if the pin does not support SERVO mode.
-    pub fn new_inverted(board: &Board, pin: u16, default: u16) -> Result<Self, Error> {
+    pub fn new_inverted(board: &Board, pin: u8, default: u16) -> Result<Self, Error> {
         Self::create(board, pin, default, true)
     }
 
     /// Inner helper.
-    fn create(board: &Board, pin: u16, default: u16, inverted: bool) -> Result<Self, Error> {
+    fn create(board: &Board, pin: u8, default: u16, inverted: bool) -> Result<Self, Error> {
         let pwm_range = Range::from([600, 2400]);
 
         let mut servo = Self {
@@ -172,7 +172,7 @@ impl Servo {
     // Setters and Getters.
 
     /// Returns the pin (id) used by the device.
-    pub fn get_pin(&self) -> u16 {
+    pub fn get_pin(&self) -> u8 {
         self.pin
     }
 
@@ -455,7 +455,7 @@ mod tests {
     use crate::utils::{Range, State};
     use hermes_five::devices::ServoType;
 
-    fn _setup_servo(pin: u16) -> Servo {
+    fn _setup_servo(pin: u8) -> Servo {
         let board = Board::new(MockIoProtocol::default()); // Assuming a mock Board implementation
         Servo::new(&board, pin, 90).unwrap()
     }

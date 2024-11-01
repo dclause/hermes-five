@@ -23,7 +23,7 @@ pub struct Button {
     // ########################################
     // # Basics
     /// The pin (id) of the [`Board`] used to read the button value.
-    pin: u16,
+    pin: u8,
     /// The current Button state.
     #[cfg_attr(feature = "serde", serde(with = "crate::devices::arc_rwlock_serde"))]
     state: Arc<RwLock<bool>>,
@@ -167,7 +167,7 @@ impl Button {
     // ########################################
 
     /// Returns the pin (id) used by the device.
-    pub fn get_pin(&self) -> u16 {
+    pub fn get_pin(&self) -> u8 {
         self.pin
     }
 

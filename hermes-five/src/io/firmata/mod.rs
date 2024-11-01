@@ -94,7 +94,7 @@ impl IoProtocol for FirmataIo {
         self.data.read().connected
     }
 
-    fn set_pin_mode(&mut self, pin: u16, mode: PinModeId) -> Result<(), Error> {
+    fn set_pin_mode(&mut self, pin: u8, mode: PinModeId) -> Result<(), Error> {
         {
             let mut lock = self.data.write();
             let pin_instance = lock.get_pin_mut(pin)?;
@@ -109,7 +109,7 @@ impl IoProtocol for FirmataIo {
         self.transport.write(&[SET_PIN_MODE, pin as u8, mode as u8])
     }
 
-    fn digital_write(&mut self, pin: u16, level: bool) -> Result<(), Error> {
+    fn digital_write(&mut self, pin: u8, level: bool) -> Result<(), Error> {
         let port = (pin / 8) as u8;
         let mut value: u16 = 0;
         let mut i = 0;
@@ -129,7 +129,7 @@ impl IoProtocol for FirmataIo {
             // Loop through all 8 pins of the current "port" to concatenate their value.
             // For instance 01100000 will set to 1 the pin 1 and 2 or current port.
             while i < 8 {
-                if lock.get_pin_mut((8 * port + i) as u16)?.value != 0 {
+                if lock.get_pin_mut(8 * port + i)?.value != 0 {
                     value |= 1 << i
                 }
                 i += 1;
@@ -145,7 +145,7 @@ impl IoProtocol for FirmataIo {
         self.transport.write(payload)
     }
 
-    fn analog_write(&mut self, pin: u16, level: u16) -> Result<(), Error> {
+    fn analog_write(&mut self, pin: u8, level: u16) -> Result<(), Error> {
         // Set the pin value.
         self.data.write().get_pin_mut(pin)?.value = level;
 
@@ -203,7 +203,7 @@ impl IoProtocol for FirmataIo {
         Ok(())
     }
 
-    fn report_digital(&mut self, pin: u16, state: bool) -> Result<(), Error> {
+    fn report_digital(&mut self, pin: u8, state: bool) -> Result<(), Error> {
         let port = (pin / 8) as u8;
         let payload = &[REPORT_DIGITAL | port, u8::from(state)];
         trace!("Report digital: {:02X?}", payload);
@@ -236,7 +236,7 @@ impl IoProtocol for FirmataIo {
         ])
     }
 
-    fn servo_config(&mut self, pin: u16, pwm_range: Range<u16>) -> Result<(), Error> {
+    fn servo_config(&mut self, pin: u8, pwm_range: Range<u16>) -> Result<(), Error> {
         self.transport.write(&[
             START_SYSEX,
             SERVO_CONFIG,
@@ -259,11 +259,11 @@ impl IoProtocol for FirmataIo {
         ])
     }
 
-    fn i2c_read(&mut self, address: i32, size: i32) -> Result<(), Error> {
+    fn i2c_read(&mut self, address: u8, size: u8) -> Result<(), Error> {
         self.transport.write(&[
             START_SYSEX,
             I2C_REQUEST,
-            address as u8,
+            address,
             I2C_READ << 3,
             (size as u8) & SYSEX_REALTIME,
             (size >> 7) as u8 & SYSEX_REALTIME,
@@ -271,12 +271,12 @@ impl IoProtocol for FirmataIo {
         ])
     }
 
-    fn i2c_write(&mut self, address: i32, data: &[u8]) -> Result<(), Error> {
-        let mut buf = vec![START_SYSEX, I2C_REQUEST, address as u8, I2C_WRITE << 3];
+    fn i2c_write(&mut self, address: u8, data: &[u8]) -> Result<(), Error> {
+        let mut buf = vec![START_SYSEX, I2C_REQUEST, address, I2C_WRITE << 3];
 
         for &i in data.iter() {
-            buf.push(i & SYSEX_REALTIME);
-            buf.push(((i as i32) >> 7) as u8 & SYSEX_REALTIME);
+            buf.push(i as u8 & SYSEX_REALTIME);
+            buf.push((i >> 7) as u8 & SYSEX_REALTIME);
         }
 
         buf.push(END_SYSEX);
@@ -378,7 +378,7 @@ impl FirmataIo {
     /// Handle an ANALOG_MESSAGE message (0xE0 - report state of an analog pin)
     /// <https://github.com/firmata/protocol/blob/master/protocol.md#data-message-expansion>
     fn handle_analog_message(&mut self, buf: &[u8]) -> Result<Message, Error> {
-        let pin = (buf[0] as u16 & 0x0F) + 14;
+        let pin = (buf[0] & 0x0F) + 14;
         let value = (buf[1] as u16) | ((buf[2] as u16) << 7);
         trace!("Received analog message: pin({})={}", pin, value);
         self.get_io().write().get_pin_mut(pin)?.value = value;
@@ -388,7 +388,7 @@ impl FirmataIo {
     /// Handle a DIGITAL_MESSAGE message (0x90 - report state of a digital pin/port)
     /// <https://github.com/firmata/protocol/blob/master/protocol.md#data-message-expansion>
     fn handle_digital_message(&mut self, buf: &[u8]) -> Result<Message, Error> {
-        let port = (buf[0] as u16) & 0x0F;
+        let port = buf[0] & 0x0F;
         let value = (buf[1] as u16) | ((buf[2] as u16) << 7);
         trace!("Received digital message: pin({})={}", port, value);
 
@@ -438,11 +438,11 @@ impl FirmataIo {
         let mut i = 2;
         while buf[i] != END_SYSEX {
             if buf[i] != SYSEX_REALTIME {
-                let pin = &mut lock.get_pin_mut((i - 2) as u16)?;
+                let pin = &mut lock.get_pin_mut((i - 2) as u8)?;
                 pin.mode = pin
                     .supports_mode(PinModeId::ANALOG)
                     .ok_or(IncompatibleMode {
-                        pin: (i - 2) as u16,
+                        pin: (i - 2) as u8,
                         mode: PinModeId::ANALOG,
                         context: "handle_analog_mapping_response",
                     })?;
@@ -527,13 +527,13 @@ impl FirmataIo {
             }));
         }
         let mut reply = I2CReply {
-            address: (buf[2] as u16) | ((buf[3] as u16) << 7),
-            register: (buf[4] as u16) | ((buf[5] as u16) << 7),
-            data: vec![(buf[6] as u16) | (buf[7] as u16) << 7],
+            address: buf[2] | (buf[3] << 7),
+            register: buf[4] | (buf[5] << 7),
+            data: vec![buf[6] | (buf[7] << 7)],
         };
         let mut i = 8;
         while buf[i] != END_SYSEX {
-            reply.data.push((buf[i] as u16) | (buf[i + 1] as u16) << 7);
+            reply.data.push((buf[i]) | (buf[i + 1] << 7));
             i += 2;
         }
         self.get_io().write().i2c_data.push(reply);
@@ -543,7 +543,7 @@ impl FirmataIo {
     /// Handle a PIN_STATE_RESPONSE message (0x6E - report pin current mode and state)
     /// <https://github.com/firmata/protocol/blob/master/protocol.md#pin-state-query>
     fn handle_pin_state_response(&mut self, buf: &[u8]) -> Result<Message, Error> {
-        let pin = buf[2] as u16;
+        let pin = buf[2];
         if buf.len() < 4 || buf[3] == END_SYSEX {
             return Err(Error::from(MessageTooShort {
                 operation: "handle_pin_state_response",
@@ -1304,7 +1304,7 @@ mod tests {
             assert_eq!(data.i2c_data[0].register, 8);
             let data = data.i2c_data[0].clone().data;
             assert_eq!(data, vec![0x63, 0x6F, 0x76, 0x65, 0x72, 0x61, 0x67, 0x65]);
-            assert_eq!(String::from_utf16(data.as_slice()).unwrap(), "coverage");
+            assert_eq!(String::from_utf8_lossy(data.as_slice()), "coverage");
         }
     }
 

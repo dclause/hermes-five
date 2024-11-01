@@ -21,7 +21,7 @@ pub struct Led {
     // ########################################
     // # Basics
     /// The pin (id) of the [`Board`] used to control the LED.
-    pin: u16,
+    pin: u8,
     /// The current LED state.
     #[cfg_attr(feature = "serde", serde(with = "crate::devices::arc_rwlock_serde"))]
     state: Arc<RwLock<u16>>,
@@ -51,7 +51,7 @@ impl Led {
     /// # Errors
     /// * `UnknownPin`: this function will bail an error if the pin does not exist for this board.
     /// * `IncompatibleMode`: this function will bail an error if the pin does not support OUTPUT or PWM mode.
-    pub fn new(board: &Board, pin: u16, default: bool) -> Result<Self, Error> {
+    pub fn new(board: &Board, pin: u8, default: bool) -> Result<Self, Error> {
         let mut protocol = board.get_protocol();
 
         // Get the hardware corresponding pin.
@@ -149,7 +149,7 @@ impl Led {
     // Getters.
 
     /// Returns the pin (id) used by the device.
-    pub fn get_pin(&self) -> u16 {
+    pub fn get_pin(&self) -> u8 {
         self.pin
     }
 
@@ -290,7 +290,7 @@ mod tests {
 
     use super::*;
 
-    fn _setup_led(pin: u16) -> Led {
+    fn _setup_led(pin: u8) -> Led {
         let board = Board::new(MockIoProtocol::default()); // Assuming a mock Board implementation
         Led::new(&board, pin, false).unwrap()
     }

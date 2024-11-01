@@ -14,12 +14,12 @@ use crate::errors::*;
 pub struct IoData {
     /// All `Pin` instances, representing the hardware's pins.
     #[cfg_attr(feature = "serde", serde(skip))]
-    pub pins: HashMap<u16, Pin>,
+    pub pins: HashMap<u8, Pin>,
     /// A vector of `I2CReply` instances, representing I2C communication data.
     #[cfg_attr(feature = "serde", serde(skip))]
     pub i2c_data: Vec<I2CReply>,
     /// List pins with digital reporting activated.
-    pub digital_reported_pins: Vec<u16>,
+    pub digital_reported_pins: Vec<u8>,
     /// List pins with analog reporting activated.
     pub analog_reported_channels: Vec<u8>,
     /// A string indicating the version of the protocol.
@@ -72,9 +72,9 @@ impl IoData {
 #[derive(Default, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct I2CReply {
-    pub address: u16,
-    pub register: u16,
-    pub data: Vec<u16>,
+    pub address: u8,
+    pub register: u8,
+    pub data: Vec<u8>,
 }
 
 /// Represents the current state and configuration of a pin.
@@ -82,7 +82,7 @@ pub struct I2CReply {
 #[derive(Clone, Default)]
 pub struct Pin {
     /// The pin ID, which also corresponds to the index of the [`IoData::pins`] hashmap.
-    pub id: u16,
+    pub id: u8,
     /// The pin name: an alternative String representation of the pin name: 'D13', 'A0', 'GPIO13' for instance.
     pub name: String,
     /// Currently configured mode.
@@ -148,12 +148,12 @@ impl Debug for Pin {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, PartialEq, Debug)]
 pub enum PinIdOrName {
-    Id(u16),
+    Id(u8),
     Name(String),
 }
 
-impl From<u16> for PinIdOrName {
-    fn from(n: u16) -> Self {
+impl From<u8> for PinIdOrName {
+    fn from(n: u8) -> Self {
         PinIdOrName::Id(n)
     }
 }
@@ -482,7 +482,7 @@ mod tests {
 
     #[test]
     fn test_pin_id_from() {
-        let pin = PinIdOrName::from(42u16);
+        let pin = PinIdOrName::from(42);
         assert_eq!(pin, PinIdOrName::Id(42));
         let pin: PinIdOrName = 4.into();
         assert_eq!(pin, PinIdOrName::Id(4));

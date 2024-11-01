@@ -4,7 +4,9 @@ use dyn_clone::DynClone;
 use std::fmt::{Debug, Display};
 use std::time::Duration;
 
+// mod I2C;
 mod serial;
+
 pub use serial::Serial;
 
 /// Only used for tests to downcast the transport layer.
