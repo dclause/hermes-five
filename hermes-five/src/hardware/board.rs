@@ -50,7 +50,7 @@ impl Default for Board {
     /// # Example
     ///
     /// ```
-    /// use hermes_five::hardware::{Board, Hardware};
+    /// use hermes_five::hardware::Board;
     /// use hermes_five::io::RemoteIo;
     ///
     /// #[hermes_five::runtime]
@@ -70,7 +70,7 @@ impl Default for Board {
 ///
 /// # Example
 /// ```
-/// use hermes_five::hardware::{Board, Hardware};
+/// use hermes_five::hardware::Board;
 /// use hermes_five::io::RemoteIo;
 /// use hermes_five::io::Serial;
 ///
@@ -96,7 +96,7 @@ impl Board {
     ///
     /// # Example
     /// ```
-    /// use hermes_five::hardware::{Board, Hardware};
+    /// use hermes_five::hardware::Board;
     /// use hermes_five::io::RemoteIo;
     ///
     /// #[hermes_five::runtime]
@@ -115,7 +115,7 @@ impl Board {
     ///
     /// # Example
     /// ```
-    /// use hermes_five::hardware::{Board, Hardware};
+    /// use hermes_five::hardware::Board;
     /// use hermes_five::io::RemoteIo;
     ///
     /// #[hermes_five::runtime]
@@ -128,6 +128,85 @@ impl Board {
             events: EventManager::default(),
             protocol: Box::new(protocol),
         }
+    }
+
+    /// Starts a board connexion procedure (using the appropriate configured protocol) in an asynchronous way.
+    /// _Note 1:    you probably might not want to call this method yourself and use [`Self::run()`] instead._
+    /// _Note 2:    after this method, you cannot consider the board to be connected until you receive the "ready" event._
+    ///
+    /// # Example
+    ///
+    /// Have a look at the examples/board folder more detailed examples.
+    ///
+    /// ```
+    /// use hermes_five::hardware::{Board, BoardEvent};
+    /// use hermes_five::io::IO;
+    ///
+    /// #[hermes_five::runtime]
+    /// async fn main() {
+    ///     let board = Board::run();
+    ///     // Is equivalent to:
+    ///     let mut board = Board::default().open();
+    ///
+    ///     // Register something to do when the board is connected.
+    ///     board.on(BoardEvent::OnReady, |_: Board| async move {
+    ///         // Something to do when connected.
+    ///         Ok(())
+    ///     });
+    ///     // code here will be executed right away, before the board is actually connected.
+    /// }
+    /// ```
+    pub fn open(self) -> Self {
+        let events_clone = self.events.clone();
+        let callback_board = self.clone();
+
+        task::run(async move {
+            let board = callback_board.blocking_open()?;
+            events_clone.emit(BoardEvent::OnReady, board);
+            Ok(())
+        })
+        .expect("Task failed");
+
+        self
+    }
+
+    /// Close a board connexion (using the appropriate configured protocol) in an asynchronous way.
+    /// _Note:    after this method, you cannot consider the board to be connected until you receive the "close" event._
+    ///
+    /// # Example
+    ///
+    /// Have a look at the examples/board folder more detailed examples.
+    ///
+    /// ```
+    /// use hermes_five::pause;
+    /// use hermes_five::hardware::{Board, BoardEvent};
+    /// use hermes_five::io::IO;
+    ///
+    /// #[hermes_five::runtime]
+    /// async fn main() {
+    ///     let board = Board::run();
+    ///     board.on(BoardEvent::OnReady, |mut board: Board| async move {
+    ///         // Something to do when connected.
+    ///         pause!(3000);
+    ///         board.close();
+    ///         Ok(())
+    ///     });
+    ///     board.on(BoardEvent::OnClose, |_: Board| async move {
+    ///         // Something to do when connection closes.
+    ///         Ok(())
+    ///     });
+    /// }
+    /// ```
+    pub fn close(self) -> Self {
+        let events = self.events.clone();
+        let callback_board = self.clone();
+        task::run(async move {
+            let board = callback_board.blocking_close()?;
+            events.emit(BoardEvent::OnClose, board);
+            Ok(())
+        })
+        .expect("Task failed");
+        self
     }
 
     /// Blocking version of [`Self::open()`] method.
@@ -191,85 +270,6 @@ impl Hardware for Board {
     fn get_protocol(&self) -> Box<dyn IoProtocol> {
         self.protocol.clone()
     }
-
-    /// Starts a board connexion procedure (using the appropriate configured protocol) in an asynchronous way.
-    /// _Note 1:    you probably might not want to call this method yourself and use [`Self::run()`] instead._
-    /// _Note 2:    after this method, you cannot consider the board to be connected until you receive the "ready" event._
-    ///
-    /// # Example
-    ///
-    /// Have a look at the examples/board folder more detailed examples.
-    ///
-    /// ```
-    /// use hermes_five::hardware::{Board, BoardEvent, Hardware};
-    /// use hermes_five::io::IO;
-    ///
-    /// #[hermes_five::runtime]
-    /// async fn main() {
-    ///     let board = Board::run();
-    ///     // Is equivalent to:
-    ///     let mut board = Board::default().open();
-    ///
-    ///     // Register something to do when the board is connected.
-    ///     board.on(BoardEvent::OnReady, |_: Board| async move {
-    ///         // Something to do when connected.
-    ///         Ok(())
-    ///     });
-    ///     // code here will be executed right away, before the board is actually connected.
-    /// }
-    /// ```
-    fn open(self) -> Self {
-        let events_clone = self.events.clone();
-        let callback_board = self.clone();
-
-        task::run(async move {
-            let board = callback_board.blocking_open()?;
-            events_clone.emit(BoardEvent::OnReady, board);
-            Ok(())
-        })
-        .expect("Task failed");
-
-        self
-    }
-
-    /// Close a board connexion (using the appropriate configured protocol) in an asynchronous way.
-    /// _Note:    after this method, you cannot consider the board to be connected until you receive the "close" event._
-    ///
-    /// # Example
-    ///
-    /// Have a look at the examples/board folder more detailed examples.
-    ///
-    /// ```
-    /// use hermes_five::pause;
-    /// use hermes_five::hardware::{Board, BoardEvent, Hardware};
-    /// use hermes_five::io::IO;
-    ///
-    /// #[hermes_five::runtime]
-    /// async fn main() {
-    ///     let board = Board::run();
-    ///     board.on(BoardEvent::OnReady, |mut board: Board| async move {
-    ///         // Something to do when connected.
-    ///         pause!(3000);
-    ///         board.close();
-    ///         Ok(())
-    ///     });
-    ///     board.on(BoardEvent::OnClose, |_: Board| async move {
-    ///         // Something to do when connection closes.
-    ///         Ok(())
-    ///     });
-    /// }
-    /// ```
-    fn close(self) -> Self {
-        let events = self.events.clone();
-        let callback_board = self.clone();
-        task::run(async move {
-            let board = callback_board.blocking_close()?;
-            events.emit(BoardEvent::OnClose, board);
-            Ok(())
-        })
-        .expect("Task failed");
-        self
-    }
 }
 
 // Note: no need to test cover: those are simple pass through only.
@@ -312,10 +312,12 @@ impl IO for Board {
         self.protocol.analog_write(pin, level)
     }
 
+    #[cfg(not(tarpaulin_include))]
     fn digital_read(&mut self, _: u8) -> Result<bool, Error> {
         unimplemented!()
     }
 
+    #[cfg(not(tarpaulin_include))]
     fn analog_read(&mut self, _: u8) -> Result<u16, Error> {
         unimplemented!()
     }

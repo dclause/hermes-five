@@ -15,8 +15,8 @@ pub trait Hardware: IO {
 
     /// Returns  the protocol used.
     fn get_protocol(&self) -> Box<dyn IoProtocol>;
-
-    fn open(self) -> Self;
-
-    fn close(self) -> Self;
+    //
+    // fn open(self) -> Self;
+    //
+    // fn close(self) -> Self;
 }

@@ -19,7 +19,7 @@ use crate::utils::{Range, State};
 /// defined easing function.
 /// ```no_run
 /// use hermes_five::animations::{Easing, Keyframe, Track};
-/// use hermes_five::hardware::{Board, Hardware};
+/// use hermes_five::hardware::Board;
 /// use hermes_five::devices::Servo;
 /// use hermes_five::io::RemoteIo;
 ///

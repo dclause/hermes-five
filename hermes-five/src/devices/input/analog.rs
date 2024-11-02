@@ -127,7 +127,7 @@ impl AnalogInput {
     /// # Example
     ///
     /// ```
-    /// use hermes_five::hardware::{Board, BoardEvent, Hardware};
+    /// use hermes_five::hardware::{Board, BoardEvent};
     /// use hermes_five::devices::{AnalogInput, InputEvent};
     ///
     /// #[hermes_five::runtime]
@@ -194,7 +194,6 @@ mod tests {
     use crate::devices::input::Input;
     use crate::devices::input::InputEvent;
     use crate::hardware::Board;
-    use crate::hardware::Hardware;
     use crate::mocks::plugin_io::MockIoProtocol;
     use crate::pause;
     use std::sync::atomic::{AtomicU16, Ordering};

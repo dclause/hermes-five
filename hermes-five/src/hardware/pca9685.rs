@@ -35,16 +35,16 @@ impl Hardware for PCA9685 {
     fn get_protocol(&self) -> Box<dyn IoProtocol> {
         Box::new(self.clone())
     }
-
-    fn open(mut self) -> Self {
-        IoProtocol::open(&mut self).expect("I2C config cannot start");
-        self
-    }
-
-    fn close(mut self) -> Self {
-        IoProtocol::close(&mut self).expect("I2C cannot close");
-        self
-    }
+    //
+    // fn open(mut self) -> Self {
+    //     IoProtocol::open(&mut self).expect("I2C config cannot start");
+    //     self
+    // }
+    //
+    // fn close(mut self) -> Self {
+    //     IoProtocol::close(&mut self).expect("I2C cannot close");
+    //     self
+    // }
 }
 
 impl PCA9685 {
@@ -300,10 +300,12 @@ impl IO for PCA9685 {
         self.protocol.i2c_write(self.address, payload)
     }
 
+    #[cfg(not(tarpaulin_include))]
     fn digital_read(&mut self, _: u8) -> Result<bool, Error> {
         unimplemented!()
     }
 
+    #[cfg(not(tarpaulin_include))]
     fn analog_read(&mut self, _: u8) -> Result<u16, Error> {
         unimplemented!()
     }
@@ -525,10 +527,8 @@ mod tests {
     fn test_open() {
         let board = Board::new(MockIoProtocol::default());
         let mut pca9685 = PCA9685::default(&board).unwrap();
-        assert!(IoProtocol::open(&mut pca9685).is_ok());
+        assert!(pca9685.open().is_ok());
         assert!(pca9685.is_connected());
-        pca9685.connected = false; // force
-        assert!(pca9685.open().is_connected());
     }
 
     #[test]
@@ -536,10 +536,8 @@ mod tests {
         let board = Board::new(MockIoProtocol::default());
         let mut pca9685 = PCA9685::default(&board).unwrap();
         pca9685.connected = true; // force
-        assert!(IoProtocol::close(&mut pca9685).is_ok());
+        assert!(pca9685.close().is_ok());
         assert!(!pca9685.is_connected());
-        pca9685.connected = true; // force
-        assert!(!pca9685.close().is_connected());
     }
 
     #[test]

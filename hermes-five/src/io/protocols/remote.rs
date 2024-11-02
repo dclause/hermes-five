@@ -241,10 +241,12 @@ impl IO for RemoteIo {
         Ok(())
     }
 
+    #[cfg(not(tarpaulin_include))]
     fn digital_read(&mut self, _: u8) -> Result<bool, Error> {
         unimplemented!()
     }
 
+    #[cfg(not(tarpaulin_include))]
     fn analog_read(&mut self, _: u8) -> Result<u16, Error> {
         unimplemented!()
     }

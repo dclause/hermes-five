@@ -20,7 +20,7 @@ use crate::pause;
 /// The robot will perform a waving motion using its servo and LED.
 /// ```no_run
 /// use hermes_five::animations::{Easing, Keyframe, Segment, Track};
-/// use hermes_five::hardware::{Board, Hardware};
+/// use hermes_five::hardware::Board;
 /// use hermes_five::devices::{Led, Servo};
 /// use hermes_five::io::RemoteIo;
 ///

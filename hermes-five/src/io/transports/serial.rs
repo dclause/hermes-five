@@ -26,7 +26,7 @@ impl Serial {
     ///
     /// # Example
     /// ```
-    /// use hermes_five::hardware::{Board, Hardware};
+    /// use hermes_five::hardware::Board;
     /// use hermes_five::io::RemoteIo;
     ///
     /// #[hermes_five::runtime]

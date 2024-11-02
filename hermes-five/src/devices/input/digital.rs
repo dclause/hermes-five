@@ -136,7 +136,7 @@ impl DigitalInput {
     ///
     /// ```
     /// use hermes_five::devices::{DigitalInput, InputEvent};
-    /// use hermes_five::hardware::{Board, BoardEvent, Hardware};
+    /// use hermes_five::hardware::{Board, BoardEvent};
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
@@ -201,7 +201,7 @@ mod tests {
     use crate::devices::input::digital::DigitalInput;
     use crate::devices::input::Input;
     use crate::devices::input::InputEvent;
-    use crate::hardware::{Board, Hardware};
+    use crate::hardware::Board;
     use crate::mocks::plugin_io::MockIoProtocol;
     use crate::pause;
     use std::sync::atomic::{AtomicBool, Ordering};

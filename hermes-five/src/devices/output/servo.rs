@@ -8,7 +8,7 @@ use crate::animations::{Animation, Easing, Keyframe, Segment, Track};
 use crate::devices::{Device, Output};
 use crate::errors::HardwareError::IncompatibleMode;
 use crate::errors::{Error, StateError};
-use crate::hardware::{Board, Hardware};
+use crate::hardware::Hardware;
 use crate::io::{IoProtocol, Pin, PinModeId};
 use crate::utils::{task, Range, Scalable, State};
 use crate::{pause, pause_sync};
@@ -87,7 +87,7 @@ impl Servo {
     /// # Errors
     /// * `UnknownPin`: this function will bail an error if the pin does not exist for this board.
     /// * `IncompatibleMode`: this function will bail an error if the pin does not support SERVO mode.
-    pub fn new<H: Hardware>(board: &H, pin: u8, default: u16) -> Result<Self, Error> {
+    pub fn new(board: &dyn Hardware, pin: u8, default: u16) -> Result<Self, Error> {
         Self::create(board, pin, default, false)
     }
 
@@ -96,17 +96,12 @@ impl Servo {
     /// # Errors
     /// * `UnknownPin`: this function will bail an error if the pin does not exist for this board.
     /// * `IncompatibleMode`: this function will bail an error if the pin does not support SERVO mode.
-    pub fn new_inverted(board: &Board, pin: u8, default: u16) -> Result<Self, Error> {
+    pub fn new_inverted(board: &dyn Hardware, pin: u8, default: u16) -> Result<Self, Error> {
         Self::create(board, pin, default, true)
     }
 
     /// Inner helper.
-    fn create<H: Hardware>(
-        board: &H,
-        pin: u8,
-        default: u16,
-        inverted: bool,
-    ) -> Result<Self, Error> {
+    fn create(board: &dyn Hardware, pin: u8, default: u16, inverted: bool) -> Result<Self, Error> {
         let pwm_range = Range::from([600, 2400]);
 
         let mut servo = Self {
@@ -625,5 +620,44 @@ mod tests {
         let display_output = format!("{}", servo);
         let expected_output = "SERVO (pin=12) [state=90, default=90, range=0-180]";
         assert_eq!(display_output, expected_output);
+    }
+}
+
+#[cfg(feature = "serde")]
+#[cfg(test)]
+mod serde_tests {
+    use crate::hardware::{Board, Hardware, PCA9685};
+    use crate::mocks::plugin_io::MockIoProtocol;
+    use hermes_five::devices::Servo;
+
+    #[test]
+    fn test_servo_serialize() {
+        let board = Board::new(MockIoProtocol::default());
+        let servo = Servo::new(&board, 12, 90).expect("servo");
+        let json = serde_json::to_string(&servo).unwrap();
+        assert_eq!(
+            json,
+            r#"{"pin":12,"state":90,"default":90,"servo_type":"Standard","range":[0,180],"pwm_range":[600,2400],"degree_range":[0,180],"detach_delay":20000}"#
+        );
+
+        let pca9685 = PCA9685::default(&board).expect("pca9685");
+        let servo = Servo::new(&pca9685, 12, 90).expect("servo");
+        let json = serde_json::to_string(&servo).unwrap();
+        assert_eq!(
+            json,
+            r#"{"pin":12,"state":90,"default":90,"servo_type":"Standard","range":[0,180],"pwm_range":[600,2400],"degree_range":[0,180],"detach_delay":20000}"#
+        );
+    }
+
+    #[test]
+    fn test_board_deserialize() {
+        let json =
+            r#"{"protocol":{"type":"RemoteIo","transport":{"type":"Serial","port":"mock"}}}"#;
+        let board: Board = serde_json::from_str(json).unwrap();
+        assert_eq!(board.get_protocol_name(), "RemoteIo");
+
+        let json = r#"{"protocol":{"type":"MockIoProtocol"}}"#;
+        let board: Board = serde_json::from_str(json).unwrap();
+        assert_eq!(board.get_protocol_name(), "MockIoProtocol");
     }
 }

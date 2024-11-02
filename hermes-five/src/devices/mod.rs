@@ -59,7 +59,7 @@ pub mod arc_rwlock_serde {
     }
 
     #[cfg(test)]
-    mod arc_rwlock_serde_tests {
+    mod serde_tests {
         use serde_json;
 
         use crate::mocks::output_device::MockOutputDevice;
