@@ -34,6 +34,7 @@ The available examples are:
 - **servo/servo.rs:** Demonstrates how to use and control a servo.
 - **servo/sweep.rs:** Demonstrates how to loop sweep a servo in a given range of motion.
 - **servo/animate.rs:** Demonstrates how to move a servo in an animated way (control of speed).
+- **servo/pca9685.rs:** Demonstrates how to move a servo via a PWM-driver like PCA9685.
 
 ## Button
 

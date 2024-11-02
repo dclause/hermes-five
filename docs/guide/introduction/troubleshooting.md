@@ -51,12 +51,13 @@ Change the pin for a compatible one.<br/>
 The folowing code will display you all pins and there compatibility:
 ```rust
 use hermes_five::hardware::{Board, BoardEvent};
+use hermes_five::io::IO;
 
 #[hermes_five::runtime]
 async fn main() {
     let board = Board::run();
     board.on(BoardEvent::OnReady, |mut board: Board| async move {
-        println!("Pins {:#?}", board.get_io().pins);
+        println!("Pins {:#?}", board.get_io().read().pins);
         Ok(())
     });
 }

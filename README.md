@@ -143,7 +143,7 @@ In short:
 - [version 0.2](/roadmap.md#release-version-02): PoC of swapping the underlying bricks
     - multi-protocol compatibility: serial, wifi, etc.
     - multi-board compatibility: arduino, raspberry, etc.
-    - *to be determined:* new layer between the board and devices ? (ex. PCA9685 for servo)
+    - clarify the hardware layer (ex. Board/PCA9685/IOExpanders for devices)
 
 ## Contribution
 
