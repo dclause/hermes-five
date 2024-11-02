@@ -13,7 +13,7 @@
 //! - Callbacks follows a strict syntax and MUST be used with the proper argument signature.
 //! - All callbacks MUST return `Result<(), Error>>`.
 
-use hermes_five::hardware::{Board, BoardEvent};
+use hermes_five::hardware::{Board, BoardEvent, Hardware};
 
 #[hermes_five::runtime]
 async fn main() {

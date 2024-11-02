@@ -8,7 +8,7 @@ use crate::devices::{Device, Output};
 use crate::errors::HardwareError::IncompatibleMode;
 use crate::errors::{Error, StateError};
 use crate::hardware::{Board, Hardware};
-use crate::io::{IoProtocol, Pin, PinIdOrName, PinModeId};
+use crate::io::{IoProtocol, Pin, PinIdOrName, PinModeId, IO};
 use crate::utils::State;
 
 /// Represents an analog actuator of unspecified type: an [`Output`] [`Device`] that write analog values from a PWM compatible pin.
@@ -46,7 +46,7 @@ impl PwmOutput {
     /// * `UnknownPin`: this function will bail an error if the pin does not exist for this board.
     /// * `IncompatibleMode`: this function will bail an error if the pin does not support PWM mode.
     pub fn new<T: Into<PinIdOrName>>(board: &Board, pin: T, default: u16) -> Result<Self, Error> {
-        let pin = board.get_io().get_pin(pin)?.clone();
+        let pin = board.get_io().read().get_pin(pin)?.clone();
 
         let mut output = Self {
             pin: pin.id,
@@ -61,7 +61,11 @@ impl PwmOutput {
         output.protocol.set_pin_mode(output.pin, PinModeId::PWM)?;
 
         // Retrieve PWM max value for the pin.
-        output.max_value = board.get_io().get_pin(pin.id)?.get_max_possible_value();
+        output.max_value = board
+            .get_io()
+            .read()
+            .get_pin(pin.id)?
+            .get_max_possible_value();
 
         // Resets the output to default value.
         output.reset()?;

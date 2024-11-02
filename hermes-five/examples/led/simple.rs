@@ -1,5 +1,5 @@
 use hermes_five::devices::Led;
-use hermes_five::hardware::{Board, BoardEvent};
+use hermes_five::hardware::{Board, BoardEvent, Hardware};
 use hermes_five::pause;
 
 #[hermes_five::runtime]

@@ -1,12 +1,12 @@
 use crate::errors::Error;
 use crate::hardware::Hardware;
-use crate::io::{FirmataIo, IoData, IoTransport};
+use crate::io::{FirmataIo, IoData, IoTransport, IO};
 use crate::io::{IoProtocol, PinModeId};
-use crate::utils::task;
+use crate::utils::{task, Range};
 use crate::utils::{EventHandler, EventManager};
-use parking_lot::RwLockReadGuard;
+use parking_lot::RwLock;
 use std::fmt::Display;
-use std::ops::{Deref, DerefMut};
+use std::sync::Arc;
 
 /// Lists all events a Board can emit/listen.
 pub enum BoardEvent {
@@ -50,7 +50,7 @@ impl Default for Board {
     /// # Example
     ///
     /// ```
-    /// use hermes_five::hardware::Board;
+    /// use hermes_five::hardware::{Board, Hardware};
     /// use hermes_five::io::FirmataIo;
     ///
     /// #[hermes_five::runtime]
@@ -66,14 +66,25 @@ impl Default for Board {
     }
 }
 
-impl Hardware for Board {
-    /// Returns  the protocol used.
-    ///
-    /// NOTE: this is private to the crate since board already gives access to protocol methods via Deref.
-    /// This method is only used internally in all [`Device::new()`] methods to clone the protocol into the
-    /// device.
-    fn get_protocol(&self) -> Box<dyn IoProtocol> {
-        self.protocol.clone()
+/// Creates a board using the given transport layer with the FirmataIo protocol.
+///
+/// # Example
+/// ```
+/// use hermes_five::hardware::{Board, Hardware};
+/// use hermes_five::io::FirmataIo;
+/// use hermes_five::io::Serial;
+///
+/// #[hermes_five::runtime]
+/// async fn main() {
+///     let board = Board::from(Serial::new("/dev/ttyUSB0")).open();
+/// }
+/// ```
+impl<T: IoTransport> From<T> for Board {
+    fn from(transport: T) -> Self {
+        Self {
+            events: Default::default(),
+            protocol: Box::new(FirmataIo::from(transport)),
+        }
     }
 }
 
@@ -85,7 +96,7 @@ impl Board {
     ///
     /// # Example
     /// ```
-    /// use hermes_five::hardware::Board;
+    /// use hermes_five::hardware::{Board, Hardware};
     /// use hermes_five::io::FirmataIo;
     ///
     /// #[hermes_five::runtime]
@@ -104,7 +115,7 @@ impl Board {
     ///
     /// # Example
     /// ```
-    /// use hermes_five::hardware::Board;
+    /// use hermes_five::hardware::{Board, Hardware};
     /// use hermes_five::io::FirmataIo;
     ///
     /// #[hermes_five::runtime]
@@ -119,45 +130,6 @@ impl Board {
         }
     }
 
-    /// Starts a board connexion procedure (using the appropriate configured protocol) in an asynchronous way.
-    /// _Note 1:    you probably might not want to call this method yourself and use [`Self::run()`] instead._
-    /// _Note 2:    after this method, you cannot consider the board to be connected until you receive the "ready" event._
-    ///
-    /// # Example
-    ///
-    /// Have a look at the examples/board folder more detailed examples.
-    ///
-    /// ```
-    /// use hermes_five::hardware::Board;
-    /// use hermes_five::hardware::BoardEvent;
-    ///
-    /// #[hermes_five::runtime]
-    /// async fn main() {
-    ///     let board = Board::run();
-    ///     // Is equivalent to:
-    ///     let board = Board::default().open();
-    ///     // Register something to do when the board is connected.
-    ///     board.on(BoardEvent::OnReady, |_: Board| async move {
-    ///         // Something to do when connected.
-    ///         Ok(())
-    ///     });
-    ///     // code here will be executed right away, before the board is actually connected.
-    /// }
-    /// ```
-    pub fn open(self) -> Self {
-        let events_clone = self.events.clone();
-        let callback_board = self.clone();
-
-        task::run(async move {
-            let board = callback_board.blocking_open()?;
-            events_clone.emit(BoardEvent::OnReady, board);
-            Ok(())
-        })
-        .expect("Task failed");
-
-        self
-    }
-
     /// Blocking version of [`Self::open()`] method.
     pub fn blocking_open(mut self) -> Result<Self, Error> {
         self.protocol.open()?;
@@ -165,49 +137,10 @@ impl Board {
         Ok(self)
     }
 
-    /// Close a board connexion (using the appropriate configured protocol) in an asynchronous way.
-    /// _Note:    after this method, you cannot consider the board to be connected until you receive the "close" event._
-    ///
-    /// # Example
-    ///
-    /// Have a look at the examples/board folder more detailed examples.
-    ///
-    /// ```
-    /// use hermes_five::pause;
-    /// use hermes_five::hardware::{Board, BoardEvent};
-    ///
-    /// #[hermes_five::runtime]
-    /// async fn main() {
-    /// let board = Board::run();
-    ///     board.on(BoardEvent::OnReady, |board: Board| async move {
-    ///         // Something to do when connected.
-    ///         pause!(3000);
-    ///         board.close();
-    ///         Ok(())
-    ///     });
-    ///     board.on(BoardEvent::OnClose, |_: Board| async move {
-    ///         // Something to do when connection closes.
-    ///         Ok(())
-    ///     });
-    /// }
-    /// ```
-    ///
-    pub fn close(self) -> Self {
-        let events = self.events.clone();
-        let callback_board = self.clone();
-        task::run(async move {
-            let board = callback_board.blocking_close()?;
-            events.emit(BoardEvent::OnClose, board);
-            Ok(())
-        })
-        .expect("Task failed");
-        self
-    }
-
     /// Blocking version of [`Self::close()`] method.
     pub fn blocking_close(mut self) -> Result<Self, Error> {
         // Detach all pins.
-        let pins: Vec<u8> = self.get_io().pins.keys().copied().collect();
+        let pins: Vec<u8> = self.get_io().read().pins.keys().copied().collect();
         for id in pins {
             let _ = self.set_pin_mode(id, PinModeId::OUTPUT);
         }
@@ -248,49 +181,160 @@ impl Board {
     {
         self.events.on(event, callback)
     }
+}
 
+impl Hardware for Board {
+    /// Returns  the protocol used.
+    ///
+    /// NOTE: this is private to the crate since board already gives access to protocol methods via Deref.
+    /// This method is only used internally in all [`Device::new()`] methods to clone the protocol into the
+    /// device.
+    fn get_protocol(&self) -> Box<dyn IoProtocol> {
+        self.protocol.clone()
+    }
+
+    /// Starts a board connexion procedure (using the appropriate configured protocol) in an asynchronous way.
+    /// _Note 1:    you probably might not want to call this method yourself and use [`Self::run()`] instead._
+    /// _Note 2:    after this method, you cannot consider the board to be connected until you receive the "ready" event._
+    ///
+    /// # Example
+    ///
+    /// Have a look at the examples/board folder more detailed examples.
+    ///
+    /// ```
+    /// use hermes_five::hardware::{Board, BoardEvent, Hardware};
+    /// use hermes_five::io::IO;
+    ///
+    /// #[hermes_five::runtime]
+    /// async fn main() {
+    ///     let board = Board::run();
+    ///     // Is equivalent to:
+    ///     let mut board = Board::default().open();
+    ///
+    ///     // Register something to do when the board is connected.
+    ///     board.on(BoardEvent::OnReady, |_: Board| async move {
+    ///         // Something to do when connected.
+    ///         Ok(())
+    ///     });
+    ///     // code here will be executed right away, before the board is actually connected.
+    /// }
+    /// ```
+    fn open(self) -> Self {
+        let events_clone = self.events.clone();
+        let callback_board = self.clone();
+
+        task::run(async move {
+            let board = callback_board.blocking_open()?;
+            events_clone.emit(BoardEvent::OnReady, board);
+            Ok(())
+        })
+        .expect("Task failed");
+
+        self
+    }
+
+    /// Close a board connexion (using the appropriate configured protocol) in an asynchronous way.
+    /// _Note:    after this method, you cannot consider the board to be connected until you receive the "close" event._
+    ///
+    /// # Example
+    ///
+    /// Have a look at the examples/board folder more detailed examples.
+    ///
+    /// ```
+    /// use hermes_five::pause;
+    /// use hermes_five::hardware::{Board, BoardEvent, Hardware};
+    /// use hermes_five::io::IO;
+    ///
+    /// #[hermes_five::runtime]
+    /// async fn main() {
+    ///     let board = Board::run();
+    ///     board.on(BoardEvent::OnReady, |mut board: Board| async move {
+    ///         // Something to do when connected.
+    ///         pause!(3000);
+    ///         board.close();
+    ///         Ok(())
+    ///     });
+    ///     board.on(BoardEvent::OnClose, |_: Board| async move {
+    ///         // Something to do when connection closes.
+    ///         Ok(())
+    ///     });
+    /// }
+    /// ```
+    fn close(self) -> Self {
+        let events = self.events.clone();
+        let callback_board = self.clone();
+        task::run(async move {
+            let board = callback_board.blocking_close()?;
+            events.emit(BoardEvent::OnClose, board);
+            Ok(())
+        })
+        .expect("Task failed");
+        self
+    }
+}
+
+// Note: no need to test cover: those are simple pass through only.
+#[cfg(not(tarpaulin_include))]
+impl IO for Board {
     /// Easy access to hardware through the board.
     ///
     /// # Example
     /// ```
     /// use hermes_five::hardware::Board;
     /// use hermes_five::hardware::BoardEvent;
-    /// use hermes_five::io::PinModeId;
+    /// use hermes_five::io::IO;
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
     ///     let board = Board::run();
-    ///
     ///     board.on(BoardEvent::OnReady, |mut board: Board| async move {
     ///         println!("Board connected: {}", board);
-    ///         println!("Pins {:#?}", board.get_io().pins);
+    ///         println!("Pins {:#?}", board.get_io().read().pins);
     ///         Ok(())
     ///     });
     /// }
-    pub fn get_io(&self) -> RwLockReadGuard<IoData> {
-        self.protocol.get_io().read()
+    fn get_io(&self) -> &Arc<RwLock<IoData>> {
+        self.protocol.get_io()
     }
-}
 
-/// Creates a board using the given transport layer with the FirmataIo protocol.
-///
-/// # Example
-/// ```
-/// use hermes_five::hardware::Board;
-/// use hermes_five::io::FirmataIo;
-/// use hermes_five::io::Serial;
-///
-/// #[hermes_five::runtime]
-/// async fn main() {
-///     let board = Board::from(Serial::new("/dev/ttyUSB0")).open();
-/// }
-/// ```
-impl<T: IoTransport> From<T> for Board {
-    fn from(transport: T) -> Self {
-        Self {
-            events: Default::default(),
-            protocol: Box::new(FirmataIo::from(transport)),
-        }
+    fn is_connected(&self) -> bool {
+        self.protocol.is_connected()
+    }
+
+    fn set_pin_mode(&mut self, pin: u8, mode: PinModeId) -> Result<(), Error> {
+        self.protocol.set_pin_mode(pin, mode)
+    }
+
+    fn digital_write(&mut self, pin: u8, level: bool) -> Result<(), Error> {
+        self.protocol.digital_write(pin, level)
+    }
+
+    fn analog_write(&mut self, pin: u8, level: u16) -> Result<(), Error> {
+        self.protocol.analog_write(pin, level)
+    }
+
+    fn digital_read(&mut self, _: u8) -> Result<bool, Error> {
+        unimplemented!()
+    }
+
+    fn analog_read(&mut self, _: u8) -> Result<u16, Error> {
+        unimplemented!()
+    }
+
+    fn servo_config(&mut self, pin: u8, pwm_range: Range<u16>) -> Result<(), Error> {
+        self.protocol.servo_config(pin, pwm_range)
+    }
+
+    fn i2c_config(&mut self, delay: u16) -> Result<(), Error> {
+        self.protocol.i2c_config(delay)
+    }
+
+    fn i2c_read(&mut self, address: u8, size: u16) -> Result<(), Error> {
+        self.protocol.i2c_read(address, size)
+    }
+
+    fn i2c_write(&mut self, address: u8, data: &[u16]) -> Result<(), Error> {
+        self.protocol.i2c_write(address, data)
     }
 }
 
@@ -300,24 +344,11 @@ impl Display for Board {
     }
 }
 
-impl Deref for Board {
-    type Target = Box<dyn IoProtocol>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.protocol
-    }
-}
-
-impl DerefMut for Board {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.protocol
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::io::Serial;
+    use crate::io::IO;
     use crate::mocks::plugin_io::MockIoProtocol;
     use crate::mocks::transport_layer::MockTransportLayer;
     use crate::pause;
@@ -329,7 +360,7 @@ mod tests {
         // Default board can be created.
         let board = Board::default();
         assert_eq!(
-            board.protocol.get_protocol_name(),
+            board.get_protocol_name(),
             "FirmataIo",
             "Default board uses the default protocol"
         );
@@ -340,14 +371,14 @@ mod tests {
         // Custom protocol can be used.
         let board = Board::new(MockIoProtocol::default());
         assert_eq!(
-            board.protocol.get_protocol_name(),
+            board.get_protocol_name(),
             "MockIoProtocol",
             "Board can be created with a custom protocol"
         );
         // Custom transport can be used.
         let board = Board::from(Serial::default());
         assert_eq!(
-            board.protocol.get_protocol_name(),
+            board.get_protocol_name(),
             "FirmataIo",
             "Board can be created with a custom transport"
         );
@@ -427,14 +458,14 @@ mod tests {
     #[hermes_macros::test]
     fn test_board_run() {
         let board = Board::run();
-        assert_eq!(board.protocol.get_protocol_name(), "FirmataIo");
+        assert_eq!(board.get_protocol_name(), "FirmataIo");
         board.close();
     }
 
     #[test]
     fn test_board_get_hardware() {
         let board = Board::new(MockIoProtocol::default());
-        assert_eq!(board.get_io().protocol_version, "fake.1.0");
+        assert_eq!(board.get_io().read().protocol_version, "fake.1.0");
     }
 
     #[test]
@@ -446,21 +477,12 @@ mod tests {
             "Board (MockIoProtocol [firmware=Fake protocol, version=fake.2.3, protocol=fake.1.0])"
         );
     }
-
-    #[test]
-    fn test_board_deref() {
-        let mut transport = MockTransportLayer::default();
-        transport.read_buf[..3].copy_from_slice(&[0xF9, 0x01, 0x19]);
-        let board = Board::new(FirmataIo::from(transport));
-        assert!(!board.get_protocol().is_connected());
-        assert!(!board.is_connected());
-    }
 }
 
 #[cfg(feature = "serde")]
 #[cfg(test)]
 mod serde_tests {
-    use crate::hardware::Board;
+    use crate::hardware::{Board, Hardware};
     use crate::io::FirmataIo;
     use crate::mocks::plugin_io::MockIoProtocol;
 

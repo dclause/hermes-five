@@ -46,6 +46,12 @@ The purpose for this release is to create a proof-of-concept of the project:
 - [X] ~~Implement most features for creating DigitalOutput output~~
 - [X] ~~Implement most features for creating PwmOutput output~~
 
+### ~~Phase 3: Interchangeable layers.~~
+
+- [X] ~~Introduce IoProtocol to prepare interops: demonstrate with mocks.~~
+- [X] ~~Introduce IoTransport to prepare interops: demonstrate with mocks.~~
+- [X] ~~Introduce Hardware for expanders: demonstrate with PCA9685.~~
+
 ### Pre-release phase:
 
 - [ ] Write appropriate documentation
@@ -56,4 +62,4 @@ The purpose for this release is elaborate on the project and show-casing how to 
 
 - multi-protocol compatibility: use serial, wifi, etc. to communicate with a board
 - multi-board compatibility: control devices attached to arduino, raspberry, etc.
-- *to be clarified:* introduce a new layer between the board and devices ? (ex. PCA9685 for servo)
+- clarify the hardware layer (ex. Board/PCA9685/IOExpanders for devices)

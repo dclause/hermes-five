@@ -4,7 +4,7 @@
 
 use crate::errors::{Error, HardwareError, UnknownError};
 use crate::hardware::{Board, Hardware};
-use crate::io::{IoData, IoProtocol, Pin, PinMode, PinModeId};
+use crate::io::{IoData, IoProtocol, Pin, PinMode, PinModeId, IO};
 use crate::utils::{Range, Scalable};
 use parking_lot::RwLock;
 use std::collections::HashMap;
@@ -35,7 +35,18 @@ impl Hardware for PCA9685 {
     fn get_protocol(&self) -> Box<dyn IoProtocol> {
         Box::new(self.clone())
     }
+
+    fn open(mut self) -> Self {
+        IoProtocol::open(&mut self).expect("I2C config cannot start");
+        self
+    }
+
+    fn close(mut self) -> Self {
+        IoProtocol::close(&mut self).expect("I2C cannot close");
+        self
+    }
 }
+
 impl PCA9685 {
     // Registers.
     const MODE1: u8 = 0x0;
@@ -111,7 +122,7 @@ impl PCA9685 {
             data: Arc::new(RwLock::new(PCA9685::_build_pca9685_data())),
             protocol,
         };
-        controller.open()?;
+        IoProtocol::open(&mut controller)?;
         Ok(controller)
     }
 
@@ -176,10 +187,6 @@ impl PCA9685 {
 
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl IoProtocol for PCA9685 {
-    fn get_io(&self) -> &Arc<RwLock<IoData>> {
-        &self.data
-    }
-
     fn open(&mut self) -> Result<(), Error> {
         self.i2c_config(0)?;
         self.connected = true;
@@ -190,6 +197,27 @@ impl IoProtocol for PCA9685 {
         self.write_to_reg(PCA9685::MODE1, PCA9685::RESTART)?;
         self.connected = false;
         Ok(())
+    }
+
+    #[cfg(not(tarpaulin_include))]
+    fn report_analog(&mut self, _: u8, _: bool) -> Result<(), Error> {
+        unimplemented!();
+    }
+
+    #[cfg(not(tarpaulin_include))]
+    fn report_digital(&mut self, _: u8, _: bool) -> Result<(), Error> {
+        unimplemented!()
+    }
+
+    #[cfg(not(tarpaulin_include))]
+    fn sampling_interval(&mut self, _: u16) -> Result<(), Error> {
+        unimplemented!()
+    }
+}
+
+impl IO for PCA9685 {
+    fn get_io(&self) -> &Arc<RwLock<IoData>> {
+        &self.data
     }
 
     fn is_connected(&self) -> bool {
@@ -213,18 +241,16 @@ impl IoProtocol for PCA9685 {
 
         // Arbitrary selection of frequencies depending on pin mode.
         let frequency: u16 = match mode {
-            PinModeId::OUTPUT => 300, // Typical frequency to control a dimmable led.
-            PinModeId::ANALOG => 30,  // Typical frequency to control a fan.
-            PinModeId::PWM => 300,    // Typical frequency to control a dimmable led.
-            PinModeId::SERVO => 50,
-            _ => {
-                return Err(Error::from(HardwareError::IncompatibleMode {
-                    mode,
-                    pin,
-                    context: "update digital output",
-                }));
-            }
-        };
+            PinModeId::OUTPUT => Ok(300), // Typical frequency to control a dimmable led.
+            PinModeId::ANALOG => Ok(30),  // Typical frequency to control a fan.
+            PinModeId::PWM => Ok(300),    // Typical frequency to control a dimmable led.
+            PinModeId::SERVO => Ok(50),
+            _ => Err(Error::from(HardwareError::IncompatibleMode {
+                mode,
+                pin,
+                context: "update digital output",
+            })),
+        }?;
         self.set_frequency(frequency)?;
 
         Ok(())
@@ -274,18 +300,11 @@ impl IoProtocol for PCA9685 {
         self.protocol.i2c_write(self.address, payload)
     }
 
-    #[cfg(not(tarpaulin_include))]
-    fn report_analog(&mut self, _: u8, _: bool) -> Result<(), Error> {
-        unimplemented!();
-    }
-
-    #[cfg(not(tarpaulin_include))]
-    fn report_digital(&mut self, _: u8, _: bool) -> Result<(), Error> {
+    fn digital_read(&mut self, _: u8) -> Result<bool, Error> {
         unimplemented!()
     }
 
-    #[cfg(not(tarpaulin_include))]
-    fn sampling_interval(&mut self, _: u16) -> Result<(), Error> {
+    fn analog_read(&mut self, _: u8) -> Result<u16, Error> {
         unimplemented!()
     }
 
@@ -306,14 +325,13 @@ impl IoProtocol for PCA9685 {
         self.protocol.i2c_write(address, data)
     }
 }
-
 impl Display for PCA9685 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let data = self.data.read();
         write!(
             f,
             "{} [firmware={}, version={}, protocol={}, transport=I2C]",
-            self.get_protocol_name(),
+            self.get_name(),
             data.firmware_name,
             data.firmware_version,
             data.protocol_version,
@@ -507,8 +525,10 @@ mod tests {
     fn test_open() {
         let board = Board::new(MockIoProtocol::default());
         let mut pca9685 = PCA9685::default(&board).unwrap();
-        assert!(pca9685.open().is_ok());
+        assert!(IoProtocol::open(&mut pca9685).is_ok());
         assert!(pca9685.is_connected());
+        pca9685.connected = false; // force
+        assert!(pca9685.open().is_connected());
     }
 
     #[test]
@@ -516,8 +536,10 @@ mod tests {
         let board = Board::new(MockIoProtocol::default());
         let mut pca9685 = PCA9685::default(&board).unwrap();
         pca9685.connected = true; // force
-        assert!(pca9685.close().is_ok());
+        assert!(IoProtocol::close(&mut pca9685).is_ok());
         assert!(!pca9685.is_connected());
+        pca9685.connected = true; // force
+        assert!(!pca9685.close().is_connected());
     }
 
     #[test]

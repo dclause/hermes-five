@@ -7,7 +7,7 @@ use crate::animations::{Animation, Easing, Keyframe, Track};
 use crate::devices::{Device, Output};
 use crate::errors::{Error, HardwareError, StateError};
 use crate::hardware::{Board, Hardware};
-use crate::io::{IoProtocol, Pin, PinIdOrName, PinModeId};
+use crate::io::{IoProtocol, Pin, PinIdOrName, PinModeId, IO};
 use crate::utils::State;
 
 /// Represents a digital actuator of unspecified type: an [`Output`] [`Device`] that write digital values
@@ -42,7 +42,7 @@ impl DigitalOutput {
     /// * `HardwareError::UnknownPin`: this function will bail an error if the pin does not exist for this board.
     /// * `HardwareError::IncompatibleMode`: this function will bail an error if the pin does not support OUTPUT mode.
     pub fn new<T: Into<PinIdOrName>>(board: &Board, pin: T, default: bool) -> Result<Self, Error> {
-        let pin = board.get_io().get_pin(pin)?.clone();
+        let pin = board.get_io().read().get_pin(pin)?.clone();
 
         let mut output = Self {
             pin: pin.id,

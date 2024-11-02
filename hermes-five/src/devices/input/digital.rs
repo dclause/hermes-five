@@ -7,10 +7,9 @@ use crate::devices::input::{Input, InputEvent};
 use crate::devices::Device;
 use crate::errors::Error;
 use crate::hardware::{Board, Hardware};
-use crate::io::{IoProtocol, PinIdOrName, PinModeId};
+use crate::io::{IoProtocol, PinIdOrName, PinModeId, IO};
 use crate::pause;
-use crate::utils::task;
-use crate::utils::{EventHandler, EventManager, State, TaskHandler};
+use crate::utils::{task, EventHandler, EventManager, State, TaskHandler};
 
 /// Represents a digital sensor of unspecified type: an [`Input`] [`Device`] that reads digital values
 /// from an INPUT compatible pin.
@@ -45,7 +44,7 @@ impl DigitalInput {
     /// * `UnknownPin`: this function will bail an error if the DigitalInput pin does not exist for this board.
     /// * `IncompatibleMode`: this function will bail an error if the DigitalInput pin does not support ANALOG mode.
     pub fn new<T: Into<PinIdOrName>>(board: &Board, pin: T) -> Result<Self, Error> {
-        let pin = board.get_io().get_pin(pin)?.clone();
+        let pin = board.get_io().read().get_pin(pin)?.clone();
 
         let mut sensor = Self {
             pin: pin.id,
@@ -137,7 +136,7 @@ impl DigitalInput {
     ///
     /// ```
     /// use hermes_five::devices::{DigitalInput, InputEvent};
-    /// use hermes_five::hardware::{Board, BoardEvent};
+    /// use hermes_five::hardware::{Board, BoardEvent, Hardware};
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
@@ -202,7 +201,7 @@ mod tests {
     use crate::devices::input::digital::DigitalInput;
     use crate::devices::input::Input;
     use crate::devices::input::InputEvent;
-    use crate::hardware::Board;
+    use crate::hardware::{Board, Hardware};
     use crate::mocks::plugin_io::MockIoProtocol;
     use crate::pause;
     use std::sync::atomic::{AtomicBool, Ordering};

@@ -7,7 +7,7 @@ use crate::devices::input::{Input, InputEvent};
 use crate::devices::Device;
 use crate::errors::Error;
 use crate::hardware::{Board, Hardware};
-use crate::io::{IoProtocol, PinIdOrName, PinModeId};
+use crate::io::{IoProtocol, PinIdOrName, PinModeId, IO};
 use crate::pause;
 use crate::utils::task;
 use crate::utils::{EventHandler, EventManager, State, TaskHandler};
@@ -46,7 +46,7 @@ impl AnalogInput {
     /// * `UnknownPin`: this function will bail an error if the AnalogInput pin does not exist for this board.
     /// * `IncompatibleMode`: this function will bail an error if the AnalogInput pin does not support ANALOG mode.
     pub fn new<T: Into<PinIdOrName>>(board: &Board, analog_pin: T) -> Result<Self, Error> {
-        let pin = board.get_io().get_pin(analog_pin)?.clone();
+        let pin = board.get_io().read().get_pin(analog_pin)?.clone();
 
         let mut sensor = Self {
             pin: pin.id,
@@ -127,7 +127,7 @@ impl AnalogInput {
     /// # Example
     ///
     /// ```
-    /// use hermes_five::hardware::{Board, BoardEvent};
+    /// use hermes_five::hardware::{Board, BoardEvent, Hardware};
     /// use hermes_five::devices::{AnalogInput, InputEvent};
     ///
     /// #[hermes_five::runtime]
@@ -194,6 +194,7 @@ mod tests {
     use crate::devices::input::Input;
     use crate::devices::input::InputEvent;
     use crate::hardware::Board;
+    use crate::hardware::Hardware;
     use crate::mocks::plugin_io::MockIoProtocol;
     use crate::pause;
     use std::sync::atomic::{AtomicU16, Ordering};

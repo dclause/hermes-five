@@ -6,7 +6,7 @@ pub(crate) mod constants;
 use crate::errors::{Error, HardwareError, ProtocolError};
 use crate::io::firmata::constants::*;
 use crate::io::protocol::IoProtocol;
-use crate::io::{I2CReply, IoData, IoTransport, Pin, PinMode, PinModeId, Serial};
+use crate::io::{I2CReply, IoData, IoTransport, Pin, PinMode, PinModeId, Serial, IO};
 use crate::pause;
 use crate::utils::task::TaskHandler;
 use crate::utils::{task, Range};
@@ -63,10 +63,6 @@ impl<T: IoTransport + 'static> From<T> for FirmataIo {
 
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl IoProtocol for FirmataIo {
-    fn get_io(&self) -> &Arc<RwLock<IoData>> {
-        &self.data
-    }
-
     #[cfg(not(tarpaulin_include))]
     fn open(&mut self) -> Result<(), Error> {
         self.data.write().connected = false;
@@ -88,6 +84,71 @@ impl IoProtocol for FirmataIo {
         self.data.write().connected = false;
         self.transport.close()?;
         Ok(())
+    }
+
+    fn report_analog(&mut self, channel: u8, state: bool) -> Result<(), Error> {
+        // trace!"Report analog: {}", state);
+        self.transport
+            .write(&[REPORT_ANALOG | channel, u8::from(state)])?;
+        match state {
+            true => {
+                self.data.write().analog_reported_channels.push(channel);
+                self.start_polling();
+            }
+            false => {
+                let mut lock = self.data.write();
+                if let Some(pos) = lock
+                    .analog_reported_channels
+                    .iter()
+                    .position(|&chan| chan == channel)
+                {
+                    lock.analog_reported_channels.remove(pos);
+                    if lock.analog_reported_channels.is_empty() {
+                        self.stop_polling();
+                    }
+                }
+            }
+        };
+        Ok(())
+    }
+
+    fn report_digital(&mut self, pin: u8, state: bool) -> Result<(), Error> {
+        let port = (pin / 8) as u8;
+        let payload = &[REPORT_DIGITAL | port, u8::from(state)];
+        // trace!"Report digital: {:02X?}", payload);
+        self.transport.write(payload)?;
+        match state {
+            true => {
+                self.data.write().digital_reported_pins.push(pin);
+                self.start_polling();
+            }
+            false => {
+                let mut lock = self.data.write();
+                if let Some(pos) = lock.digital_reported_pins.iter().position(|&id| id == pin) {
+                    lock.digital_reported_pins.remove(pos);
+                    if lock.digital_reported_pins.is_empty() {
+                        self.stop_polling();
+                    }
+                }
+            }
+        };
+        Ok(())
+    }
+
+    fn sampling_interval(&mut self, interval: u16) -> Result<(), Error> {
+        self.transport.write(&[
+            START_SYSEX,
+            SAMPLING_INTERVAL,
+            interval as u8 & SYSEX_REALTIME,
+            (interval >> 7) as u8 & SYSEX_REALTIME,
+            END_SYSEX,
+        ])
+    }
+}
+
+impl IO for FirmataIo {
+    fn get_io(&self) -> &Arc<RwLock<IoData>> {
+        &self.data
     }
 
     fn is_connected(&self) -> bool {
@@ -180,70 +241,19 @@ impl IoProtocol for FirmataIo {
         Ok(())
     }
 
-    fn report_analog(&mut self, channel: u8, state: bool) -> Result<(), Error> {
-        // trace!"Report analog: {}", state);
-        self.transport
-            .write(&[REPORT_ANALOG | channel, u8::from(state)])?;
-        match state {
-            true => {
-                self.data.write().analog_reported_channels.push(channel);
-                self.start_polling();
-            }
-            false => {
-                let mut lock = self.data.write();
-                if let Some(pos) = lock
-                    .analog_reported_channels
-                    .iter()
-                    .position(|&chan| chan == channel)
-                {
-                    lock.analog_reported_channels.remove(pos);
-                    if lock.analog_reported_channels.is_empty() {
-                        self.stop_polling();
-                    }
-                }
-            }
-        };
-        Ok(())
+    fn digital_read(&mut self, _: u8) -> Result<bool, Error> {
+        unimplemented!()
     }
 
-    fn report_digital(&mut self, pin: u8, state: bool) -> Result<(), Error> {
-        let port = (pin / 8) as u8;
-        let payload = &[REPORT_DIGITAL | port, u8::from(state)];
-        // trace!"Report digital: {:02X?}", payload);
-        self.transport.write(payload)?;
-        match state {
-            true => {
-                self.data.write().digital_reported_pins.push(pin);
-                self.start_polling();
-            }
-            false => {
-                let mut lock = self.data.write();
-                if let Some(pos) = lock.digital_reported_pins.iter().position(|&id| id == pin) {
-                    lock.digital_reported_pins.remove(pos);
-                    if lock.digital_reported_pins.is_empty() {
-                        self.stop_polling();
-                    }
-                }
-            }
-        };
-        Ok(())
-    }
-
-    fn sampling_interval(&mut self, interval: u16) -> Result<(), Error> {
-        self.transport.write(&[
-            START_SYSEX,
-            SAMPLING_INTERVAL,
-            interval as u8 & SYSEX_REALTIME,
-            (interval >> 7) as u8 & SYSEX_REALTIME,
-            END_SYSEX,
-        ])
+    fn analog_read(&mut self, _: u8) -> Result<u16, Error> {
+        unimplemented!()
     }
 
     fn servo_config(&mut self, pin: u8, pwm_range: Range<u16>) -> Result<(), Error> {
         self.transport.write(&[
             START_SYSEX,
             SERVO_CONFIG,
-            pin as u8,
+            pin,
             pwm_range.start as u8 & SYSEX_REALTIME,
             (pwm_range.start >> 7) as u8 & SYSEX_REALTIME,
             pwm_range.end as u8 & SYSEX_REALTIME,
@@ -617,7 +627,7 @@ impl Display for FirmataIo {
         write!(
             f,
             "{} [firmware={}, version={}, protocol={}, transport={}]",
-            self.get_protocol_name(),
+            self.get_name(),
             data.firmware_name,
             data.firmware_version,
             data.protocol_version,
@@ -630,7 +640,7 @@ impl Display for FirmataIo {
 mod tests {
     use crate::io::constants::Message;
     use crate::io::protocol::IoProtocol;
-    use crate::io::{FirmataIo, PinModeId, Serial};
+    use crate::io::{FirmataIo, PinModeId, Serial, IO};
     use crate::mocks::create_test_plugin_io_data;
     use crate::utils::{format_as_hex, Range};
     use hermes_five::mocks::transport_layer::MockTransportLayer;

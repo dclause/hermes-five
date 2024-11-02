@@ -1,6 +1,6 @@
 use crate::errors::Error;
 use crate::errors::HardwareError::IncompatibleMode;
-use crate::io::{IoData, IoProtocol, PinModeId};
+use crate::io::{IoData, IoProtocol, PinModeId, IO};
 use crate::mocks::create_test_plugin_io_data;
 use crate::pause_sync;
 use crate::utils::Range;
@@ -34,7 +34,7 @@ impl Display for MockIoProtocol {
         write!(
             f,
             "{} [firmware={}, version={}, protocol={}]",
-            self.get_protocol_name(),
+            self.get_name(),
             data.firmware_name,
             data.firmware_version,
             data.protocol_version,
@@ -44,10 +44,6 @@ impl Display for MockIoProtocol {
 
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl IoProtocol for MockIoProtocol {
-    fn get_io(&self) -> &Arc<RwLock<IoData>> {
-        &self.data
-    }
-
     fn open(&mut self) -> Result<(), Error> {
         pause_sync!(100);
         self.connected = true;
@@ -58,6 +54,24 @@ impl IoProtocol for MockIoProtocol {
         pause_sync!(100);
         self.connected = false;
         Ok(())
+    }
+
+    fn report_analog(&mut self, _: u8, _: bool) -> Result<(), Error> {
+        Ok(())
+    }
+
+    fn report_digital(&mut self, _: u8, _: bool) -> Result<(), Error> {
+        Ok(())
+    }
+
+    fn sampling_interval(&mut self, _: u16) -> Result<(), Error> {
+        Ok(())
+    }
+}
+
+impl IO for MockIoProtocol {
+    fn get_io(&self) -> &Arc<RwLock<IoData>> {
+        &self.data
     }
 
     fn is_connected(&self) -> bool {
@@ -89,16 +103,12 @@ impl IoProtocol for MockIoProtocol {
         Ok(())
     }
 
-    fn report_analog(&mut self, _: u8, _: bool) -> Result<(), Error> {
-        Ok(())
+    fn digital_read(&mut self, _: u8) -> Result<bool, Error> {
+        unimplemented!()
     }
 
-    fn report_digital(&mut self, _: u8, _: bool) -> Result<(), Error> {
-        Ok(())
-    }
-
-    fn sampling_interval(&mut self, _: u16) -> Result<(), Error> {
-        Ok(())
+    fn analog_read(&mut self, _: u8) -> Result<u16, Error> {
+        unimplemented!()
     }
 
     fn servo_config(&mut self, _: u8, _: Range<u16>) -> Result<(), Error> {

@@ -6,10 +6,9 @@ use parking_lot::RwLock;
 use crate::devices::{Device, Input, InputEvent};
 use crate::errors::Error;
 use crate::hardware::{Board, Hardware};
-use crate::io::{IoProtocol, PinIdOrName, PinModeId};
+use crate::io::{IoProtocol, PinIdOrName, PinModeId, IO};
 use crate::pause;
-use crate::utils::task;
-use crate::utils::{EventHandler, EventManager, State, TaskHandler};
+use crate::utils::{task, EventHandler, EventManager, State, TaskHandler};
 
 /// Represents a simple push button as an input of the board.
 /// <https://docs.arduino.cc/built-in-examples/digital/Button>
@@ -138,7 +137,7 @@ impl Button {
 
     /// Private helper method shared by constructors.
     fn start_with<T: Into<PinIdOrName>>(mut self, board: &Board, pin: T) -> Result<Self, Error> {
-        let pin = board.get_io().get_pin(pin)?.clone();
+        let pin = board.get_io().read().get_pin(pin)?.clone();
 
         // Set pin ID and state from pin.
         self.pin = pin.id;
