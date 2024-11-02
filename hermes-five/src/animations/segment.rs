@@ -20,14 +20,14 @@ use crate::pause;
 /// The robot will perform a waving motion using its servo and LED.
 /// ```no_run
 /// use hermes_five::animations::{Easing, Keyframe, Segment, Track};
-/// use hermes_five::hardware::Board;
+/// use hermes_five::hardware::{Board, Hardware};
 /// use hermes_five::devices::{Led, Servo};
-/// use hermes_five::io::FirmataIo;
+/// use hermes_five::io::RemoteIo;
 ///
 /// #[hermes_five::runtime]
 /// async fn main() {
 ///     // Define a board on COM4.
-///     let board = Board::new(FirmataIo::new("COM4")).open();
+///     let board = Board::new(RemoteIo::new("COM4")).open();
 ///
 ///     // Define a servo attached to the board on PIN 9 (default servo position is 90°).
 ///     let servo = Servo::new(&board, 9, 90).unwrap();

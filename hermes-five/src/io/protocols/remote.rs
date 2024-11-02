@@ -1,12 +1,12 @@
+//! RemoIo is an `IoProtocol` to remotely control a `Board` via a given `IoTransport`.
+//!
+//! This IoProtocol uses Firmata protocol to normalize communications through the IoTransport layer.
 //! Official Firmata documentation: https://github.com/firmata/protocol
 //! Helper unofficial documentation: https://github.com/martin-eden/firmata_protocol/blob/main/protocol.md
 
-pub(crate) mod constants;
-
 use crate::errors::{Error, HardwareError, ProtocolError};
-use crate::io::firmata::constants::*;
-use crate::io::protocol::IoProtocol;
-use crate::io::{I2CReply, IoData, IoTransport, Pin, PinMode, PinModeId, Serial, IO};
+use crate::io::constants::*;
+use crate::io::*;
 use crate::pause;
 use crate::utils::task::TaskHandler;
 use crate::utils::{task, Range};
@@ -19,7 +19,7 @@ use std::time::Duration;
 /// Implements the [Firmata protocol](https://github.com/firmata/protocol) within an [`IoProtocol`].
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone)]
-pub struct FirmataIo {
+pub struct RemoteIo {
     /// Transport layer used to communicate with the device.
     transport: Box<dyn IoTransport>,
 
@@ -32,7 +32,7 @@ pub struct FirmataIo {
     handler: Arc<RwLock<Option<TaskHandler>>>,
 }
 
-impl Default for FirmataIo {
+impl Default for RemoteIo {
     fn default() -> Self {
         Self {
             transport: Box::new(Serial::default()),
@@ -41,7 +41,7 @@ impl Default for FirmataIo {
         }
     }
 }
-impl FirmataIo {
+impl RemoteIo {
     pub fn new<P: Into<String>>(port: P) -> Self {
         Self {
             transport: Box::new(Serial::new(port)),
@@ -51,7 +51,7 @@ impl FirmataIo {
     }
 }
 
-impl<T: IoTransport + 'static> From<T> for FirmataIo {
+impl<T: IoTransport + 'static> From<T> for RemoteIo {
     fn from(transport: T) -> Self {
         Self {
             transport: Box::new(transport),
@@ -62,7 +62,7 @@ impl<T: IoTransport + 'static> From<T> for FirmataIo {
 }
 
 #[cfg_attr(feature = "serde", typetag::serde)]
-impl IoProtocol for FirmataIo {
+impl IoProtocol for RemoteIo {
     #[cfg(not(tarpaulin_include))]
     fn open(&mut self) -> Result<(), Error> {
         self.data.write().connected = false;
@@ -146,7 +146,7 @@ impl IoProtocol for FirmataIo {
     }
 }
 
-impl IO for FirmataIo {
+impl IO for RemoteIo {
     fn get_io(&self) -> &Arc<RwLock<IoData>> {
         &self.data
     }
@@ -300,7 +300,7 @@ impl IO for FirmataIo {
     }
 }
 
-impl FirmataIo {
+impl RemoteIo {
     /// Sends a software reset request.
     /// <https://github.com/firmata/protocol/blob/master/protocol.md>
     fn software_reset(&mut self) -> Result<(), Error> {
@@ -318,7 +318,7 @@ impl FirmataIo {
         // for instance the report_analog and report_digital on some pins may continue otherwise.
         self.software_reset()?;
 
-        // The FirmataIo protocol is supposed to send the protocol and firmware version automatically,
+        // The RemoteIo protocol is supposed to send the protocol and firmware version automatically,
         // but it doesn't always do so. The while-loop here ensures that we are now in sync with
         // receiving the expected data. This prevents an initial 'read_and_decode()' call that would
         // otherwise result in a long timeout while waiting to detect the situation
@@ -360,7 +360,7 @@ impl FirmataIo {
     }
 
     // ########################################
-    // FirmataIo read & handle functions
+    // RemoteIo read & handle functions
 
     /// Read from the protocol, parse and return its type.
     /// The following method should use Firmata protocol such as defined here:
@@ -621,7 +621,7 @@ impl FirmataIo {
     }
 }
 
-impl Display for FirmataIo {
+impl Display for RemoteIo {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let data = self.data.read();
         write!(
@@ -639,29 +639,28 @@ impl Display for FirmataIo {
 #[cfg(test)]
 mod tests {
     use crate::io::constants::Message;
-    use crate::io::protocol::IoProtocol;
-    use crate::io::{FirmataIo, PinModeId, Serial, IO};
+    use crate::io::{IoProtocol, PinModeId, RemoteIo, Serial, IO};
     use crate::mocks::create_test_plugin_io_data;
     use crate::utils::{format_as_hex, Range};
     use hermes_five::mocks::transport_layer::MockTransportLayer;
     use parking_lot::lock_api::RwLock;
     use std::sync::Arc;
 
-    fn _create_mock_protocol() -> FirmataIo {
-        let mut protocol = FirmataIo::from(MockTransportLayer::default());
+    fn _create_mock_protocol() -> RemoteIo {
+        let mut protocol = RemoteIo::from(MockTransportLayer::default());
         protocol.data = Arc::new(RwLock::new(create_test_plugin_io_data()));
         protocol
     }
 
-    fn _create_mock_protocol_with_data(data: &[u8]) -> FirmataIo {
+    fn _create_mock_protocol_with_data(data: &[u8]) -> RemoteIo {
         let mut transport = MockTransportLayer::default();
         transport.read_buf[..data.len()].copy_from_slice(data);
-        let mut protocol = FirmataIo::from(transport);
+        let mut protocol = RemoteIo::from(transport);
         protocol.data = Arc::new(RwLock::new(create_test_plugin_io_data()));
         protocol
     }
 
-    fn _get_mock_transport(protocol: &FirmataIo) -> &MockTransportLayer {
+    fn _get_mock_transport(protocol: &RemoteIo) -> &MockTransportLayer {
         protocol
             .transport
             .as_any()
@@ -671,16 +670,16 @@ mod tests {
 
     #[test]
     fn test_creation() {
-        let protocol = FirmataIo::default();
+        let protocol = RemoteIo::default();
         let transport = protocol.transport.as_any().downcast_ref::<Serial>();
         assert!(transport.is_some());
 
-        let protocol = FirmataIo::new("try");
+        let protocol = RemoteIo::new("try");
         let transport = protocol.transport.as_any().downcast_ref::<Serial>();
         assert!(transport.is_some());
         assert_eq!(transport.unwrap().get_port(), String::from("try"));
 
-        let protocol = FirmataIo::from(MockTransportLayer::default());
+        let protocol = RemoteIo::from(MockTransportLayer::default());
         let transport = protocol
             .transport
             .as_any()
@@ -1326,7 +1325,7 @@ mod tests {
         // assert_eq!(protocol.get_protocol_name(), "MockIoProtocol");
         assert_eq!(
             format!("{}", boxed_protocol),
-            "FirmataIo [firmware=Fake protocol, version=fake.2.3, protocol=fake.1.0, transport=MockTransportLayer]"
+            "RemoteIo [firmware=Fake protocol, version=fake.2.3, protocol=fake.1.0, transport=MockTransportLayer]"
         )
     }
 }

@@ -254,7 +254,7 @@ impl Button {
     ///
     /// ```
     /// use hermes_five::devices::{Button, InputEvent};
-    /// use hermes_five::hardware::{Board, BoardEvent};
+    /// use hermes_five::hardware::{Board, BoardEvent, Hardware};
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {

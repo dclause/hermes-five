@@ -342,7 +342,7 @@ impl Display for PCA9685 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::FirmataIo;
+    use crate::io::RemoteIo;
     use crate::mocks::create_test_plugin_io_data;
     use crate::mocks::plugin_io::MockIoProtocol;
     use crate::mocks::transport_layer::MockTransportLayer;
@@ -398,7 +398,7 @@ mod tests {
     #[test]
     fn test_write_to_reg() {
         let transport = MockTransportLayer::default();
-        let board = Board::new(FirmataIo::from(transport));
+        let board = Board::new(RemoteIo::from(transport));
         let mut pca9685 = PCA9685::default(&board).unwrap();
 
         assert!(pca9685.write_to_reg(0x69, 0x42).is_ok());
@@ -411,7 +411,7 @@ mod tests {
         // Mock data for reading I2C reply of a single 0x69 register with value 0x42.
         let data = &[0xF0, 0x77, 0x40, 0x00, 0x69, 0x00, 0x42, 0x00, 0xF7];
         transport.read_buf[..data.len()].copy_from_slice(data);
-        let protocol = FirmataIo::from(transport);
+        let protocol = RemoteIo::from(transport);
         *protocol.get_io().write() = create_test_plugin_io_data();
 
         let board = Board::new(protocol);
@@ -428,7 +428,7 @@ mod tests {
         // Mock data for reading I2C reply too short.
         let data = &[0xF0, 0x77, 0x40, 0x00, 0xF7];
         transport.read_buf[..data.len()].copy_from_slice(data);
-        let protocol = FirmataIo::from(transport);
+        let protocol = RemoteIo::from(transport);
         *protocol.get_io().write() = create_test_plugin_io_data();
 
         let board = Board::new(protocol);

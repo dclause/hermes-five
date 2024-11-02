@@ -1,6 +1,6 @@
 use crate::errors::Error;
 use crate::hardware::Hardware;
-use crate::io::{FirmataIo, IoData, IoTransport, IO};
+use crate::io::{IoData, IoTransport, RemoteIo, IO};
 use crate::io::{IoProtocol, PinModeId};
 use crate::utils::{task, Range};
 use crate::utils::{EventHandler, EventManager};
@@ -42,7 +42,7 @@ pub struct Board {
 impl Default for Board {
     /// Default implementation for a board.
     ///
-    /// This method creates a board using the default [`FirmataIo`] protocol with [`Serial`](crate::io::Serial) transport layer.
+    /// This method creates a board using the default [`RemoteIo`] protocol with [`Serial`](crate::io::Serial) transport layer.
     /// The port will be auto-detected as the first available serial port matching a board.
     ///
     /// **_/!\ The board will NOT be connected until the [`Board::open`] method is called._**
@@ -51,27 +51,27 @@ impl Default for Board {
     ///
     /// ```
     /// use hermes_five::hardware::{Board, Hardware};
-    /// use hermes_five::io::FirmataIo;
+    /// use hermes_five::io::RemoteIo;
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
     ///     // Following lines are all equivalent:
     ///     let board = Board::run();
     ///     let board = Board::default().open();
-    ///     let board = Board::new(FirmataIo::default()).open();
+    ///     let board = Board::new(RemoteIo::default()).open();
     /// }
     /// ```
     fn default() -> Self {
-        Self::new(FirmataIo::default())
+        Self::new(RemoteIo::default())
     }
 }
 
-/// Creates a board using the given transport layer with the FirmataIo protocol.
+/// Creates a board using the given transport layer with the RemoteIo protocol.
 ///
 /// # Example
 /// ```
 /// use hermes_five::hardware::{Board, Hardware};
-/// use hermes_five::io::FirmataIo;
+/// use hermes_five::io::RemoteIo;
 /// use hermes_five::io::Serial;
 ///
 /// #[hermes_five::runtime]
@@ -83,7 +83,7 @@ impl<T: IoTransport> From<T> for Board {
     fn from(transport: T) -> Self {
         Self {
             events: Default::default(),
-            protocol: Box::new(FirmataIo::from(transport)),
+            protocol: Box::new(RemoteIo::from(transport)),
         }
     }
 }
@@ -91,20 +91,20 @@ impl<T: IoTransport> From<T> for Board {
 impl Board {
     /// Creates and open a default board (using default protocol).
     ///
-    /// This method creates a board using the default [`FirmataIo`] protocol with [`Serial`](crate::io::Serial) transport layer.
+    /// This method creates a board using the default [`RemoteIo`] protocol with [`Serial`](crate::io::Serial) transport layer.
     /// The port will be auto-detected as the first available serial port matching a board.
     ///
     /// # Example
     /// ```
     /// use hermes_five::hardware::{Board, Hardware};
-    /// use hermes_five::io::FirmataIo;
+    /// use hermes_five::io::RemoteIo;
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
     ///     // Following lines are all equivalent:
     ///     let board = Board::run();
     ///     let board = Board::default().open();
-    ///     let board = Board::new(FirmataIo::default()).open();
+    ///     let board = Board::new(RemoteIo::default()).open();
     /// }
     /// ```
     pub fn run() -> Self {
@@ -116,11 +116,11 @@ impl Board {
     /// # Example
     /// ```
     /// use hermes_five::hardware::{Board, Hardware};
-    /// use hermes_five::io::FirmataIo;
+    /// use hermes_five::io::RemoteIo;
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
-    ///     let board = Board::new(FirmataIo::new("COM4")).open();
+    ///     let board = Board::new(RemoteIo::new("COM4")).open();
     /// }
     /// ```
     pub fn new<P: IoProtocol + 'static>(protocol: P) -> Self {
@@ -160,8 +160,7 @@ impl Board {
     /// # Example
     ///
     /// ```
-    /// use hermes_five::hardware::Board;
-    /// use hermes_five::hardware::BoardEvent;
+    /// use hermes_five::hardware::{Board, BoardEvent};
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
@@ -361,7 +360,7 @@ mod tests {
         let board = Board::default();
         assert_eq!(
             board.get_protocol_name(),
-            "FirmataIo",
+            "RemoteIo",
             "Default board uses the default protocol"
         );
     }
@@ -379,7 +378,7 @@ mod tests {
         let board = Board::from(Serial::default());
         assert_eq!(
             board.get_protocol_name(),
-            "FirmataIo",
+            "RemoteIo",
             "Board can be created with a custom transport"
         );
     }
@@ -401,7 +400,7 @@ mod tests {
 
         let flag = Arc::new(AtomicBool::new(false));
         let moved_flag = flag.clone();
-        let board = Board::new(FirmataIo::from(transport)).open();
+        let board = Board::new(RemoteIo::from(transport)).open();
         board.on(BoardEvent::OnReady, move |board: Board| {
             let captured_flag = moved_flag.clone();
             async move {
@@ -429,7 +428,7 @@ mod tests {
         // Result for analog mapping
         transport.read_buf[26..32].copy_from_slice(&[0xF0, 0x6A, 0x7F, 0x7F, 0x7F, 0xF7]);
 
-        let protocol = FirmataIo::from(transport);
+        let protocol = RemoteIo::from(transport);
         let board = Board::new(protocol).blocking_open().unwrap();
         assert!(board.is_connected());
     }
@@ -458,7 +457,7 @@ mod tests {
     #[hermes_macros::test]
     fn test_board_run() {
         let board = Board::run();
-        assert_eq!(board.get_protocol_name(), "FirmataIo");
+        assert_eq!(board.get_protocol_name(), "RemoteIo");
         board.close();
     }
 
@@ -483,16 +482,16 @@ mod tests {
 #[cfg(test)]
 mod serde_tests {
     use crate::hardware::{Board, Hardware};
-    use crate::io::FirmataIo;
+    use crate::io::RemoteIo;
     use crate::mocks::plugin_io::MockIoProtocol;
 
     #[test]
     fn test_board_serialize() {
-        let board = Board::new(FirmataIo::new("mock"));
+        let board = Board::new(RemoteIo::new("mock"));
         let json = serde_json::to_string(&board).unwrap();
         assert_eq!(
             json,
-            r#"{"protocol":{"type":"FirmataIo","transport":{"type":"Serial","port":"mock"}}}"#
+            r#"{"protocol":{"type":"RemoteIo","transport":{"type":"Serial","port":"mock"}}}"#
         );
 
         let board = Board::new(MockIoProtocol::default());
@@ -503,9 +502,9 @@ mod serde_tests {
     #[test]
     fn test_board_deserialize() {
         let json =
-            r#"{"protocol":{"type":"FirmataIo","transport":{"type":"Serial","port":"mock"}}}"#;
+            r#"{"protocol":{"type":"RemoteIo","transport":{"type":"Serial","port":"mock"}}}"#;
         let board: Board = serde_json::from_str(json).unwrap();
-        assert_eq!(board.get_protocol_name(), "FirmataIo");
+        assert_eq!(board.get_protocol_name(), "RemoteIo");
 
         let json = r#"{"protocol":{"type":"MockIoProtocol"}}"#;
         let board: Board = serde_json::from_str(json).unwrap();

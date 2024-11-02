@@ -26,12 +26,12 @@ impl Serial {
     ///
     /// # Example
     /// ```
-    /// use hermes_five::hardware::Board;
-    /// use hermes_five::io::FirmataIo;
+    /// use hermes_five::hardware::{Board, Hardware};
+    /// use hermes_five::io::RemoteIo;
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
-    ///     let protocol = FirmataIo::new("/dev/ttyACM0");
+    ///     let protocol = RemoteIo::new("/dev/ttyACM0");
     ///     let board = Board::new(protocol).open();
     /// }
     /// ```

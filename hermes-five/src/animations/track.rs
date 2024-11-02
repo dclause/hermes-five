@@ -19,14 +19,14 @@ use crate::utils::{Range, State};
 /// defined easing function.
 /// ```no_run
 /// use hermes_five::animations::{Easing, Keyframe, Track};
-/// use hermes_five::hardware::Board;
+/// use hermes_five::hardware::{Board, Hardware};
 /// use hermes_five::devices::Servo;
-/// use hermes_five::io::FirmataIo;
+/// use hermes_five::io::RemoteIo;
 ///
 /// #[hermes_five::runtime]
 /// async fn main() {
 ///     // Defines a board (using serial port on COM4).
-///     let board = Board::new(FirmataIo::new("COM4")).open();
+///     let board = Board::new(RemoteIo::new("COM4")).open();
 ///     // Defines a servo attached to the board on PIN 9 (default servo position is 90°).
 ///     let servo = Servo::new(&board, 9, 90).unwrap();
 ///     // Creates a track for the servo.
