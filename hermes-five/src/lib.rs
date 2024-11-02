@@ -76,6 +76,7 @@
 //! - **libudev** -- (enabled by default) Activates `serialport` crate _libudev_ feature under-the-hood (required on Linux only for port listing).
 //! - **serde** -- Enables serialize/deserialize capabilities for most entities.
 //! - **mock** -- Provides mocked entities of all kinds (useful for tests mostly).
+
 #[cfg(test)]
 extern crate self as hermes_five;
 
@@ -88,5 +89,4 @@ pub mod io;
 pub mod mocks;
 pub mod utils;
 
-pub use errors::Error;
 pub use hermes_macros::runtime;

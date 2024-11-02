@@ -5,9 +5,8 @@ use parking_lot::RwLock;
 
 use crate::animations::{Animation, Easing, Keyframe, Track};
 use crate::devices::{Device, Output};
-use crate::errors::HardwareError::IncompatibleMode;
-use crate::errors::{Error, StateError};
-use crate::hardware::Board;
+use crate::errors::{Error, HardwareError, StateError};
+use crate::hardware::{Board, Hardware};
 use crate::io::{IoProtocol, Pin, PinIdOrName, PinModeId};
 use crate::utils::State;
 
@@ -40,8 +39,8 @@ impl DigitalOutput {
     /// Creates an instance of a [`DigitalOutput`] attached to a given board.
     ///
     /// # Errors
-    /// * `UnknownPin`: this function will bail an error if the pin does not exist for this board.
-    /// * `IncompatibleMode`: this function will bail an error if the pin does not support OUTPUT mode.
+    /// * `HardwareError::UnknownPin`: this function will bail an error if the pin does not exist for this board.
+    /// * `HardwareError::IncompatibleMode`: this function will bail an error if the pin does not support OUTPUT mode.
     pub fn new<T: Into<PinIdOrName>>(board: &Board, pin: T, default: bool) -> Result<Self, Error> {
         let pin = board.get_io().get_pin(pin)?.clone();
 
@@ -145,7 +144,7 @@ impl Output for DigitalOutput {
         match self.get_pin_info()?.mode.id {
             // on/off digital operation.
             PinModeId::OUTPUT => self.protocol.digital_write(self.pin, value),
-            id => Err(Error::from(IncompatibleMode {
+            id => Err(Error::from(HardwareError::IncompatibleMode {
                 mode: id,
                 pin: self.pin,
                 context: "update digital output",
@@ -158,6 +157,7 @@ impl Output for DigitalOutput {
     fn get_default(&self) -> State {
         self.default.into()
     }
+
     fn animate<S: Into<State>>(&mut self, state: S, duration: u64, transition: Easing) {
         let mut animation = Animation::from(
             Track::new(self.clone())
@@ -166,9 +166,11 @@ impl Output for DigitalOutput {
         animation.play();
         self.animation = Arc::new(Some(animation));
     }
+
     fn is_busy(&self) -> bool {
         self.animation.is_some()
     }
+
     fn stop(&mut self) {
         if let Some(animation) = Arc::get_mut(&mut self.animation).and_then(Option::as_mut) {
             animation.stop();

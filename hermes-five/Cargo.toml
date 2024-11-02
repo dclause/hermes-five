@@ -138,3 +138,7 @@ path = "examples/servo/sweep.rs"
 [[example]]
 name = "servo_animate"
 path = "examples/servo/animate.rs"
+
+[[example]]
+name = "servo_p9685"
+path = "examples/servo/pca9685.rs"

@@ -7,7 +7,7 @@ use crate::animations::{Animation, Easing, Keyframe, Segment, Track};
 use crate::devices::{Device, Output};
 use crate::errors::HardwareError::IncompatibleMode;
 use crate::errors::{Error, StateError};
-use crate::hardware::Board;
+use crate::hardware::{Board, Hardware};
 use crate::io::{IoProtocol, Pin, PinMode, PinModeId};
 use crate::utils::{Scalable, State};
 

@@ -8,7 +8,7 @@ use crate::animations::{Animation, Easing, Keyframe, Segment, Track};
 use crate::devices::{Device, Output};
 use crate::errors::HardwareError::IncompatibleMode;
 use crate::errors::{Error, StateError};
-use crate::hardware::Board;
+use crate::hardware::{Board, Hardware};
 use crate::io::{IoProtocol, Pin, PinModeId};
 use crate::utils::{task, Range, Scalable, State};
 use crate::{pause, pause_sync};
@@ -87,7 +87,7 @@ impl Servo {
     /// # Errors
     /// * `UnknownPin`: this function will bail an error if the pin does not exist for this board.
     /// * `IncompatibleMode`: this function will bail an error if the pin does not support SERVO mode.
-    pub fn new(board: &Board, pin: u8, default: u16) -> Result<Self, Error> {
+    pub fn new<H: Hardware>(board: &H, pin: u8, default: u16) -> Result<Self, Error> {
         Self::create(board, pin, default, false)
     }
 
@@ -101,7 +101,12 @@ impl Servo {
     }
 
     /// Inner helper.
-    fn create(board: &Board, pin: u8, default: u16, inverted: bool) -> Result<Self, Error> {
+    fn create<H: Hardware>(
+        board: &H,
+        pin: u8,
+        default: u16,
+        inverted: bool,
+    ) -> Result<Self, Error> {
         let pwm_range = Range::from([600, 2400]);
 
         let mut servo = Self {

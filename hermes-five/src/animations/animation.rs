@@ -274,7 +274,7 @@ impl Animation {
     ///    _The callback must receive the following parameter: `|_: Animation| { ... }`_
     /// - **`OnComplete` | `complete`**: Triggered when the animation ends.    
     ///    _The callback must receive the following parameter: `|_: Animation| { ... }`_
-    /// 
+    ///
     /// # Example
     /// ```
     /// use hermes_five::hardware::Board;
@@ -397,6 +397,11 @@ mod tests {
 
     #[test]
     fn test_animation() {
+        let animation = Animation::default();
+        assert_eq!(animation.get_current(), 0);
+        assert_eq!(animation.get_progress(), 0);
+        assert!(!animation.is_playing());
+
         let animation = create_animation();
 
         assert_eq!(animation.get_current(), 0);
@@ -439,7 +444,6 @@ mod tests {
     #[hermes_macros::test]
     async fn test_play_animation() {
         let mut animation = create_animation();
-
         assert_eq!(animation.get_current(), 0);
         assert_eq!(animation.get_progress(), 0);
         assert!(!animation.is_playing());

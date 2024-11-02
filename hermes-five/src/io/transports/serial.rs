@@ -1,7 +1,6 @@
 use crate::errors::Error;
 use crate::errors::ProtocolError::NotInitialized;
 use crate::io::IoTransport;
-use log::trace;
 use parking_lot::Mutex;
 use serialport::{DataBits, FlowControl, Parity, SerialPort, StopBits};
 use std::fmt::{Display, Formatter};
@@ -81,7 +80,6 @@ impl IoTransport for Serial {
             .flow_control(FlowControl::None)
             .timeout(Duration::from_secs(10))
             .open_native()?;
-        trace!("Serial port is now opened: {:?}", connexion);
 
         // Save the IO (required by handshake).
         self.io = Arc::new(Mutex::new(Some(Box::new(connexion))));
@@ -149,16 +147,16 @@ mod tests {
         assert!(!protocol.port.is_empty());
     }
 
-    // #[test]
-    // fn test_open_serial_protocol() {
-    //     let mut protocol = get_test_successful_protocol();
-    //     let result = protocol.open();
-    //     assert!(result.is_ok());
-    //
-    //     let mut protocol = get_test_failing_protocol();
-    //     let result = protocol.open();
-    //     assert!(result.is_err());
-    // }
+    #[test]
+    fn test_open_serial_protocol() {
+        // let mut protocol = get_test_successful_protocol();
+        // let result = protocol.open();
+        // assert!(result.is_ok());
+
+        let mut protocol = get_test_failing_protocol();
+        let result = protocol.open();
+        assert!(result.is_err());
+    }
 
     #[test]
     fn test_close_serial_protocol() {

@@ -4,7 +4,6 @@ use log::error;
 use snafu::Snafu;
 
 pub use crate::errors::Error::*;
-use crate::errors::ProtocolError::IoException;
 use crate::io::{PinIdOrName, PinModeId};
 
 #[derive(Debug, Snafu)]
@@ -31,7 +30,7 @@ impl From<std::io::Error> for Error {
             _ => error.to_string(),
         };
         Self::ProtocolError {
-            source: IoException { info },
+            source: ProtocolError::IoException { info },
         }
     }
 }
@@ -102,7 +101,7 @@ mod tests {
             "Runtime error: Are you sure your code runs inside `#[hermes_five::runtime]`?"
         );
 
-        let protocol_error = Error::from(IoException {
+        let protocol_error = Error::from(ProtocolError::IoException {
             info: "I/O error message".to_string(),
         });
         assert_eq!(
@@ -136,6 +135,13 @@ mod tests {
         assert_eq!(
             format!("{}", error),
             "Protocol error: Board not found or already in use."
+        );
+
+        let io_error = io::Error::new(io::ErrorKind::PermissionDenied, "error");
+        let error: Error = io_error.into();
+        assert_eq!(
+            format!("{}", error),
+            "Protocol error: Board connection lost."
         );
     }
 

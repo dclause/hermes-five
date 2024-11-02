@@ -109,11 +109,11 @@ impl IoProtocol for MockIoProtocol {
         Ok(())
     }
 
-    fn i2c_read(&mut self, _: u8, _: u8) -> Result<(), Error> {
+    fn i2c_read(&mut self, _: u8, _: u16) -> Result<(), Error> {
         Ok(())
     }
 
-    fn i2c_write(&mut self, _: u8, _: &[u8]) -> Result<(), Error> {
+    fn i2c_write(&mut self, _: u8, _: &[u16]) -> Result<(), Error> {
         Ok(())
     }
 }

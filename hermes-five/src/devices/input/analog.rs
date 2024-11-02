@@ -6,7 +6,7 @@ use parking_lot::RwLock;
 use crate::devices::input::{Input, InputEvent};
 use crate::devices::Device;
 use crate::errors::Error;
-use crate::hardware::Board;
+use crate::hardware::{Board, Hardware};
 use crate::io::{IoProtocol, PinIdOrName, PinModeId};
 use crate::pause;
 use crate::utils::task;
@@ -142,6 +142,15 @@ impl AnalogInput {
     ///             println!("Sensor value changed: {}", value);
     ///             Ok(())
     ///         });
+    ///
+    ///         // The above code will run forever.
+    ///         // <do something useful>
+    ///
+    ///         // The above code will run forever runs a listener on the pin state under-the-hood.
+    ///         // It means the program will run forever listening to the InputEvent,
+    ///         // until we detach the device and close the board.
+    ///         potentiometer.detach();
+    ///         board.close();
     ///
     ///         Ok(())
     ///     });

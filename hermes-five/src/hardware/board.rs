@@ -1,9 +1,9 @@
 use crate::errors::Error;
+use crate::hardware::Hardware;
 use crate::io::{FirmataIo, IoData, IoTransport};
 use crate::io::{IoProtocol, PinModeId};
 use crate::utils::task;
 use crate::utils::{EventHandler, EventManager};
-use log::trace;
 use parking_lot::RwLockReadGuard;
 use std::fmt::Display;
 use std::ops::{Deref, DerefMut};
@@ -66,6 +66,17 @@ impl Default for Board {
     }
 }
 
+impl Hardware for Board {
+    /// Returns  the protocol used.
+    ///
+    /// NOTE: this is private to the crate since board already gives access to protocol methods via Deref.
+    /// This method is only used internally in all [`Device::new()`] methods to clone the protocol into the
+    /// device.
+    fn get_protocol(&self) -> Box<dyn IoProtocol> {
+        self.protocol.clone()
+    }
+}
+
 impl Board {
     /// Creates and open a default board (using default protocol).
     ///
@@ -106,15 +117,6 @@ impl Board {
             events: EventManager::default(),
             protocol: Box::new(protocol),
         }
-    }
-
-    /// Returns  the protocol used.
-    ///
-    /// NOTE: this is private to the crate since board already gives access to protocol methods via Deref.
-    /// This method is only used internally in all [`Device::new()`] methods to clone the protocol into the
-    /// device.
-    pub(crate) fn get_protocol(&self) -> Box<dyn IoProtocol> {
-        self.protocol.clone()
     }
 
     /// Starts a board connexion procedure (using the appropriate configured protocol) in an asynchronous way.
@@ -159,7 +161,7 @@ impl Board {
     /// Blocking version of [`Self::open()`] method.
     pub fn blocking_open(mut self) -> Result<Self, Error> {
         self.protocol.open()?;
-        trace!("Board is ready: {:#?}", self.get_io());
+        // trace!"Board is ready: {:#?}", self.get_io());
         Ok(self)
     }
 
@@ -210,7 +212,7 @@ impl Board {
             let _ = self.set_pin_mode(id, PinModeId::OUTPUT);
         }
         self.protocol.close()?;
-        trace!("Board is closed");
+        // trace!"Board is closed");
         Ok(self)
     }
 

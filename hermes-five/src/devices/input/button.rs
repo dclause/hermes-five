@@ -5,7 +5,7 @@ use parking_lot::RwLock;
 
 use crate::devices::{Device, Input, InputEvent};
 use crate::errors::Error;
-use crate::hardware::Board;
+use crate::hardware::{Board, Hardware};
 use crate::io::{IoProtocol, PinIdOrName, PinModeId};
 use crate::pause;
 use crate::utils::task;
@@ -270,9 +270,19 @@ impl Button {
     ///             Ok(())
     ///         });
     ///
+    ///         // The above code will run forever.
+    ///         // <do something useful>
+    ///
+    ///         // The above code will run forever runs a listener on the pin state under-the-hood.
+    ///         // It means the program will run forever listening to the InputEvent,
+    ///         // until we detach the device and close the board.
+    ///         button.detach();
+    ///         board.close();
+    ///
     ///         Ok(())
     ///     });
     /// }
+    /// ```
     pub fn on<S, F, T, Fut>(&self, event: S, callback: F) -> EventHandler
     where
         S: Into<String>,

@@ -1,15 +1,15 @@
+//! Official Firmata documentation: https://github.com/firmata/protocol
+//! Helper unofficial documentation: https://github.com/martin-eden/firmata_protocol/blob/main/protocol.md
+
 pub(crate) mod constants;
 
-use crate::errors::Error;
-use crate::errors::HardwareError::IncompatibleMode;
-use crate::errors::ProtocolError::MessageTooShort;
+use crate::errors::{Error, HardwareError, ProtocolError};
 use crate::io::firmata::constants::*;
 use crate::io::protocol::IoProtocol;
 use crate::io::{I2CReply, IoData, IoTransport, Pin, PinMode, PinModeId, Serial};
 use crate::pause;
 use crate::utils::task::TaskHandler;
 use crate::utils::{task, Range};
-use log::trace;
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
@@ -77,7 +77,7 @@ impl IoProtocol for FirmataIo {
         self.handshake()?;
 
         // Reduce timeout.
-        self.transport.set_timeout(Duration::from_millis(200))?;
+        self.transport.set_timeout(Duration::from_millis(500))?;
 
         self.data.write().connected = true;
         Ok(())
@@ -98,11 +98,14 @@ impl IoProtocol for FirmataIo {
         {
             let mut lock = self.data.write();
             let pin_instance = lock.get_pin_mut(pin)?;
-            let _mode = pin_instance.supports_mode(mode).ok_or(IncompatibleMode {
-                pin,
-                mode,
-                context: "try to set pin mode",
-            })?;
+            let _mode =
+                pin_instance
+                    .supports_mode(mode)
+                    .ok_or(HardwareError::IncompatibleMode {
+                        pin,
+                        mode,
+                        context: "try to set pin mode",
+                    })?;
             pin_instance.mode = _mode;
         }
 
@@ -141,7 +144,7 @@ impl IoProtocol for FirmataIo {
             value as u8 & SYSEX_REALTIME,
             (value >> 7) as u8 & SYSEX_REALTIME,
         ];
-        trace!("Digital write: {:02X?}", payload);
+        // trace!"Digital write: {:02X?}", payload);
         self.transport.write(payload)
     }
 
@@ -172,13 +175,13 @@ impl IoProtocol for FirmataIo {
             ]
         };
 
-        trace!("Analog write: {:02X?}", payload);
+        // trace!"Analog write: {:02X?}", payload);
         self.transport.write(&payload)?;
         Ok(())
     }
 
     fn report_analog(&mut self, channel: u8, state: bool) -> Result<(), Error> {
-        trace!("Report analog: {}", state);
+        // trace!"Report analog: {}", state);
         self.transport
             .write(&[REPORT_ANALOG | channel, u8::from(state)])?;
         match state {
@@ -206,7 +209,7 @@ impl IoProtocol for FirmataIo {
     fn report_digital(&mut self, pin: u8, state: bool) -> Result<(), Error> {
         let port = (pin / 8) as u8;
         let payload = &[REPORT_DIGITAL | port, u8::from(state)];
-        trace!("Report digital: {:02X?}", payload);
+        // trace!"Report digital: {:02X?}", payload);
         self.transport.write(payload)?;
         match state {
             true => {
@@ -259,7 +262,7 @@ impl IoProtocol for FirmataIo {
         ])
     }
 
-    fn i2c_read(&mut self, address: u8, size: u8) -> Result<(), Error> {
+    fn i2c_read(&mut self, address: u8, size: u16) -> Result<(), Error> {
         self.transport.write(&[
             START_SYSEX,
             I2C_REQUEST,
@@ -268,10 +271,12 @@ impl IoProtocol for FirmataIo {
             (size as u8) & SYSEX_REALTIME,
             (size >> 7) as u8 & SYSEX_REALTIME,
             END_SYSEX,
-        ])
+        ])?;
+        while self.read_and_decode()? != Message::I2CReply {}
+        Ok(())
     }
 
-    fn i2c_write(&mut self, address: u8, data: &[u8]) -> Result<(), Error> {
+    fn i2c_write(&mut self, address: u8, data: &[u16]) -> Result<(), Error> {
         let mut buf = vec![START_SYSEX, I2C_REQUEST, address, I2C_WRITE << 3];
 
         for &i in data.iter() {
@@ -290,7 +295,7 @@ impl FirmataIo {
     /// <https://github.com/firmata/protocol/blob/master/protocol.md>
     fn software_reset(&mut self) -> Result<(), Error> {
         let payload = &[SYSTEM_RESET];
-        trace!("Software reset: {:02X?}", payload);
+        // trace!"Software reset: {:02X?}", payload);
         self.transport.write(payload)
     }
 
@@ -323,14 +328,14 @@ impl FirmataIo {
     /// Query the board for current firmware and protocol information.
     fn query_firmware(&mut self) -> Result<(), Error> {
         let payload = &[START_SYSEX, REPORT_FIRMWARE, END_SYSEX];
-        trace!("Query firmware: {:02X?}", payload);
+        // trace!"Query firmware: {:02X?}", payload);
         self.transport.write(payload)
     }
 
     /// Query the board for all available capabilities.
     fn query_capabilities(&mut self) -> Result<(), Error> {
         let payload = &[START_SYSEX, CAPABILITY_QUERY, END_SYSEX];
-        trace!("Query capabilities: {:02X?}", payload);
+        // trace!"Query capabilities: {:02X?}", payload);
         self.transport.write(payload)
     }
 
@@ -340,7 +345,7 @@ impl FirmataIo {
     /// Query the board for available analog pins.
     fn query_analog_mapping(&mut self) -> Result<(), Error> {
         let payload = &[START_SYSEX, ANALOG_MAPPING_QUERY, END_SYSEX];
-        trace!("Query analog mapping: {:02X?}", payload);
+        // trace!"Query analog mapping: {:02X?}", payload);
         self.transport.write(payload)
     }
 
@@ -360,7 +365,7 @@ impl FirmataIo {
             DIGITAL_MESSAGE..=DIGITAL_MESSAGE_BOUND => self.handle_digital_message(&buf),
             START_SYSEX => self.handle_sysex_message(&mut buf),
             _ => {
-                trace!("IoPlugin: unexpected data: {:02X?}", buf.as_slice());
+                // trace!"IoPlugin: unexpected data: {:02X?}", buf.as_slice());
                 Ok(Message::EmptyResponse)
             }
         }
@@ -371,7 +376,7 @@ impl FirmataIo {
     fn handle_protocol_version(&mut self, buf: &[u8]) -> Result<Message, Error> {
         let mut lock = self.get_io().write();
         lock.protocol_version = format!("{}.{}", buf[1], buf[2]);
-        trace!("Received protocol version: {}", lock.protocol_version);
+        // trace!"Received protocol version: {}", lock.protocol_version);
         Ok(Message::ReportProtocolVersion)
     }
 
@@ -380,7 +385,7 @@ impl FirmataIo {
     fn handle_analog_message(&mut self, buf: &[u8]) -> Result<Message, Error> {
         let pin = (buf[0] & 0x0F) + 14;
         let value = (buf[1] as u16) | ((buf[2] as u16) << 7);
-        trace!("Received analog message: pin({})={}", pin, value);
+        // trace!"Received analog message: pin({})={}", pin, value);
         self.get_io().write().get_pin_mut(pin)?.value = value;
         Ok(Message::Analog)
     }
@@ -390,7 +395,7 @@ impl FirmataIo {
     fn handle_digital_message(&mut self, buf: &[u8]) -> Result<Message, Error> {
         let port = buf[0] & 0x0F;
         let value = (buf[1] as u16) | ((buf[2] as u16) << 7);
-        trace!("Received digital message: pin({})={}", port, value);
+        // trace!"Received digital message: pin({})={}", port, value);
 
         for i in 0..8 {
             let pin = (8 * port) + i;
@@ -425,7 +430,7 @@ impl FirmataIo {
             I2C_REPLY => self.handle_i2c_reply(buf),
             PIN_STATE_RESPONSE => self.handle_pin_state_response(buf),
             _ => {
-                trace!("Sysex: unexpected data: {:02X?}", buf.as_slice());
+                // trace!"Sysex: unexpected data: {:02X?}", buf.as_slice());
                 Ok(Message::EmptyResponse)
             }
         }
@@ -439,13 +444,13 @@ impl FirmataIo {
         while buf[i] != END_SYSEX {
             if buf[i] != SYSEX_REALTIME {
                 let pin = &mut lock.get_pin_mut((i - 2) as u8)?;
-                pin.mode = pin
-                    .supports_mode(PinModeId::ANALOG)
-                    .ok_or(IncompatibleMode {
+                pin.mode = pin.supports_mode(PinModeId::ANALOG).ok_or(
+                    HardwareError::IncompatibleMode {
                         pin: (i - 2) as u8,
                         mode: PinModeId::ANALOG,
                         context: "handle_analog_mapping_response",
-                    })?;
+                    },
+                )?;
                 pin.name = format!("A{}", buf[i]);
                 pin.channel = Some(buf[i]);
             }
@@ -488,7 +493,7 @@ impl FirmataIo {
             id += 1;
         }
 
-        trace!("Received capability response: @see hardware.pins");
+        // trace!"Received capability response: @see hardware.pins");
         Ok(Message::CapabilityResponse)
     }
 
@@ -496,7 +501,7 @@ impl FirmataIo {
     /// <https://github.com/firmata/protocol/blob/master/protocol.md#query-firmware-name-and-version>
     fn handle_firmware_report(&mut self, buf: &[u8]) -> Result<Message, Error> {
         if buf.len() < 5 {
-            return Err(Error::from(MessageTooShort {
+            return Err(Error::from(ProtocolError::MessageTooShort {
                 operation: "handle_firmware_report",
                 expected: 5,
                 received: buf.len(),
@@ -506,12 +511,12 @@ impl FirmataIo {
         let minor = buf[3];
         let mut lock = self.get_io().write();
         lock.firmware_version = format!("{}.{}", major, minor);
-        trace!("Received firmware version: {}", lock.firmware_version);
+        // trace!"Received firmware version: {}", lock.firmware_version);
         if buf.len() > 5 {
             lock.firmware_name = std::str::from_utf8(&buf[4..buf.len() - 1])?
                 .to_string()
                 .replace('\0', "");
-            trace!("Received firmware name: {}", lock.firmware_name);
+            // trace!"Received firmware name: {}", lock.firmware_name);
         }
         Ok(Message::ReportFirmwareVersion)
     }
@@ -519,15 +524,17 @@ impl FirmataIo {
     /// Handle an I2C_REPLY message (0x6E - read and decode an i2c message)
     /// <https://github.com/firmata/protocol/blob/master/i2c.md>
     fn handle_i2c_reply(&mut self, buf: &[u8]) -> Result<Message, Error> {
+        // trace!"I2C REPLY: {}", format_as_hex(buf));
+
         if buf.len() < 8 {
-            return Err(Error::from(MessageTooShort {
+            return Err(Error::from(ProtocolError::MessageTooShort {
                 operation: "handle_i2c_reply",
                 expected: 9,
                 received: buf.len(),
             }));
         }
         let mut reply = I2CReply {
-            address: buf[2] | (buf[3] << 7),
+            address: buf[2],
             register: buf[4] | (buf[5] << 7),
             data: vec![buf[6] | (buf[7] << 7)],
         };
@@ -545,7 +552,7 @@ impl FirmataIo {
     fn handle_pin_state_response(&mut self, buf: &[u8]) -> Result<Message, Error> {
         let pin = buf[2];
         if buf.len() < 4 || buf[3] == END_SYSEX {
-            return Err(Error::from(MessageTooShort {
+            return Err(Error::from(ProtocolError::MessageTooShort {
                 operation: "handle_pin_state_response",
                 expected: 5,
                 received: buf.len(),
@@ -567,7 +574,7 @@ impl FirmataIo {
             i += 1;
         }
         pin.value = value as u16;
-        trace!("Received pin state: {:?}", pin);
+        // trace!"Received pin state: {:?}", pin);
         Ok(Message::PinStateResponse)
     }
 
@@ -625,7 +632,7 @@ mod tests {
     use crate::io::protocol::IoProtocol;
     use crate::io::{FirmataIo, PinModeId, Serial};
     use crate::mocks::create_test_plugin_io_data;
-    use crate::utils::Range;
+    use crate::utils::{format_as_hex, Range};
     use hermes_five::mocks::transport_layer::MockTransportLayer;
     use parking_lot::lock_api::RwLock;
     use std::sync::Arc;
@@ -650,14 +657,6 @@ mod tests {
             .as_any()
             .downcast_ref::<MockTransportLayer>()
             .unwrap()
-    }
-
-    fn _format_as_hex(slice: &[u8]) -> String {
-        slice
-            .iter()
-            .map(|byte| format!("0x{:02X}", byte))
-            .collect::<Vec<String>>()
-            .join(", ")
     }
 
     #[test]
@@ -690,7 +689,7 @@ mod tests {
         assert!(
             transport.write_buf.starts_with(&[0xFF]),
             "Buffer data has been sent [{:?}]",
-            _format_as_hex(&transport.write_buf[..1])
+            format_as_hex(&transport.write_buf[..1])
         );
     }
 
@@ -739,7 +738,7 @@ mod tests {
         assert!(
             transport.write_buf.starts_with(&[0xE0, 0x2A, 0x01]),
             "Buffer data has been sent [{:?}]",
-            _format_as_hex(&transport.write_buf[..3])
+            format_as_hex(&transport.write_buf[..3])
         );
         {
             let lock = protocol.get_io().read();
@@ -769,7 +768,7 @@ mod tests {
                 .write_buf
                 .starts_with(&[0xF0, 0x6F, 0x16, 0x68, 0x04, 0x01, 0xF7]),
             "Buffer data has been sent [{:?}]",
-            _format_as_hex(&transport.write_buf[..7])
+            format_as_hex(&transport.write_buf[..7])
         );
         {
             let lock = protocol.get_io().read();
@@ -797,7 +796,7 @@ mod tests {
         assert!(
             transport.write_buf.starts_with(&[0x91, 0x7F, 0x01]),
             "Buffer data has been sent [{:?}]",
-            _format_as_hex(&transport.write_buf[..3])
+            format_as_hex(&transport.write_buf[..3])
         );
 
         {
@@ -833,7 +832,7 @@ mod tests {
         assert!(
             transport.write_buf.starts_with(&[0xF4, 0x08, 0x01]),
             "Buffer data has been sent [{:?}]",
-            _format_as_hex(&transport.write_buf[..3])
+            format_as_hex(&transport.write_buf[..3])
         );
 
         {
@@ -867,7 +866,7 @@ mod tests {
                 .write_buf
                 .starts_with(&[0xF0, 0x70, 0x08, 0x74, 0x03, 0x44, 0x13, 0xF7]),
             "Buffer data has been sent [{:?}]",
-            _format_as_hex(&transport.write_buf[..8])
+            format_as_hex(&transport.write_buf[..8])
         );
     }
 
@@ -882,7 +881,7 @@ mod tests {
         assert!(
             transport.write_buf.starts_with(&[0xF0, 0x79, 0xF7]),
             "Buffer data has been sent [{:?}]",
-            _format_as_hex(&transport.write_buf[..3])
+            format_as_hex(&transport.write_buf[..3])
         );
     }
 
@@ -901,7 +900,7 @@ mod tests {
         assert!(
             transport.write_buf.starts_with(&[0xF0, 0x6B, 0xF7]),
             "Buffer data has been sent [{:?}]",
-            _format_as_hex(&transport.write_buf[..3])
+            format_as_hex(&transport.write_buf[..3])
         );
     }
 
@@ -920,7 +919,7 @@ mod tests {
         assert!(
             transport.write_buf.starts_with(&[0xF0, 0x69, 0xF7]),
             "Buffer data has been sent [{:?}]",
-            _format_as_hex(&transport.write_buf[..3])
+            format_as_hex(&transport.write_buf[..3])
         );
     }
 
@@ -937,7 +936,7 @@ mod tests {
                 .write_buf
                 .starts_with(&[0xF0, 0x7A, 0x64, 0x00, 0xF7]),
             "Buffer data has been sent [{:?}]",
-            _format_as_hex(&transport.write_buf[..5])
+            format_as_hex(&transport.write_buf[..5])
         );
     }
 
@@ -954,7 +953,7 @@ mod tests {
         assert!(
             transport.write_buf.starts_with(&[0xC2, 0x01, 0xC3, 0x01]),
             "Buffer data has been sent [{:?}]",
-            _format_as_hex(&transport.write_buf[..4])
+            format_as_hex(&transport.write_buf[..4])
         );
 
         // Reporting enables a watch task.
@@ -990,7 +989,7 @@ mod tests {
         assert!(
             transport.write_buf.starts_with(&[0xD0, 0x01, 0xD1, 0x01]), // 0xD0 for port 0 (pin 1-7); 0xD1 for port 1 (pin 8-15)
             "Buffer data has been sent [{:?}]",
-            _format_as_hex(&transport.write_buf[..4])
+            format_as_hex(&transport.write_buf[..4])
         );
 
         // Reporting enables a watch task.
@@ -1243,15 +1242,17 @@ mod tests {
                 .write_buf
                 .starts_with(&[0xF0, 0x78, 0x64, 0x00, 0xF7]),
             "Buffer data has been sent [{:?}]",
-            _format_as_hex(&transport.write_buf[..5])
+            format_as_hex(&transport.write_buf[..5])
         );
     }
 
     #[test]
     fn test_i2c_read() {
-        let mut protocol = _create_mock_protocol();
+        let mut protocol = _create_mock_protocol_with_data(&[
+            0xF0, 0x77, 0x40, 0x00, 0x42, 0x42, 0x42, 0x42, 0xF7, // mock 4 bytes i2c answer.
+        ]);
 
-        let result = protocol.i2c_read(0x40, 4);
+        let result = protocol.i2c_read(0x40, 4); // wait and read 4 bytes.
         assert!(result.is_ok(), "I2C read error: {:?}", result.unwrap_err());
 
         let transport = _get_mock_transport(&protocol);
@@ -1260,7 +1261,7 @@ mod tests {
                 .write_buf
                 .starts_with(&[0xF0, 0x76, 0x40, 0x08, 0x04, 0x00, 0xF7]),
             "Buffer data has been sent [{:?}]",
-            _format_as_hex(&transport.write_buf[..7])
+            format_as_hex(&transport.write_buf[..7])
         );
     }
 
@@ -1277,7 +1278,7 @@ mod tests {
                 .write_buf
                 .starts_with(&[0xF0, 0x76, 0x40, 0x00, 0x01, 0x00, 0x02, 0x00, 0x03, 0x00, 0xF7]),
             "Buffer data has been sent [{:?}]",
-            _format_as_hex(&transport.write_buf[..11])
+            format_as_hex(&transport.write_buf[..11])
         );
     }
 

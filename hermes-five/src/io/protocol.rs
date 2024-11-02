@@ -98,9 +98,9 @@ pub trait IoProtocol: DynClone + Send + Sync + Debug + Display {
     /// register is written to and the data in that register can be read.
     fn i2c_config(&mut self, delay: u16) -> Result<(), Error>;
     /// Reads `size` bytes from I2C device at the specified `address`.
-    fn i2c_read(&mut self, address: u8, size: u8) -> Result<(), Error>;
+    fn i2c_read(&mut self, address: u8, size: u16) -> Result<(), Error>;
     /// Writes `data` to the I2C device at the specified `address`.
-    fn i2c_write(&mut self, address: u8, data: &[u8]) -> Result<(), Error>;
+    fn i2c_write(&mut self, address: u8, data: &[u16]) -> Result<(), Error>;
 }
 
 #[cfg(not(tarpaulin_include))]

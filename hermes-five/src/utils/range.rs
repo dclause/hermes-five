@@ -91,27 +91,33 @@ mod tests {
         let debug_str = format!("{:?}", range);
         assert_eq!(debug_str, "Range { start: 4, end: 10 }");
     }
+}
 
-    #[cfg(feature = "serde")]
-    #[cfg(test)]
-    mod serde_tests {
-        use serde_json;
+#[cfg(feature = "serde")]
+#[cfg(test)]
+mod serde_tests {
+    use serde_json;
 
-        use super::*;
+    use super::*;
 
-        #[test]
-        fn test_range_serialize() {
-            let range = Range { start: 6, end: 12 };
-            let json = serde_json::to_string(&range).unwrap();
-            assert_eq!(json, r#"[6,12]"#);
-        }
+    #[test]
+    fn test_range_serialize() {
+        let range = Range { start: 6, end: 12 };
+        let json = serde_json::to_string(&range);
+        assert!(json.is_ok());
+        assert_eq!(json.unwrap(), r#"[6,12]"#);
+    }
 
-        #[test]
-        fn test_range_deserialize() {
-            let json = r#"[7,14]"#;
-            let range: Range<u8> = serde_json::from_str(json).unwrap();
-            assert_eq!(range.start, 7);
-            assert_eq!(range.end, 14);
-        }
+    #[test]
+    fn test_range_deserialize() {
+        let json = r#"[7,14]"#;
+        let range = serde_json::from_str(json);
+        assert!(range.is_ok());
+        let range: Range<u8> = range.unwrap();
+        assert_eq!(range.start, 7);
+        assert_eq!(range.end, 14);
+
+        let json_wrong = r#"[7,8,14]"#;
+        assert!(serde_json::from_str::<Range<u8>>(json_wrong).is_err());
     }
 }
