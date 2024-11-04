@@ -6,7 +6,7 @@ use parking_lot::RwLock;
 
 use crate::animations::{Animation, Easing, Keyframe, Segment, Track};
 use crate::devices::{Device, Output};
-use crate::errors::HardwareError::IncompatibleMode;
+use crate::errors::HardwareError::IncompatiblePin;
 use crate::errors::{Error, StateError};
 use crate::hardware::Hardware;
 use crate::io::{IoProtocol, Pin, PinModeId};
@@ -86,7 +86,7 @@ impl Servo {
     ///
     /// # Errors
     /// * `UnknownPin`: this function will bail an error if the pin does not exist for this board.
-    /// * `IncompatibleMode`: this function will bail an error if the pin does not support SERVO mode.
+    /// * `IncompatiblePin`: this function will bail an error if the pin does not support SERVO mode.
     pub fn new(board: &dyn Hardware, pin: u8, default: u16) -> Result<Self, Error> {
         Self::create(board, pin, default, false)
     }
@@ -95,7 +95,7 @@ impl Servo {
     ///
     /// # Errors
     /// * `UnknownPin`: this function will bail an error if the pin does not exist for this board.
-    /// * `IncompatibleMode`: this function will bail an error if the pin does not support SERVO mode.
+    /// * `IncompatiblePin`: this function will bail an error if the pin does not support SERVO mode.
     pub fn new_inverted(board: &dyn Hardware, pin: u8, default: u16) -> Result<Self, Error> {
         Self::create(board, pin, default, true)
     }
@@ -120,6 +120,7 @@ impl Servo {
             animation: Arc::new(None),
             last_move: Arc::new(RwLock::new(None)),
         };
+        println!("PROTOCOL: {:#?}", servo.protocol);
 
         // --
         // The following may seem tedious, but it ensures we attach the servo with the default value already set.
@@ -127,7 +128,7 @@ impl Servo {
         servo
             .get_pin_info()?
             .supports_mode(PinModeId::SERVO)
-            .ok_or(IncompatibleMode {
+            .ok_or(IncompatiblePin {
                 pin,
                 mode: PinModeId::SERVO,
                 context: "create a new Servo device",

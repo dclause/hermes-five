@@ -66,7 +66,6 @@ impl IoProtocol for RemoteIo {
     #[cfg(not(tarpaulin_include))]
     fn open(&mut self) -> Result<(), Error> {
         self.data.write().connected = false;
-
         self.transport.open()?;
 
         // Perform handshake.
@@ -159,14 +158,13 @@ impl IO for RemoteIo {
         {
             let mut lock = self.data.write();
             let pin_instance = lock.get_pin_mut(pin)?;
-            let _mode =
-                pin_instance
-                    .supports_mode(mode)
-                    .ok_or(HardwareError::IncompatibleMode {
-                        pin,
-                        mode,
-                        context: "try to set pin mode",
-                    })?;
+            let _mode = pin_instance
+                .supports_mode(mode)
+                .ok_or(HardwareError::IncompatiblePin {
+                    pin,
+                    mode,
+                    context: "try to set pin mode",
+                })?;
             pin_instance.mode = _mode;
         }
 
@@ -456,13 +454,13 @@ impl RemoteIo {
         while buf[i] != END_SYSEX {
             if buf[i] != SYSEX_REALTIME {
                 let pin = &mut lock.get_pin_mut((i - 2) as u8)?;
-                pin.mode = pin.supports_mode(PinModeId::ANALOG).ok_or(
-                    HardwareError::IncompatibleMode {
-                        pin: (i - 2) as u8,
-                        mode: PinModeId::ANALOG,
-                        context: "handle_analog_mapping_response",
-                    },
-                )?;
+                pin.mode =
+                    pin.supports_mode(PinModeId::ANALOG)
+                        .ok_or(HardwareError::IncompatiblePin {
+                            pin: (i - 2) as u8,
+                            mode: PinModeId::ANALOG,
+                            context: "handle_analog_mapping_response",
+                        })?;
                 pin.name = format!("A{}", buf[i]);
                 pin.channel = Some(buf[i]);
             }

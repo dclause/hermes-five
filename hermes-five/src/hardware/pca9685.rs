@@ -228,14 +228,13 @@ impl IO for PCA9685 {
         {
             let mut lock = self.data.write();
             let pin_instance = lock.get_pin_mut(pin)?;
-            let _mode =
-                pin_instance
-                    .supports_mode(mode)
-                    .ok_or(HardwareError::IncompatibleMode {
-                        pin,
-                        mode,
-                        context: "try to set pin mode",
-                    })?;
+            let _mode = pin_instance
+                .supports_mode(mode)
+                .ok_or(HardwareError::IncompatiblePin {
+                    pin,
+                    mode,
+                    context: "try to set pin mode",
+                })?;
             pin_instance.mode = _mode;
         }
 
@@ -245,7 +244,7 @@ impl IO for PCA9685 {
             PinModeId::ANALOG => Ok(30),  // Typical frequency to control a fan.
             PinModeId::PWM => Ok(300),    // Typical frequency to control a dimmable led.
             PinModeId::SERVO => Ok(50),
-            _ => Err(Error::from(HardwareError::IncompatibleMode {
+            _ => Err(Error::from(HardwareError::IncompatiblePin {
                 mode,
                 pin,
                 context: "update digital output",

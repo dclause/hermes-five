@@ -44,7 +44,7 @@ impl AnalogInput {
     ///
     /// # Errors
     /// * `UnknownPin`: this function will bail an error if the AnalogInput pin does not exist for this board.
-    /// * `IncompatibleMode`: this function will bail an error if the AnalogInput pin does not support ANALOG mode.
+    /// * `IncompatiblePin`: this function will bail an error if the AnalogInput pin does not support ANALOG mode.
     pub fn new<T: Into<PinIdOrName>>(board: &Board, analog_pin: T) -> Result<Self, Error> {
         let pin = board.get_io().read().get_pin(analog_pin)?.clone();
 

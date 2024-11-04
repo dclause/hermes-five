@@ -66,7 +66,12 @@ impl Default for Serial {
 
 impl Display for Serial {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Serial({})", self.port)
+        write!(
+            f,
+            "Serial({}{})",
+            self.port,
+            if self.io.lock().is_some() { " [*]" } else { "" }
+        )
     }
 }
 

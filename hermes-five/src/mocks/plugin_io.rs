@@ -1,5 +1,5 @@
 use crate::errors::Error;
-use crate::errors::HardwareError::IncompatibleMode;
+use crate::errors::HardwareError::IncompatiblePin;
 use crate::io::{IoData, IoProtocol, PinModeId, IO};
 use crate::mocks::create_test_plugin_io_data;
 use crate::pause_sync;
@@ -81,7 +81,7 @@ impl IO for MockIoProtocol {
     fn set_pin_mode(&mut self, pin: u8, mode: PinModeId) -> Result<(), Error> {
         let mut lock = self.data.write();
         let pin_instance = lock.get_pin_mut(pin)?;
-        let _mode = pin_instance.supports_mode(mode).ok_or(IncompatibleMode {
+        let _mode = pin_instance.supports_mode(mode).ok_or(IncompatiblePin {
             pin,
             mode,
             context: "try to set pin mode",

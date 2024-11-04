@@ -52,7 +52,7 @@ impl Button {
     ///
     /// # Errors
     /// * `UnknownPin`: this function will bail an error if the Button pin does not exist for this board.
-    /// * `IncompatibleMode`: this function will bail an error if the Button pin does not support INPUT mode.
+    /// * `IncompatiblePin`: this function will bail an error if the Button pin does not support INPUT mode.
     pub fn new<T: Into<PinIdOrName>>(board: &Board, pin: T) -> Result<Self, Error> {
         Self {
             pin: 0,
@@ -75,7 +75,7 @@ impl Button {
     ///
     /// # Errors
     /// * `UnknownPin`: this function will bail an error if the Button pin does not exist for this board.
-    /// * `IncompatibleMode`: this function will bail an error if the Button pin does not support INPUT mode.
+    /// * `IncompatiblePin`: this function will bail an error if the Button pin does not support INPUT mode.
     pub fn new_inverted<T: Into<PinIdOrName>>(board: &Board, pin: T) -> Result<Self, Error> {
         Self {
             pin: 0,
@@ -97,7 +97,7 @@ impl Button {
     ///
     /// # Errors
     /// * `UnknownPin`: this function will bail an error if the Button pin does not exist for this board.
-    /// * `IncompatibleMode`: this function will bail an error if the Button pin does not support INPUT mode.
+    /// * `IncompatiblePin`: this function will bail an error if the Button pin does not support INPUT mode.
     pub fn new_pullup<T: Into<PinIdOrName>>(board: &Board, pin: T) -> Result<Self, Error> {
         Self {
             pin: 0,
@@ -121,7 +121,7 @@ impl Button {
     ///
     /// # Errors
     /// * `UnknownPin`: this function will bail an error if the Button pin does not exist for this board.
-    /// * `IncompatibleMode`: this function will bail an error if the Button pin does not support INPUT mode.
+    /// * `IncompatiblePin`: this function will bail an error if the Button pin does not support INPUT mode.
     pub fn new_inverted_pullup<T: Into<PinIdOrName>>(board: &Board, pin: T) -> Result<Self, Error> {
         Self {
             pin: 0,

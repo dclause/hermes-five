@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::fmt::{Display, Formatter};
 use std::sync::Arc;
 
@@ -5,7 +6,7 @@ use parking_lot::RwLock;
 
 use crate::animations::{Animation, Easing, Keyframe, Segment, Track};
 use crate::devices::{Device, Output};
-use crate::errors::HardwareError::IncompatibleMode;
+use crate::errors::HardwareError::IncompatiblePin;
 use crate::errors::{Error, StateError};
 use crate::hardware::{Board, Hardware};
 use crate::io::{IoProtocol, Pin, PinMode, PinModeId};
@@ -175,13 +176,13 @@ impl Led {
     /// If the requested brightness is 100%, the LED will reset to simple on/off (OUTPUT) mode.
     ///
     /// # Errors
-    /// * `IncompatibleMode`: this function will bail an error if the LED pin does not support PWM.
+    /// * `IncompatiblePin`: this function will bail an error if the LED pin does not support PWM.
     pub fn set_brightness(mut self, brightness: u8) -> Result<Self, Error> {
         // Brightness can only be between 0 and 100%
         let brightness = brightness.clamp(0, 100) as u16;
 
         // If the LED can use pwm mode: update the brightness
-        let pwm_mode = self.pwm_mode.ok_or(IncompatibleMode {
+        let pwm_mode = self.pwm_mode.ok_or(IncompatiblePin {
             mode: PinModeId::PWM,
             pin: self.pin,
             context: "set LED brightness",
@@ -251,7 +252,7 @@ impl Output for Led {
             PinModeId::OUTPUT => self.protocol.digital_write(self.pin, value > 0),
             // pwm (brightness) mode.
             PinModeId::PWM => self.protocol.analog_write(self.pin, value),
-            id => Err(Error::from(IncompatibleMode {
+            id => Err(Error::from(IncompatiblePin {
                 mode: id,
                 pin: self.pin,
                 context: "update LED",

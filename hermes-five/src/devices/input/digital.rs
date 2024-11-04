@@ -42,7 +42,7 @@ impl DigitalInput {
     ///
     /// # Errors
     /// * `UnknownPin`: this function will bail an error if the DigitalInput pin does not exist for this board.
-    /// * `IncompatibleMode`: this function will bail an error if the DigitalInput pin does not support ANALOG mode.
+    /// * `IncompatiblePin`: this function will bail an error if the DigitalInput pin does not support ANALOG mode.
     pub fn new<T: Into<PinIdOrName>>(board: &Board, pin: T) -> Result<Self, Error> {
         let pin = board.get_io().read().get_pin(pin)?.clone();
 

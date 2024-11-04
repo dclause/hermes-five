@@ -76,7 +76,7 @@ pub enum ProtocolError {
 #[snafu(visibility(pub))]
 pub enum HardwareError {
     /// Pin ({pin}) not compatible with mode ({mode}) - {context}
-    IncompatibleMode {
+    IncompatiblePin {
         pin: u8,
         mode: PinModeId,
         context: &'static str,
@@ -89,7 +89,7 @@ pub enum HardwareError {
 mod tests {
     use std::io;
 
-    use crate::errors::HardwareError::{IncompatibleMode, UnknownPin};
+    use crate::errors::HardwareError::{IncompatiblePin, UnknownPin};
 
     use super::*;
 
@@ -109,7 +109,7 @@ mod tests {
             "Protocol error: I/O error message."
         );
 
-        let hardware_error = Error::from(IncompatibleMode {
+        let hardware_error = Error::from(IncompatiblePin {
             pin: 1,
             mode: PinModeId::SERVO,
             context: "test context",

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 
-use crate::errors::HardwareError::{IncompatibleMode, UnknownPin};
+use crate::errors::HardwareError::{IncompatiblePin, UnknownPin};
 use crate::errors::*;
 
 /// Represents the internal data that a [`IoProtocol`](crate::io::IoProtocol) handles.
@@ -105,7 +105,7 @@ impl Pin {
     pub fn validate_current_mode(&self, mode: PinModeId) -> Result<(), Error> {
         match self.mode.id == mode {
             true => Ok(()),
-            false => Err(IncompatibleMode {
+            false => Err(IncompatiblePin {
                 mode: self.mode.id,
                 pin: self.id,
                 context: "check_current_mode",

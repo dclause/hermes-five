@@ -5,7 +5,7 @@ use parking_lot::RwLock;
 
 use crate::animations::{Animation, Easing, Keyframe, Track};
 use crate::devices::{Device, Output};
-use crate::errors::HardwareError::IncompatibleMode;
+use crate::errors::HardwareError::IncompatiblePin;
 use crate::errors::{Error, StateError};
 use crate::hardware::{Board, Hardware};
 use crate::io::{IoProtocol, Pin, PinIdOrName, PinModeId, IO};
@@ -44,7 +44,7 @@ impl PwmOutput {
     ///
     /// # Errors
     /// * `UnknownPin`: this function will bail an error if the pin does not exist for this board.
-    /// * `IncompatibleMode`: this function will bail an error if the pin does not support PWM mode.
+    /// * `IncompatiblePin`: this function will bail an error if the pin does not support PWM mode.
     pub fn new<T: Into<PinIdOrName>>(board: &Board, pin: T, default: u16) -> Result<Self, Error> {
         let pin = board.get_io().read().get_pin(pin)?.clone();
 
@@ -153,7 +153,7 @@ impl Output for PwmOutput {
 
         match self.get_pin_info()?.mode.id {
             PinModeId::PWM => self.protocol.analog_write(self.pin, value),
-            id => Err(Error::from(IncompatibleMode {
+            id => Err(Error::from(IncompatiblePin {
                 mode: id,
                 pin: self.pin,
                 context: "update pwm output",

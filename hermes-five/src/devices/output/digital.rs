@@ -40,7 +40,7 @@ impl DigitalOutput {
     ///
     /// # Errors
     /// * `HardwareError::UnknownPin`: this function will bail an error if the pin does not exist for this board.
-    /// * `HardwareError::IncompatibleMode`: this function will bail an error if the pin does not support OUTPUT mode.
+    /// * `HardwareError::IncompatiblePin`: this function will bail an error if the pin does not support OUTPUT mode.
     pub fn new<T: Into<PinIdOrName>>(board: &Board, pin: T, default: bool) -> Result<Self, Error> {
         let pin = board.get_io().read().get_pin(pin)?.clone();
 
@@ -144,7 +144,7 @@ impl Output for DigitalOutput {
         match self.get_pin_info()?.mode.id {
             // on/off digital operation.
             PinModeId::OUTPUT => self.protocol.digital_write(self.pin, value),
-            id => Err(Error::from(HardwareError::IncompatibleMode {
+            id => Err(Error::from(HardwareError::IncompatiblePin {
                 mode: id,
                 pin: self.pin,
                 context: "update digital output",
