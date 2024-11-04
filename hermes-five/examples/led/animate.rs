@@ -8,15 +8,15 @@ async fn main() {
     let board = Board::run();
 
     board.on(BoardEvent::OnReady, |board: Board| async move {
-        let mut led = Led::new(&board, 8, false)?;
+        let mut led = Led::new(&board, 13, false)?;
 
-        // Fade the LED to 50% brightness in 500ms.
-        led.animate(0x80u16, 500, Easing::Linear);
+        // Fade the LED to 50% brightness in 1000ms.
+        led.animate(0x80, 1000, Easing::Linear);
 
         pause!(1000);
 
-        // Dim the LED to 0% brightness in 500ms.
-        led.animate(0u16, 500, Easing::Linear);
+        // Dim the LED to 0% brightness in 1000ms.
+        led.animate(0, 1000, Easing::Linear);
 
         Ok(())
     });

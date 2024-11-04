@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::fmt::{Display, Formatter};
 use std::sync::Arc;
 
@@ -8,7 +7,7 @@ use crate::animations::{Animation, Easing, Keyframe, Segment, Track};
 use crate::devices::{Device, Output};
 use crate::errors::HardwareError::IncompatiblePin;
 use crate::errors::{Error, StateError};
-use crate::hardware::{Board, Hardware};
+use crate::hardware::Hardware;
 use crate::io::{IoProtocol, Pin, PinMode, PinModeId};
 use crate::utils::{Scalable, State};
 
@@ -52,7 +51,7 @@ impl Led {
     /// # Errors
     /// * `UnknownPin`: this function will bail an error if the pin does not exist for this board.
     /// * `IncompatibleMode`: this function will bail an error if the pin does not support OUTPUT or PWM mode.
-    pub fn new(board: &Board, pin: u8, default: bool) -> Result<Self, Error> {
+    pub fn new(board: &dyn Hardware, pin: u8, default: bool) -> Result<Self, Error> {
         let mut protocol = board.get_protocol();
 
         // Get the hardware corresponding pin.
@@ -195,8 +194,8 @@ impl Led {
         self.brightness = brightness;
 
         // If the value is higher than the brightness, we update it on the spot.
-        if self.state.read().ne(&brightness) {
-            self.set_state(State::Integer(brightness as u64))?;
+        if self.state.read().ne(&self.brightness) {
+            self.set_state(State::Integer(self.brightness as u64))?;
         }
 
         Ok(self)
@@ -244,6 +243,8 @@ impl Output for Led {
                 false => Ok(0),
             },
             State::Integer(value) => Ok(value as u16),
+            State::Float(value) => Ok(value as u16),
+            State::Signed(value) => Ok(value.max(0) as u16),
             _ => Err(StateError),
         }?;
 
@@ -331,14 +332,28 @@ mod tests {
     #[test]
     fn test_set_state() {
         let mut led = _setup_led(13);
+
         assert!(led.set_state(State::Boolean(true)).is_ok());
         assert_eq!(*led.state.read(), 0xFF); // State should reflect the brightness (100% = 255)
         assert!(led.set_state(State::Boolean(false)).is_ok());
         assert_eq!(*led.state.read(), 0x00); // Should be OFF (0)
+
+        assert!(led.set_state(State::Integer(50)).is_ok());
+        assert_eq!(*led.state.read(), 50);
+        assert!(led.set_state(State::Float(60.0)).is_ok());
+        assert_eq!(*led.state.read(), 60);
+        assert!(led.set_state(State::Signed(70)).is_ok());
+        assert_eq!(*led.state.read(), 70);
+        assert!(led.set_state(State::Signed(-70)).is_ok());
+        assert_eq!(*led.state.read(), 0);
+
+        // Incorrect state type.
         assert!(led
             .set_state(State::String(String::from("incorrect format")))
             .is_err()); // Should return an error due to incompatible state
                         // Force an incompatible pin mode
+
+        // Incorrect pin type.
         let _ = led.protocol.set_pin_mode(led.pin, PinModeId::UNSUPPORTED);
         assert!(led.set_state(State::Boolean(false)).is_err()); // Should return an error due to incompatible pin mode.
     }
@@ -460,11 +475,13 @@ mod tests {
     }
 
     #[test]
-    fn test_is_on() {
+    fn test_is_on_off() {
         let mut led = _setup_led(13);
         assert!(!led.is_on()); // Initially the LED is off
+        assert!(led.is_off());
         led.turn_on().unwrap();
         assert!(led.is_on()); // After turning on, the LED should be on
+        assert!(!led.is_off());
     }
 
     #[test]

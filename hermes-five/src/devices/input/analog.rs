@@ -6,8 +6,8 @@ use parking_lot::RwLock;
 use crate::devices::input::{Input, InputEvent};
 use crate::devices::Device;
 use crate::errors::Error;
-use crate::hardware::{Board, Hardware};
-use crate::io::{IoProtocol, PinIdOrName, PinModeId, IO};
+use crate::hardware::Hardware;
+use crate::io::{IoProtocol, PinIdOrName, PinModeId};
 use crate::pause;
 use crate::utils::task;
 use crate::utils::{EventHandler, EventManager, State, TaskHandler};
@@ -45,7 +45,7 @@ impl AnalogInput {
     /// # Errors
     /// * `UnknownPin`: this function will bail an error if the AnalogInput pin does not exist for this board.
     /// * `IncompatiblePin`: this function will bail an error if the AnalogInput pin does not support ANALOG mode.
-    pub fn new<T: Into<PinIdOrName>>(board: &Board, analog_pin: T) -> Result<Self, Error> {
+    pub fn new<T: Into<PinIdOrName>>(board: &dyn Hardware, analog_pin: T) -> Result<Self, Error> {
         let pin = board.get_io().read().get_pin(analog_pin)?.clone();
 
         let mut sensor = Self {
@@ -116,6 +116,7 @@ impl AnalogInput {
         if let Some(handler) = self.handler.read().as_ref() {
             handler.abort();
         }
+        *self.handler.write() = None
     }
 
     /// Registers a callback to be executed on a given event.
@@ -202,7 +203,9 @@ mod tests {
     #[hermes_macros::test]
     fn test_new_analog_input() {
         let board = Board::new(MockIoProtocol::default());
-        let sensor = AnalogInput::new(&board, 14).unwrap();
+        let sensor = AnalogInput::new(&board, 14);
+        assert!(sensor.is_ok());
+        let sensor = sensor.unwrap();
         assert_eq!(sensor.get_pin(), 14);
         assert_eq!(sensor.get_state().as_integer(), 100);
         sensor.detach();

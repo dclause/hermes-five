@@ -7,8 +7,8 @@ use crate::animations::{Animation, Easing, Keyframe, Track};
 use crate::devices::{Device, Output};
 use crate::errors::HardwareError::IncompatiblePin;
 use crate::errors::{Error, StateError};
-use crate::hardware::{Board, Hardware};
-use crate::io::{IoProtocol, Pin, PinIdOrName, PinModeId, IO};
+use crate::hardware::Hardware;
+use crate::io::{IoProtocol, Pin, PinIdOrName, PinModeId};
 use crate::utils::State;
 
 /// Represents an analog actuator of unspecified type: an [`Output`] [`Device`] that write analog values from a PWM compatible pin.
@@ -45,7 +45,11 @@ impl PwmOutput {
     /// # Errors
     /// * `UnknownPin`: this function will bail an error if the pin does not exist for this board.
     /// * `IncompatiblePin`: this function will bail an error if the pin does not support PWM mode.
-    pub fn new<T: Into<PinIdOrName>>(board: &Board, pin: T, default: u16) -> Result<Self, Error> {
+    pub fn new<T: Into<PinIdOrName>>(
+        board: &dyn Hardware,
+        pin: T,
+        default: u16,
+    ) -> Result<Self, Error> {
         let pin = board.get_io().read().get_pin(pin)?.clone();
 
         let mut output = Self {

@@ -216,7 +216,7 @@ impl IO for RemoteIo {
             let mut payload = vec![
                 START_SYSEX,
                 EXTENDED_ANALOG,
-                pin as u8,
+                pin,
                 level as u8 & SYSEX_REALTIME,
                 (level >> 7) as u8 & SYSEX_REALTIME,
             ];
@@ -228,7 +228,7 @@ impl IO for RemoteIo {
         } else {
             // Standard analog message
             vec![
-                ANALOG_MESSAGE | pin as u8,
+                ANALOG_MESSAGE | pin,
                 level as u8 & SYSEX_REALTIME,
                 (level >> 7) as u8 & SYSEX_REALTIME,
             ]

@@ -3,7 +3,7 @@
 // https://www.digikey.jp/htmldatasheets/production/2459480/0/0/1/pca9685.html
 
 use crate::errors::{Error, HardwareError, UnknownError};
-use crate::hardware::{Board, Hardware};
+use crate::hardware::{Board, Controller, Hardware};
 use crate::io::{IoData, IoProtocol, Pin, PinMode, PinModeId, IO};
 use crate::utils::{Range, Scalable};
 use parking_lot::RwLock;
@@ -28,23 +28,6 @@ pub struct PCA9685 {
     data: Arc<RwLock<IoData>>,
     #[cfg_attr(feature = "serde", serde(skip))]
     protocol: Box<dyn IoProtocol>,
-}
-
-impl Hardware for PCA9685 {
-    /// Returns  the protocol used.
-    fn get_protocol(&self) -> Box<dyn IoProtocol> {
-        Box::new(self.clone())
-    }
-    //
-    // fn open(mut self) -> Self {
-    //     IoProtocol::open(&mut self).expect("I2C config cannot start");
-    //     self
-    // }
-    //
-    // fn close(mut self) -> Self {
-    //     IoProtocol::close(&mut self).expect("I2C cannot close");
-    //     self
-    // }
 }
 
 impl PCA9685 {
@@ -182,6 +165,19 @@ impl PCA9685 {
             *lock.i2c_data.last().unwrap().data.last().unwrap()
         };
         Ok(register_value)
+    }
+}
+
+impl Controller for PCA9685 {}
+
+impl Hardware for PCA9685 {
+    fn get_protocol(&self) -> Box<dyn IoProtocol> {
+        Box::new(self.clone())
+    }
+
+    #[cfg(not(tarpaulin_include))]
+    fn set_protocol(&mut self, protocol: Box<dyn IoProtocol>) {
+        self.protocol = protocol;
     }
 }
 
@@ -348,6 +344,14 @@ mod tests {
     use crate::mocks::plugin_io::MockIoProtocol;
     use crate::mocks::transport_layer::MockTransportLayer;
     use crate::utils::Range;
+
+    #[test]
+    fn test_helper() {
+        let data = PCA9685::_build_pca9685_data();
+        assert_eq!(data.firmware_name, "PCA9685");
+        assert_eq!(data.protocol_version, "PCA9685");
+        assert_eq!(data.pins.len(), 16);
+    }
 
     #[test]
     fn test_default_initialization() {

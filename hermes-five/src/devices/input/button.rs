@@ -5,8 +5,8 @@ use parking_lot::RwLock;
 
 use crate::devices::{Device, Input, InputEvent};
 use crate::errors::Error;
-use crate::hardware::{Board, Hardware};
-use crate::io::{IoProtocol, PinIdOrName, PinModeId, IO};
+use crate::hardware::Hardware;
+use crate::io::{IoProtocol, PinIdOrName, PinModeId};
 use crate::pause;
 use crate::utils::{task, EventHandler, EventManager, State, TaskHandler};
 
@@ -53,7 +53,7 @@ impl Button {
     /// # Errors
     /// * `UnknownPin`: this function will bail an error if the Button pin does not exist for this board.
     /// * `IncompatiblePin`: this function will bail an error if the Button pin does not support INPUT mode.
-    pub fn new<T: Into<PinIdOrName>>(board: &Board, pin: T) -> Result<Self, Error> {
+    pub fn new<T: Into<PinIdOrName>>(board: &dyn Hardware, pin: T) -> Result<Self, Error> {
         Self {
             pin: 0,
             state: Arc::new(RwLock::new(false)),
@@ -76,7 +76,7 @@ impl Button {
     /// # Errors
     /// * `UnknownPin`: this function will bail an error if the Button pin does not exist for this board.
     /// * `IncompatiblePin`: this function will bail an error if the Button pin does not support INPUT mode.
-    pub fn new_inverted<T: Into<PinIdOrName>>(board: &Board, pin: T) -> Result<Self, Error> {
+    pub fn new_inverted<T: Into<PinIdOrName>>(board: &dyn Hardware, pin: T) -> Result<Self, Error> {
         Self {
             pin: 0,
             state: Arc::new(RwLock::new(false)),
@@ -98,7 +98,7 @@ impl Button {
     /// # Errors
     /// * `UnknownPin`: this function will bail an error if the Button pin does not exist for this board.
     /// * `IncompatiblePin`: this function will bail an error if the Button pin does not support INPUT mode.
-    pub fn new_pullup<T: Into<PinIdOrName>>(board: &Board, pin: T) -> Result<Self, Error> {
+    pub fn new_pullup<T: Into<PinIdOrName>>(board: &dyn Hardware, pin: T) -> Result<Self, Error> {
         Self {
             pin: 0,
             state: Arc::new(RwLock::new(false)),
@@ -122,7 +122,10 @@ impl Button {
     /// # Errors
     /// * `UnknownPin`: this function will bail an error if the Button pin does not exist for this board.
     /// * `IncompatiblePin`: this function will bail an error if the Button pin does not support INPUT mode.
-    pub fn new_inverted_pullup<T: Into<PinIdOrName>>(board: &Board, pin: T) -> Result<Self, Error> {
+    pub fn new_inverted_pullup<T: Into<PinIdOrName>>(
+        board: &dyn Hardware,
+        pin: T,
+    ) -> Result<Self, Error> {
         Self {
             pin: 0,
             state: Arc::new(RwLock::new(false)),
@@ -136,7 +139,11 @@ impl Button {
     }
 
     /// Private helper method shared by constructors.
-    fn start_with<T: Into<PinIdOrName>>(mut self, board: &Board, pin: T) -> Result<Self, Error> {
+    fn start_with<T: Into<PinIdOrName>>(
+        mut self,
+        board: &dyn Hardware,
+        pin: T,
+    ) -> Result<Self, Error> {
         let pin = board.get_io().read().get_pin(pin)?.clone();
 
         // Set pin ID and state from pin.
@@ -238,6 +245,7 @@ impl Button {
         if let Some(handler) = self.handler.read().as_ref() {
             handler.abort();
         }
+        *self.handler.write() = None
     }
 
     /// Registers a callback to be executed on a given event on the Button.
@@ -389,6 +397,31 @@ mod tests {
         assert!(button.is_pullup());
 
         button.detach();
+        board.close();
+    }
+
+    #[hermes_macros::test]
+    fn test_button_helper() {
+        let board = Board::new(MockIoProtocol::default());
+        let button = Button::start_with(
+            Button {
+                pin: 0,
+                state: Arc::new(RwLock::new(false)),
+                invert: true,
+                pullup: false,
+                protocol: board.get_protocol(),
+                handler: Arc::new(RwLock::new(None)),
+                events: Default::default(),
+            },
+            &board,
+            13,
+        );
+        assert!(button.is_ok());
+        let button = button.unwrap();
+        assert_eq!(button.get_pin(), 13);
+        assert!(button.handler.read().is_some());
+        button.detach();
+        assert!(button.handler.read().is_none());
         board.close();
     }
 

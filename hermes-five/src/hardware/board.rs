@@ -262,13 +262,13 @@ impl Board {
 }
 
 impl Hardware for Board {
-    /// Returns  the protocol used.
-    ///
-    /// NOTE: this is private to the crate since board already gives access to protocol methods via Deref.
-    /// This method is only used internally in all [`Device::new()`] methods to clone the protocol into the
-    /// device.
     fn get_protocol(&self) -> Box<dyn IoProtocol> {
         self.protocol.clone()
+    }
+
+    #[cfg(not(tarpaulin_include))]
+    fn set_protocol(&mut self, protocol: Box<dyn IoProtocol>) {
+        self.protocol = protocol;
     }
 }
 

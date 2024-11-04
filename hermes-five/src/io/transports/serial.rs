@@ -98,7 +98,11 @@ impl IoTransport for Serial {
     }
 
     fn set_timeout(&mut self, duration: Duration) -> Result<(), Error> {
-        self.io.lock().as_mut().unwrap().set_timeout(duration)?;
+        self.io
+            .lock()
+            .as_mut()
+            .ok_or(NotInitialized)?
+            .set_timeout(duration)?;
         Ok(())
     }
 
@@ -222,6 +226,14 @@ mod tests {
         };
         let custom_error: Error = serial_error.into();
         assert_eq!(custom_error.to_string(), "Protocol error: IO error.");
+    }
+
+    #[test]
+    fn test_set_timeout() {
+        let mut protocol = Serial::new("/dev/ttyACM0");
+        assert!(protocol.set_timeout(Duration::from_secs(1)).is_err());
+        let mut protocol = get_test_successful_protocol();
+        assert!(protocol.set_timeout(Duration::from_secs(1)).is_ok());
     }
 
     #[test]

@@ -6,8 +6,8 @@ use parking_lot::RwLock;
 use crate::devices::input::{Input, InputEvent};
 use crate::devices::Device;
 use crate::errors::Error;
-use crate::hardware::{Board, Hardware};
-use crate::io::{IoProtocol, PinIdOrName, PinModeId, IO};
+use crate::hardware::Hardware;
+use crate::io::{IoProtocol, PinIdOrName, PinModeId};
 use crate::pause;
 use crate::utils::{task, EventHandler, EventManager, State, TaskHandler};
 
@@ -43,7 +43,7 @@ impl DigitalInput {
     /// # Errors
     /// * `UnknownPin`: this function will bail an error if the DigitalInput pin does not exist for this board.
     /// * `IncompatiblePin`: this function will bail an error if the DigitalInput pin does not support ANALOG mode.
-    pub fn new<T: Into<PinIdOrName>>(board: &Board, pin: T) -> Result<Self, Error> {
+    pub fn new<T: Into<PinIdOrName>>(board: &dyn Hardware, pin: T) -> Result<Self, Error> {
         let pin = board.get_io().read().get_pin(pin)?.clone();
 
         let mut sensor = Self {
@@ -120,6 +120,7 @@ impl DigitalInput {
         if let Some(handler) = self.handler.read().as_ref() {
             handler.abort();
         }
+        *self.handler.write() = None
     }
 
     /// Registers a callback to be executed on a given event on the DigitalInput.
