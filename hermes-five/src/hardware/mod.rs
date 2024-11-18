@@ -23,4 +23,4 @@ pub trait Hardware: IO {
     fn set_protocol(&mut self, protocol: Box<dyn IoProtocol>);
 }
 
-pub trait Controller: Hardware + IoProtocol {}
+pub trait Expander: Hardware + IoProtocol {}

@@ -3,7 +3,7 @@
 // https://www.digikey.jp/htmldatasheets/production/2459480/0/0/1/pca9685.html
 
 use crate::errors::{Error, HardwareError, UnknownError};
-use crate::hardware::{Board, Controller, Hardware};
+use crate::hardware::{Board, Expander, Hardware};
 use crate::io::{IoData, IoProtocol, Pin, PinMode, PinModeId, IO};
 use crate::utils::{Range, Scalable};
 use parking_lot::RwLock;
@@ -18,7 +18,6 @@ pub struct PCA9685 {
     address: u8,
     // Frequency in Mhz (default 50Mhz).
     frequency: u16,
-    connected: bool,
 
     // ########################################
     // # Volatile utility data.
@@ -95,18 +94,25 @@ impl PCA9685 {
         PCA9685::new(board, 0x40)
     }
 
-    pub fn new(board: &Board, address: u8) -> Result<Self, Error> {
+    pub fn new(board: &dyn Hardware, address: u8) -> Result<Self, Error> {
         let protocol = board.get_protocol();
-        let mut controller = Self {
+        let mut expander = Self {
             address,
             frequency: 50,
-            connected: false,
             servo_configs: Default::default(),
             data: Arc::new(RwLock::new(PCA9685::_build_pca9685_data())),
             protocol,
         };
-        IoProtocol::open(&mut controller)?;
-        Ok(controller)
+        IoProtocol::open(&mut expander)?;
+        Ok(expander)
+    }
+
+    pub fn get_address(&self) -> u8 {
+        self.address
+    }
+
+    pub fn get_frequency(&self) -> u16 {
+        self.frequency
     }
 
     // Sets the PWM frequency (in Hz) for the entire PCA9685: from 24 to 1526 Hz.
@@ -168,7 +174,7 @@ impl PCA9685 {
     }
 }
 
-impl Controller for PCA9685 {}
+impl Expander for PCA9685 {}
 
 impl Hardware for PCA9685 {
     fn get_protocol(&self) -> Box<dyn IoProtocol> {
@@ -185,13 +191,13 @@ impl Hardware for PCA9685 {
 impl IoProtocol for PCA9685 {
     fn open(&mut self) -> Result<(), Error> {
         self.i2c_config(0)?;
-        self.connected = true;
+        self.data.write().connected = true;
         Ok(())
     }
 
     fn close(&mut self) -> Result<(), Error> {
         self.write_to_reg(PCA9685::MODE1, PCA9685::RESTART)?;
-        self.connected = false;
+        self.data.write().connected = false;
         Ok(())
     }
 
@@ -217,7 +223,7 @@ impl IO for PCA9685 {
     }
 
     fn is_connected(&self) -> bool {
-        self.connected
+        self.data.read().connected
     }
 
     fn set_pin_mode(&mut self, pin: u8, mode: PinModeId) -> Result<(), Error> {
@@ -450,19 +456,19 @@ mod tests {
 
         // Test setting pin mode to OUTPUT
         assert!(pca9685.set_pin_mode(0, PinModeId::OUTPUT).is_ok());
-        assert_eq!(pca9685.frequency, 300);
+        assert_eq!(pca9685.get_frequency(), 300);
 
         // Test setting pin mode to SERVO
         assert!(pca9685.set_pin_mode(1, PinModeId::SERVO).is_ok());
-        assert_eq!(pca9685.frequency, 50);
+        assert_eq!(pca9685.get_frequency(), 50);
 
         // Test setting pin mode to ANALOG
         assert!(pca9685.set_pin_mode(1, PinModeId::ANALOG).is_ok());
-        assert_eq!(pca9685.frequency, 30);
+        assert_eq!(pca9685.get_frequency(), 30);
 
         // Test setting pin mode to PWM
         assert!(pca9685.set_pin_mode(1, PinModeId::PWM).is_ok());
-        assert_eq!(pca9685.frequency, 300);
+        assert_eq!(pca9685.get_frequency(), 300);
 
         // Test setting an invalid mode
         let result = pca9685.set_pin_mode(2, PinModeId::UNSUPPORTED);
@@ -538,7 +544,7 @@ mod tests {
     fn test_close() {
         let board = Board::new(MockIoProtocol::default());
         let mut pca9685 = PCA9685::default(&board).unwrap();
-        pca9685.connected = true; // force
+        pca9685.data.write().connected = true; // force
         assert!(pca9685.close().is_ok());
         assert!(!pca9685.is_connected());
     }
