@@ -488,6 +488,12 @@ impl RemoteIo {
                 i += 2;
             }
 
+            // Add "UNSUPPORTED" as a hack to auto-detach the servos.
+            supported_modes.push(PinMode {
+                id: PinModeId::UNSUPPORTED,
+                resolution: 0,
+            });
+
             let mut pin = Pin {
                 id,
                 name: format!("D{}", id),
@@ -1157,8 +1163,8 @@ mod tests {
             let lock = protocol.get_io().read();
             let hardware = lock.to_owned();
             assert_eq!(hardware.pins.len(), 2, "{:?}", hardware.pins);
-            assert_eq!(hardware.get_pin(0).unwrap().supported_modes.len(), 1);
-            assert_eq!(hardware.get_pin(1).unwrap().supported_modes.len(), 2);
+            assert_eq!(hardware.get_pin(0).unwrap().supported_modes.len(), 2);
+            assert_eq!(hardware.get_pin(1).unwrap().supported_modes.len(), 3);
         }
     }
 

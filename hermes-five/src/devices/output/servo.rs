@@ -120,7 +120,6 @@ impl Servo {
             animation: Arc::new(None),
             last_move: Arc::new(RwLock::new(None)),
         };
-        println!("PROTOCOL: {:#?}", servo.protocol);
 
         // --
         // The following may seem tedious, but it ensures we attach the servo with the default value already set.
@@ -410,7 +409,7 @@ impl Output for Servo {
                         {
                             self_clone
                                 .protocol
-                                .set_pin_mode(self_clone.pin, PinModeId::OUTPUT)
+                                .set_pin_mode(self_clone.pin, PinModeId::UNSUPPORTED)
                                 .unwrap();
                         }
                     }
@@ -547,7 +546,7 @@ mod tests {
         // No move ultimately leads to auto-detaching
         pause!(3000);
         assert!(servo.is_auto_detach());
-        assert_eq!(servo.get_pin_info().unwrap().mode.id, PinModeId::OUTPUT);
+        assert_eq!(servo.get_pin_info().unwrap().mode.id, PinModeId::UNSUPPORTED);
     }
 
     #[test]

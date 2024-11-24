@@ -80,6 +80,10 @@ impl PCA9685 {
                             id: PinModeId::ANALOG,
                             resolution: 8,
                         },
+                        PinMode {
+                            id: PinModeId::UNSUPPORTED,
+                            resolution: 0,
+                        },
                     ],
                     channel: None,
                     value: 0,
@@ -238,6 +242,13 @@ impl IO for PCA9685 {
                     context: "try to set pin mode",
                 })?;
             pin_instance.mode = _mode;
+        }
+
+        // Special hack: unsupported should disable the pin, hence send no signal at all.
+        if mode == PinModeId::UNSUPPORTED {
+            let payload = &[(PCA9685::BASE + 4 * pin) as u16, 0, 0, 4096, 4096 >> 8];
+            self.protocol.i2c_write(self.address, payload)?;
+            return Ok(())
         }
 
         // Arbitrary selection of frequencies depending on pin mode.
@@ -471,11 +482,11 @@ mod tests {
         assert_eq!(pca9685.get_frequency(), 300);
 
         // Test setting an invalid mode
-        let result = pca9685.set_pin_mode(2, PinModeId::UNSUPPORTED);
+        let result = pca9685.set_pin_mode(2, PinModeId::DHT);
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err().to_string(),
-            "Hardware error: Pin (2) not compatible with mode (UNSUPPORTED) - try to set pin mode."
+            "Hardware error: Pin (2) not compatible with mode (DHT) - try to set pin mode."
         )
     }
 
