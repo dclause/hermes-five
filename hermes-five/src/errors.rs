@@ -26,7 +26,7 @@ impl From<std::io::Error> for Error {
         error!("std::io error {:?}", error);
         let info = match error.kind() {
             std::io::ErrorKind::NotFound => String::from("Board not found or already in use"),
-            std::io::ErrorKind::PermissionDenied => String::from("Board connection lost"),
+            std::io::ErrorKind::PermissionDenied => String::from("Board access denied"),
             _ => error.to_string(),
         };
         Self::ProtocolError {
