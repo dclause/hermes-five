@@ -141,7 +141,7 @@ mod tests {
         let error: Error = io_error.into();
         assert_eq!(
             format!("{}", error),
-            "Protocol error: Board connection lost."
+            "Protocol error: Board access denied."
         );
     }
 
