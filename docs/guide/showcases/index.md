@@ -35,11 +35,9 @@ repository [examples folder](https://github.com/dclause/hermes-five/tree/develop
 
 ### Input
 
-- **[sensor/microwave.rs](https://github.com/dclause/hermes-five/tree/0.1.0/hermes-five/examples/sensor/microwave.rs):**
+- **[sensors/microwave.rs](https://github.com/dclause/hermes-five/tree/0.1.0/hermes-five/examples/sensors/microwave.rs):**
   Demonstrates how to use a digital input pin to get a digital sensor type data.
-- *
-  *[sensor/potentiometer.rs](https://github.com/dclause/hermes-five/tree/0.1.0/hermes-five/examples/sensor/potentiometer.rs):
-  ** Demonstrates how to use an analog input pin to get an analog sensor type data.
+- **[sensors/potentiometer.rs](https://github.com/dclause/hermes-five/tree/0.1.0/hermes-five/examples/sensors/potentiometer.rs):** Demonstrates how to use an analog input pin to get an analog sensor type data.
 
 ## Various devices
 
@@ -78,9 +76,5 @@ repository [examples folder](https://github.com/dclause/hermes-five/tree/develop
 
 ## Animation
 
-- *
-  *[animation/animation.rs](https://github.com/dclause/hermes-five/tree/0.1.0/hermes-five/examples/animation/animation.rs):
-  ** Demonstrates how to create and run a complex animation (with multiple devices, parts, repeating parts, etc.).
-- *
-  *[animation/multiple_animations.rs](https://github.com/dclause/hermes-five/tree/0.1.0/hermes-five/examples/animation/multiple_animations.rs):
-  ** Demonstrates how to create multiple animations and run them at the same time.
+- **[animation/animation.rs](https://github.com/dclause/hermes-five/tree/0.1.0/hermes-five/examples/animation/animation.rs):** Demonstrates how to create and run a complex animation (with multiple devices, parts, repeating parts, etc.).
+- **[animation/multiple_animations.rs](https://github.com/dclause/hermes-five/tree/0.1.0/hermes-five/examples/animation/multiple_animations.rs):** Demonstrates how to create multiple animations and run them at the same time.
