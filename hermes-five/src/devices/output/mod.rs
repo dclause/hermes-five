@@ -22,6 +22,7 @@ pub trait Output: Device {
     fn get_default(&self) -> State;
     /// Resets the actuator to default (or neutral) state.
     fn reset(&mut self) -> Result<State, Error> {
+        self.stop();
         self.set_state(self.get_default())
     }
     /// Animates the output of the device. In other word: the state of the device will be animated from
