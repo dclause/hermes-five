@@ -9,7 +9,7 @@ systems.<br/>
 _Hermes-Five must give special kudos to [Johnny-Five](https://github.com/rwaldron/johnny-five) where it finds its
 inspiration._
 
-![layers.png](/layers.png)
+![Architectural layer description](/layers.png)
 
 ## Architectural overview
 
@@ -51,7 +51,7 @@ Usually an Arduino, but that could be anything, even another computer. _Hermes-F
 - `Board`: The hardware must always define at least one board where devices will be attached to.
 - 
 ::: info
-It is possible to add a controller between the board and some devices. Just switch the board by one of the available other `Hardware`.
+It is possible to add _expanders_ between the board and some devices. Just switch the board by one of the available other `Hardware`.
 :::
 
 - `PCA9685`: Defines a PCA9685 attached itself to a `Board`. Devices can now be controlled by the PCA9685 board.
