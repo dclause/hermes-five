@@ -248,7 +248,7 @@ impl IO for PCA9685 {
         if mode == PinModeId::UNSUPPORTED {
             let payload = &[(PCA9685::BASE + 4 * pin) as u16, 0, 0, 4096, 4096 >> 8];
             self.protocol.i2c_write(self.address, payload)?;
-            return Ok(())
+            return Ok(());
         }
 
         // Arbitrary selection of frequencies depending on pin mode.

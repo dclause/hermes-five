@@ -139,10 +139,7 @@ mod tests {
 
         let io_error = io::Error::new(io::ErrorKind::PermissionDenied, "error");
         let error: Error = io_error.into();
-        assert_eq!(
-            format!("{}", error),
-            "Protocol error: Board access denied."
-        );
+        assert_eq!(format!("{}", error), "Protocol error: Board access denied.");
     }
 
     #[test]

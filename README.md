@@ -1,10 +1,12 @@
 # Hermes-Five
 
 [![License](https://img.shields.io/github/license/dclause/hermes-five?color=success)](/LICENSE)
-[![Documentation](https://img.shields.io/badge/documentation-_online-success)](https://dclause.github.io/hermes-five/)
 [![Build Status](https://github.com/dclause/hermes-five/workflows/Build/badge.svg)](https://github.com/dclause/hermes-five/actions/workflows/build.yml)
 [![Test Status](https://github.com/dclause/hermes-five/workflows/Test/badge.svg)](https://github.com/dclause/hermes-five/actions/workflows/test.yml)
 [![Code Coverage](https://codecov.io/gh/dclause/hermes-five/graph/badge.svg?token=KF8EFDUQ7A)](https://codecov.io/gh/dclause/hermes-five)
+[![crates-io](https://img.shields.io/crates/v/hermes-five.svg)](https://crates.io/crates/hermes-five)
+[![api-docs](https://docs.rs/hermes-five/badge.svg)](https://docs.rs/hermes-five)
+[![Documentation](https://img.shields.io/badge/documentation-_online-success)](https://dclause.github.io/hermes-five/)
 
 ### The Rust Robotics & IoT Platform
 
@@ -46,7 +48,7 @@ cd my_awesome_project
 
 ```toml
 [dependencies]
-hermes-five = "0.1.0-beta"
+hermes-five = "0.1.0"
 ```
 
 - Change `src/main.rs` file as need (

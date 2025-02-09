@@ -1,11 +1,15 @@
 [package]
 name = "hermes-five"
+description.workspace = true
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 repository.workspace = true
 readme.workspace = true
 license.workspace = true
+
+[badges.maintenance]
+status = "actively-developed"
 
 [lib]
 
@@ -16,7 +20,7 @@ serde = ["dep:serde", "dep:serde_json", "dep:typetag"]
 mocks = []
 
 [dependencies]
-hermes-macros = { path = "../hermes-macros" }
+hermes-macros = { path = "../hermes-macros", version="0.1.0" }
 dyn-clone = "1.0.18"
 futures = "0.3.31"
 log = "0.4.25"

@@ -112,7 +112,7 @@ impl IoProtocol for RemoteIo {
     }
 
     fn report_digital(&mut self, pin: u8, state: bool) -> Result<(), Error> {
-        let port = (pin / 8) as u8;
+        let port = pin / 8;
         let payload = &[REPORT_DIGITAL | port, u8::from(state)];
         // trace!"Report digital: {:02X?}", payload);
         self.transport.write(payload)?;
@@ -168,11 +168,11 @@ impl IO for RemoteIo {
             pin_instance.mode = _mode;
         }
 
-        self.transport.write(&[SET_PIN_MODE, pin as u8, mode as u8])
+        self.transport.write(&[SET_PIN_MODE, pin, mode as u8])
     }
 
     fn digital_write(&mut self, pin: u8, level: bool) -> Result<(), Error> {
-        let port = (pin / 8) as u8;
+        let port = pin / 8;
         let mut value: u16 = 0;
         let mut i = 0;
 

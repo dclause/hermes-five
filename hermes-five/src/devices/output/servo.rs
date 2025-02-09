@@ -546,7 +546,10 @@ mod tests {
         // No move ultimately leads to auto-detaching
         pause!(3000);
         assert!(servo.is_auto_detach());
-        assert_eq!(servo.get_pin_info().unwrap().mode.id, PinModeId::UNSUPPORTED);
+        assert_eq!(
+            servo.get_pin_info().unwrap().mode.id,
+            PinModeId::UNSUPPORTED
+        );
     }
 
     #[test]

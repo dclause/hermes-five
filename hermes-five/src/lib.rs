@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/hermes-five/0.1.0-beta")]
+#![doc(html_root_url = "https://docs.rs/hermes-five/0.1.0")]
 
 //! <h1 align="center">HERMES-FIVE - The Rust Robotics & IoT Platform</h1>
 //! <div style="text-align:center;font-style:italic;">Hermes-Five is an open-source IoT and Robotics programming framework - written in Rust.</div>
@@ -39,7 +39,7 @@
 //! - Add the following to your `Cargo.toml`:
 //! ```toml
 //! [dependencies]
-//! hermes-five = "0.1.0-beta"
+//! hermes-five = "0.1.0"
 //! ```
 //!
 //! - Start writing your HERMES code: see the [examples](https://github.com/dclause/hermes-five/tree/develop/hermes-five/examples) directory for more examples.
