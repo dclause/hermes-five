@@ -1,5 +1,5 @@
 [package]
-name = "hermes-macros"
+name = "hermes-five-macros"
 description = "Macros definitions for hermes-five."
 version.workspace = true
 edition.workspace = true

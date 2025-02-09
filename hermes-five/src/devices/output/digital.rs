@@ -285,7 +285,7 @@ mod tests {
         assert_eq!(pin_info.unwrap().id, 13);
     }
 
-    #[hermes_macros::test]
+    #[hermes_five_macros::test]
     fn test_animation() {
         let mut output =
             DigitalOutput::new(&Board::new(MockIoProtocol::default()), 13, false).unwrap();

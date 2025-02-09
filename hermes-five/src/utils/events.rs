@@ -217,7 +217,7 @@ mod tests {
 
     use super::*;
 
-    #[hermes_macros::test]
+    #[hermes_five_macros::test]
     async fn test_register_and_emit_event() {
         let events: EventManager = Default::default();
         let payload = Arc::new(AtomicBool::new(false));
@@ -236,7 +236,7 @@ mod tests {
         );
     }
 
-    #[hermes_macros::test]
+    #[hermes_five_macros::test]
     async fn test_unregister_event_handler() {
         let events: EventManager = Default::default();
         let flag = Arc::new(AtomicBool::new(false));
@@ -256,7 +256,7 @@ mod tests {
         );
     }
 
-    #[hermes_macros::test]
+    #[hermes_five_macros::test]
     async fn test_multiple_handlers() {
         let events: EventManager = Default::default();
         let flag = Arc::new(AtomicUsize::new(0));
@@ -292,7 +292,7 @@ mod tests {
         );
     }
 
-    #[hermes_macros::test]
+    #[hermes_five_macros::test]
     async fn test_event_with_complex_payload() {
         let events: EventManager = Default::default();
         let flag = Arc::new(AtomicU8::new(0));
@@ -314,7 +314,7 @@ mod tests {
         );
     }
 
-    #[hermes_macros::test]
+    #[hermes_five_macros::test]
     async fn test_no_handlers_for_event() {
         let events: EventManager = Default::default();
         let result = events.emit("no_event", ());

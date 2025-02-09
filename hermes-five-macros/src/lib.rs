@@ -20,7 +20,7 @@ pub fn runtime(_: TokenStream, item: TokenStream) -> TokenStream {
     runtime_macro(item.into(), TokioMode::Main).into()
 }
 
-/// Defines `#[hermes_macros::runtime]` test macro.
+/// Defines `#[hermes_five_macros::runtime]` test macro.
 #[proc_macro_attribute]
 pub fn test(_: TokenStream, item: TokenStream) -> TokenStream {
     runtime_macro(item.into(), TokioMode::Test).into()

@@ -1,5 +1,5 @@
 [package]
-name = "hermes-macros-internals"
+name = "hermes-five-macros-internals"
 description = "Inner (private) - this crate is used for test coverage purposes only."
 version.workspace = true
 edition.workspace = true

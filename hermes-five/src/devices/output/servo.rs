@@ -518,7 +518,7 @@ mod tests {
         assert_eq!(servo.get_detach_delay(), 100);
     }
 
-    #[hermes_macros::test]
+    #[hermes_five_macros::test]
     fn test_servo_auto_detach() {
         let mut servo = _setup_servo(12).set_auto_detach(true).set_detach_delay(300);
         assert!(servo.is_auto_detach());
@@ -591,7 +591,7 @@ mod tests {
         assert_eq!(servo.get_state(), State::Integer(66));
     }
 
-    #[hermes_macros::test]
+    #[hermes_five_macros::test]
     fn test_servo_sweep() {
         let mut servo = _setup_servo(12);
         assert!(!servo.is_busy());
@@ -603,7 +603,7 @@ mod tests {
         assert!(!servo.is_busy());
     }
 
-    #[hermes_macros::test]
+    #[hermes_five_macros::test]
     fn test_animation() {
         let mut servo = _setup_servo(12);
         assert!(!servo.is_busy());

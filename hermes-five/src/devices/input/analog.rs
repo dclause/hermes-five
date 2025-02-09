@@ -200,7 +200,7 @@ mod tests {
     use std::sync::atomic::{AtomicU16, Ordering};
     use std::sync::Arc;
 
-    #[hermes_macros::test]
+    #[hermes_five_macros::test]
     fn test_new_analog_input() {
         let board = Board::new(MockIoProtocol::default());
         let sensor = AnalogInput::new(&board, 14);
@@ -218,7 +218,7 @@ mod tests {
         board.close();
     }
 
-    #[hermes_macros::test]
+    #[hermes_five_macros::test]
     fn test_analog_display() {
         let board = Board::new(MockIoProtocol::default());
         let sensor = AnalogInput::new(&board, "A15").unwrap();
@@ -232,7 +232,7 @@ mod tests {
         board.close();
     }
 
-    #[hermes_macros::test]
+    #[hermes_five_macros::test]
     fn test_analog_events() {
         let pin = "A14";
         let board = Board::new(MockIoProtocol::default());

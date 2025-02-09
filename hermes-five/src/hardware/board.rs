@@ -385,7 +385,7 @@ mod tests {
         );
     }
 
-    #[hermes_macros::test]
+    #[hermes_five_macros::test]
     async fn test_board_open() {
         let mut transport = MockTransportLayer {
             read_index: 10,
@@ -435,7 +435,7 @@ mod tests {
         assert!(board.is_connected());
     }
 
-    #[hermes_macros::test]
+    #[hermes_five_macros::test]
     async fn test_board_close() {
         let flag = Arc::new(AtomicBool::new(false));
         let moved_flag = flag.clone();
@@ -456,7 +456,7 @@ mod tests {
         assert!(!board.is_connected());
     }
 
-    #[hermes_macros::test]
+    #[hermes_five_macros::test]
     fn test_board_run() {
         let board = Board::run();
         assert_eq!(board.get_protocol_name(), "RemoteIo");

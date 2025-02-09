@@ -141,7 +141,7 @@ mod tests {
     use crate::errors::{Error, UnknownError};
     use crate::utils::task;
 
-    #[hermes_macros::runtime]
+    #[hermes_five_macros::runtime]
     async fn my_runtime() -> Result<(), Error> {
         task::run(async move {
             pause!(500);
@@ -189,7 +189,7 @@ mod tests {
         );
     }
 
-    #[hermes_macros::test]
+    #[hermes_five_macros::test]
     async fn test_task_abort_execution() {
         let flag = Arc::new(AtomicU8::new(0));
         let flag_clone = flag.clone();
@@ -248,7 +248,7 @@ mod tests {
         );
     }
 
-    #[hermes_macros::test]
+    #[hermes_five_macros::test]
     async fn test_task_with_result() {
         let task = task::run(async move { Ok(()) });
 

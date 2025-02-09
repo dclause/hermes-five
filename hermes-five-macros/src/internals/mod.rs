@@ -7,10 +7,10 @@ pub enum TokioMode {
     Test,
 }
 
-/// See `#[hermes_macros::runtime]` for details in [`hermes-macros`] crate.
+/// See `#[hermes_five_macros::runtime]` for details in [`hermes-five-macros`] crate.
 ///
 /// This method uses proc_macro2 TokenStream in order to allow easier testing and tarpaulin code coverage.
-/// This is the only benefice to have it as a sub-method here (and have it bound to sub-crate hermes-macros-internals)
+/// This is the only benefice to have it as a sub-method here (and have it bound to sub-crate hermes-five-macros-internals)
 pub fn runtime_macro(item: TokenStream, tokio: TokioMode) -> TokenStream {
     let hermes_five = quote!(::hermes_five);
     // Parse the input tokens into a syntax tree

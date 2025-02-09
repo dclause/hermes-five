@@ -955,7 +955,7 @@ mod tests {
         );
     }
 
-    #[hermes_macros::test]
+    #[hermes_five_macros::test]
     fn test_report_analog() {
         let mut protocol = _create_mock_protocol();
         assert!(protocol.data.read().analog_reported_channels.is_empty());
@@ -990,7 +990,7 @@ mod tests {
         assert!(protocol.handler.read().is_none());
     }
 
-    #[hermes_macros::test]
+    #[hermes_five_macros::test]
     fn test_report_digital() {
         let mut protocol = _create_mock_protocol();
         assert!(protocol.data.read().digital_reported_pins.is_empty());

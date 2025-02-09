@@ -9,7 +9,7 @@ fn main() {
     println!("cargo:rustc-check-cfg=cfg(build_from_git)");
 
     // Sometimes on Windows the git checkout does not correctly wire up the
-    // symlink from hermes-macros-internals/src to hermes-macros/src/internals.
+    // symlink from hermes-five-macros-internals/src to hermes-five-macros/src/internals.
     // When this happens we'll just build based on relative paths within the git
     // repo.
     let mod_behind_symlink = Path::new("src/mod.rs");

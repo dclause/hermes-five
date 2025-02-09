@@ -437,7 +437,7 @@ mod tests {
         assert!(pin_info.is_ok()); // Ensure that pin information retrieval is successful
     }
 
-    #[hermes_macros::test]
+    #[hermes_five_macros::test]
     fn test_led_blink() {
         let mut led = _setup_led(13);
         assert!(!led.is_busy());
@@ -449,7 +449,7 @@ mod tests {
         assert!(!led.is_busy());
     }
 
-    #[hermes_macros::test]
+    #[hermes_five_macros::test]
     fn test_led_pulse() {
         let mut led = _setup_led(8);
         assert!(!led.is_busy());
@@ -461,7 +461,7 @@ mod tests {
         assert!(!led.is_busy());
     }
 
-    #[hermes_macros::test]
+    #[hermes_five_macros::test]
     fn test_animation() {
         let mut led = _setup_led(8);
         assert!(!led.is_busy());

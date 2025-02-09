@@ -1,8 +1,8 @@
 [workspace]
 members = [
     "hermes-five",
-    "hermes-macros",
-    "hermes-macros-internals",
+    "hermes-five-macros",
+    "hermes-five-macros-internals",
 ]
 resolver = "2"
 

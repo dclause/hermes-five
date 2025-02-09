@@ -441,7 +441,7 @@ mod tests {
     }
 
     #[serial]
-    #[hermes_macros::test]
+    #[hermes_five_macros::test]
     async fn test_play_animation() {
         let mut animation = create_animation();
         assert_eq!(animation.get_current(), 0);
@@ -501,7 +501,7 @@ mod tests {
     }
 
     #[serial]
-    #[hermes_macros::test]
+    #[hermes_five_macros::test]
     async fn test_animation_controls() {
         let mut animation = create_animation();
         assert_eq!(animation.get_current(), 0);
@@ -538,7 +538,7 @@ mod tests {
     }
 
     #[serial]
-    #[hermes_macros::test]
+    #[hermes_five_macros::test]
     async fn test_animation_skip() {
         // Start and pause the animation during segment 1.
         let mut animation = create_animation();

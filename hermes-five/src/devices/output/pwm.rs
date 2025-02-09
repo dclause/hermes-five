@@ -281,7 +281,7 @@ mod tests {
         assert_eq!(pin_info.unwrap().id, 11);
     }
 
-    #[hermes_macros::test]
+    #[hermes_five_macros::test]
     fn test_animation() {
         let mut output = PwmOutput::new(&Board::new(MockIoProtocol::default()), 11, 20).unwrap();
         assert!(!output.is_busy());

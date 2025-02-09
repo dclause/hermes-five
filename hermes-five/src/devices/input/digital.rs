@@ -208,7 +208,7 @@ mod tests {
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
 
-    #[hermes_macros::test]
+    #[hermes_five_macros::test]
     fn test_new_digital_input() {
         let board = Board::new(MockIoProtocol::default());
         let sensor = DigitalInput::new(&board, 2).unwrap();
@@ -224,7 +224,7 @@ mod tests {
         board.close();
     }
 
-    #[hermes_macros::test]
+    #[hermes_five_macros::test]
     fn test_digital_display() {
         let board = Board::new(MockIoProtocol::default());
         let sensor = DigitalInput::new(&board, "D5").unwrap();
@@ -238,7 +238,7 @@ mod tests {
         board.close();
     }
 
-    #[hermes_macros::test]
+    #[hermes_five_macros::test]
     fn test_digital_events() {
         let board = Board::new(MockIoProtocol::default());
         let button = DigitalInput::new(&board, 5).unwrap();

@@ -89,4 +89,4 @@ pub mod io;
 pub mod mocks;
 pub mod utils;
 
-pub use hermes_macros::runtime;
+pub use hermes_five_macros::runtime;

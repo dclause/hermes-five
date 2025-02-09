@@ -20,7 +20,7 @@ serde = ["dep:serde", "dep:serde_json", "dep:typetag"]
 mocks = []
 
 [dependencies]
-hermes-macros = { path = "../hermes-macros", version="0.1.0" }
+hermes-five-macros = { path = "../hermes-five-macros", version="0.1.0" }
 dyn-clone = "1.0.18"
 futures = "0.3.31"
 log = "0.4.25"
