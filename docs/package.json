@@ -6,10 +6,10 @@
     "docs:preview": "vitepress preview"
   },
   "devDependencies": {
-    "@types/node": "^22.13.1",
-    "typescript": "^5.7.3",
+    "@types/node": "^22.13.10",
+    "typescript": "^5.8.2",
     "vitepress": "^1.6.3",
     "vitepress-plugin-tabs": "^0.6.0",
-    "vitepress-versioning-plugin": "github:dclause/vitepress-versioning-plugin#dist"
+    "vitepress-versioning-plugin": "^1.3.0"
   }
 }

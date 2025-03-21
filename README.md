@@ -10,7 +10,7 @@
 
 ### The Rust Robotics & IoT Platform
 
-<img align="right" style="height:200px" alt="Schema sample of blinking led using Arduino UNO" src="/docs/public/examples/led/led-blink.gif?raw=true" />
+<img align="right" height="200" style="height:200px" alt="Schema sample of blinking led using Arduino UNO" src="/docs/public/examples/led/led-blink.gif?raw=true" />
 
 **_Hermes-Five_ is an open-source, [Firmata Protocol](https://github.com/firmata/protocol)-based, IoT and Robotics
 programming framework - written in Rust.**
