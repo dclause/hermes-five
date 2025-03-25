@@ -6,6 +6,7 @@
     "docs:preview": "vitepress preview"
   },
   "devDependencies": {
+    "esbuild": ">=0.25.0",
     "@types/node": "^22.13.10",
     "typescript": "^5.8.2",
     "vitepress": "^1.6.3",
