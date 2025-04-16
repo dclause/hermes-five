@@ -1,9 +1,10 @@
 //! Defines Hermes-Five Runtime task runner.
 use std::future::Future;
+use std::sync::OnceLock;
 
-use parking_lot::Mutex;
+use parking_lot::{Mutex, MutexGuard};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
-use tokio::sync::OnceCell;
+use tokio::sync::oneshot;
 use tokio::task;
 use tokio::task::JoinHandle;
 
@@ -21,10 +22,12 @@ pub enum TaskResult {
 pub type TaskHandler = JoinHandle<Result<(), Error>>;
 
 /// Globally accessible runtime transmitter(TX)/receiver(RX) (not initialised yet)
-pub static RUNTIME_TX: OnceCell<Mutex<Option<UnboundedSender<UnboundedReceiver<TaskResult>>>>> =
-    OnceCell::const_new();
-pub static RUNTIME_RX: OnceCell<Mutex<Option<UnboundedReceiver<UnboundedReceiver<TaskResult>>>>> =
-    OnceCell::const_new();
+static RUNTIME_TX: OnceLock<Mutex<UnboundedSender<oneshot::Receiver<TaskResult>>>> =
+    OnceLock::new();
+
+#[doc(hidden)]
+static RUNTIME_RX: OnceLock<Mutex<UnboundedReceiver<oneshot::Receiver<TaskResult>>>> =
+    OnceLock::new();
 
 impl From<Result<(), Error>> for TaskResult {
     fn from(result: Result<(), Error>) -> Self {
@@ -41,22 +44,21 @@ impl From<()> for TaskResult {
     }
 }
 
-pub async fn init_task_channel() {
+pub async fn init_task_channel(
+) -> MutexGuard<'static, UnboundedReceiver<oneshot::Receiver<TaskResult>>> {
     // If no receiver is configured, create a new one (with associated sender).
-    RUNTIME_RX
-        .get_or_init(|| async {
-            // Arbitrary limit to 100 simultaneous tasks.
-            let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<UnboundedReceiver<TaskResult>>();
+    let rx = RUNTIME_RX.get_or_init(|| {
+        // Arbitrary limit to 100 simultaneous tasks.
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<oneshot::Receiver<TaskResult>>();
 
-            // Set the runtime sender.
-            RUNTIME_TX
-                .get_or_init(|| async { Mutex::new(Some(tx)) })
-                .await;
+        // Set the runtime sender.
+        RUNTIME_TX.get_or_init(|| Mutex::new(tx));
 
-            // Set the runtime receiver.
-            Mutex::new(Some(rx))
-        })
-        .await;
+        // Set the runtime receiver.
+        Mutex::new(rx)
+    });
+
+    rx.lock()
 }
 
 /// Runs a given future as a Tokio task while ensuring the main function (marked by `#[hermes_five::runtime]`)
@@ -89,15 +91,15 @@ where
     T: Into<TaskResult> + Send + 'static,
 {
     // Create a transmitter(tx)/receiver(rx) unique to this task.
-    let (task_tx, task_rx) = tokio::sync::mpsc::unbounded_channel();
+    let (task_tx, task_rx) = oneshot::channel();
 
     // --
     // Create a task to run our future: note how we capture the tx...
     let handler = task::spawn(async move {
         // ...to send the result of the future through that channel.
         let result = future.await.into();
-        task_tx.send(result).map_err(|err| UnknownError {
-            info: err.to_string(),
+        task_tx.send(result).map_err(|_result: TaskResult| UnknownError {
+            info: "task receiver was closed".to_string(),
         })?;
         Ok(())
     });
@@ -106,8 +108,7 @@ where
     // Send the receiver(rx) side of the task-channel to the runtime.
 
     let cell = RUNTIME_TX.get().ok_or(RuntimeError)?;
-    let mut lock = cell.lock();
-    let runtime_tx = lock.as_mut().ok_or(RuntimeError)?;
+    let runtime_tx = cell.lock();
 
     runtime_tx.send(task_rx).map_err(|err| UnknownError {
         info: err.to_string(),

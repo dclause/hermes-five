@@ -73,7 +73,7 @@ pub fn runtime_macro(item: TokenStream, tokio: TokioMode) -> TokenStream {
 
     // Generate the function body
     let mut body = vec![quote! {
-        #hermes_five::utils::task::init_task_channel().await;
+        let mut receiver = #hermes_five::utils::task::init_task_channel().await;
 
         // // Original code
     }];
@@ -94,9 +94,7 @@ pub fn runtime_macro(item: TokenStream, tokio: TokioMode) -> TokenStream {
     body.push(quote! {
         // ---
 
-        let cell = #hermes_five::utils::task::RUNTIME_RX.get().ok_or(#hermes_five::errors::RuntimeError).unwrap();
-        let mut lock = cell.lock();
-        let receiver = lock.as_mut().ok_or(#hermes_five::errors::RuntimeError).unwrap();
+        let receiver = &mut *receiver;
 
         // Wait for all dynamically spawned tasks to complete.
         while receiver.len() > 0 {
@@ -104,7 +102,7 @@ pub fn runtime_macro(item: TokenStream, tokio: TokioMode) -> TokenStream {
             if let Some(mut task_receiver) = receiver.recv().await {
 
                 // We receive the task result through that new receiver.
-                if let Some(task_result) = task_receiver.recv().await {
+                if let Ok(task_result) = task_receiver.await {
                     match task_result {
                         #hermes_five::utils::task::TaskResult::Ok => {},
                         #hermes_five::utils::task::TaskResult::Err(err) => {
@@ -143,13 +141,11 @@ mod tests {
     use crate::internals::{runtime_macro, TokioMode};
 
     fn before() -> TokenStream {
-        quote! {::hermes_five::utils::task::init_task_channel().await;}
+        quote! {let mut receiver = ::hermes_five::utils::task::init_task_channel().await;}
     }
     fn after() -> TokenStream {
         quote! {
-            let cell = ::hermes_five::utils::task::RUNTIME_RX.get().ok_or(::hermes_five::errors::RuntimeError).unwrap();
-            let mut lock = cell.lock();
-            let receiver = lock.as_mut().ok_or(::hermes_five::errors::RuntimeError).unwrap();
+            let receiver = &mut *receiver;
 
             // Wait for all dynamically spawned tasks to complete.
             while receiver.len() > 0 {
@@ -157,7 +153,7 @@ mod tests {
                 if let Some(mut task_receiver) = receiver.recv().await {
 
                     // We receive the task result through that new receiver.
-                    if let Some(task_result) = task_receiver.recv().await {
+                    if let Ok(task_result) = task_receiver.await {
                         match task_result {
                             ::hermes_five::utils::task::TaskResult::Ok => {},
                             ::hermes_five::utils::task::TaskResult::Err(err) => {
