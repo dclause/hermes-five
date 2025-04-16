@@ -1,10 +1,11 @@
 //! Defines Hermes-Five Runtime task runner.
-use std::sync::OnceLock;
-use std::task::Poll;
-use std::{future::Future, task::ready};
+use std::cell::RefCell;
+use std::future::Future;
+use std::sync::Arc;
 
 use futures::{stream::FuturesUnordered, StreamExt};
 use parking_lot::RwLock;
+use tokio::runtime::Runtime;
 use tokio::sync::oneshot;
 use tokio::task;
 use tokio::task::JoinHandle;
@@ -22,8 +23,12 @@ pub enum TaskResult {
 /// Represents an arc protected handler for a task.
 pub type TaskHandler = JoinHandle<Result<(), Error>>;
 
-static RUNTIME_TASKS: OnceLock<RwLock<FuturesUnordered<oneshot::Receiver<TaskResult>>>> =
-    OnceLock::new();
+type Task = oneshot::Receiver<TaskResult>;
+type Queue = Arc<RwLock<FuturesUnordered<Task>>>;
+
+thread_local! {
+    static TASKS: RefCell<Option<Queue>> = const { RefCell::new(None) };
+}
 
 impl From<Result<(), Error>> for TaskResult {
     fn from(result: Result<(), Error>) -> Self {
@@ -40,33 +45,73 @@ impl From<()> for TaskResult {
     }
 }
 
-pub fn init_task_channel() -> TaskQueueConsumer {
+pub fn setup_rt(test: bool) -> TaskQueueConsumer {
+    let task_queue = Arc::new(RwLock::new(FuturesUnordered::new()));
+
+    let mut builder = if test {
+        tokio::runtime::Builder::new_current_thread()
+    } else {
+        let mut b = tokio::runtime::Builder::new_multi_thread();
+        b.worker_threads(4);
+        b
+    };
+
+    let queue = task_queue.clone();
+    builder.enable_all().on_thread_start(move || {
+        init_thread(queue.clone());
+    });
+
     TaskQueueConsumer {
-        queue: RUNTIME_TASKS.get_or_init(|| RwLock::new(FuturesUnordered::new())),
+        runtime: builder.build().unwrap(),
+        queue: task_queue,
     }
 }
 
+fn init_thread(queue: Queue) -> Option<Queue> {
+    TASKS.with_borrow_mut(|t| std::mem::replace(t, Some(queue)))
+}
+
 pub struct TaskQueueConsumer {
-    queue: &'static RwLock<FuturesUnordered<oneshot::Receiver<TaskResult>>>,
+    runtime: Runtime,
+    queue: Queue,
 }
 
 impl TaskQueueConsumer {
-    pub async fn wait(self) {
-        futures::stream::poll_fn(|cx| self.queue.write().poll_next_unpin(cx))
-            .for_each(|task_result| async {
-                match task_result {
-                    Ok(TaskResult::Ok) => {}
-                    Err(_) => {
-                        log::error!("Task aborted");
-                        eprintln!("Task aborted");
-                    }
-                    Ok(TaskResult::Err(err)) => {
-                        log::error!("Task failed: {:?}", err.to_string());
-                        eprintln!("Task failed: {:?}", err.to_string());
-                    }
+    pub fn block_on<F: Future>(&self, f: F) -> F::Output {
+        struct ResetQueue(Option<Queue>);
+        impl Drop for ResetQueue {
+            fn drop(&mut self) {
+                if let Some(queue) = self.0.take() {
+                    init_thread(queue);
+                } else {
+                    TASKS.with_borrow_mut(|t| t.take());
                 }
-            })
-            .await
+            }
+        }
+
+        let _guard = ResetQueue(init_thread(self.queue.clone()));
+        self.runtime.block_on(async {
+            let res = f.await;
+
+            // wait for tasks to complete.
+            futures::stream::poll_fn(|cx| self.queue.write().poll_next_unpin(cx))
+                .for_each(|task_result| async {
+                    match task_result {
+                        Ok(TaskResult::Ok) => {}
+                        Err(_) => {
+                            log::error!("Task aborted");
+                            eprintln!("Task aborted");
+                        }
+                        Ok(TaskResult::Err(err)) => {
+                            log::error!("Task failed: {:?}", err.to_string());
+                            eprintln!("Task failed: {:?}", err.to_string());
+                        }
+                    }
+                })
+                .await;
+
+            res
+        })
     }
 }
 
@@ -114,8 +159,11 @@ where
             })
     });
 
-    let tasks = RUNTIME_TASKS.get().ok_or(RuntimeError)?;
-    tasks.read().push(task_rx);
+    TASKS.with_borrow(|r| {
+        r.as_deref()
+            .ok_or(RuntimeError)
+            .map(|tasks| tasks.read().push(task_rx))
+    })?;
 
     Ok(handler)
 }

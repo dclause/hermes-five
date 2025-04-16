@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{ItemFn, ReturnType, Signature, Stmt};
+use syn::{ItemFn, Signature};
 
 pub enum TokioMode {
     Main,
@@ -31,25 +31,7 @@ pub fn runtime_macro(item: TokenStream, tokio: TokioMode) -> TokenStream {
     };
 
     // Extract the block's statements
-    let mut stmts = block.stmts;
-
-    // Check if the function has an explicit return type
-    let has_return_type = match &sync_sig.output {
-        ReturnType::Default => false,
-        ReturnType::Type(_, ty) => {
-            !matches!(&**ty, syn::Type::Tuple(tuple) if tuple.elems.is_empty())
-        }
-    };
-
-    // Extract the last statement if it's an expression (potential return value)
-    let return_expr = if has_return_type {
-        match stmts.pop() {
-            Some(Stmt::Expr(expr, ..)) => Some(expr),
-            _ => None,
-        }
-    } else {
-        None
-    };
+    let stmts = block.stmts;
 
     // Define the #[test] attribute.
     let test_attr = match tokio {
@@ -57,55 +39,16 @@ pub fn runtime_macro(item: TokenStream, tokio: TokioMode) -> TokenStream {
         TokioMode::Test => quote! {#[test]},
     };
 
-    // Define the appropriate tokio runtime.
-    let tokio_runtime = match tokio {
-        TokioMode::Main => quote! {
-            let rt = #hermes_five::utils::tokio::runtime::Builder::new_multi_thread()
-                .worker_threads(4)
-                .enable_all()
-                .build()
-                .unwrap();
-        },
-        TokioMode::Test => quote! {
-            let rt = #hermes_five::utils::tokio::runtime::Runtime::new().unwrap();
-        },
-    };
-
-    // Generate the function body
-    let mut body = vec![quote! {
-        let receiver = #hermes_five::utils::task::init_task_channel();
-
-        // // Original code
-    }];
-
-    // Insert the original function body statements
-    // Check all "line-by-line" content within the body
-    body.extend(stmts.into_iter().map(|stmt| match stmt {
-        // In the case of an expression, we want to remove a null return "()" from the body
-        // since it will be added later as a return_expr.
-        Stmt::Expr(ref exp, _) => match exp {
-            syn::Expr::Tuple(tuple) if tuple.elems.is_empty() => quote!(),
-            _ => quote! { #stmt },
-        },
-        _ => quote! { #stmt },
-    }));
-
-    // Insert custom code after the original function body
-    body.push(quote! { receiver.wait().await; });
-
-    // Add the return expression if there is one
-    if let Some(return_stmt) = return_expr {
-        body.push(quote! { #return_stmt });
-    }
+    let is_test = matches!(tokio, TokioMode::Test);
 
     // Generate the expanded function
     quote! {
         #test_attr
         #(#attrs)*
         #vis #sync_sig {
-            #tokio_runtime
+            let rt = #hermes_five::utils::task::setup_rt(#is_test);
             rt.block_on(async {
-                #(#body)*
+                #(#stmts)*
             })
         }
     }
@@ -113,22 +56,12 @@ pub fn runtime_macro(item: TokenStream, tokio: TokioMode) -> TokenStream {
 
 #[cfg(test)]
 mod tests {
-    use proc_macro2::TokenStream;
     use quote::quote;
 
     use crate::internals::{runtime_macro, TokioMode};
 
-    fn before() -> TokenStream {
-        quote! {let receiver = ::hermes_five::utils::task::init_task_channel();}
-    }
-    fn after() -> TokenStream {
-        quote! { receiver.wait().await; }
-    }
     #[test]
     fn test_runtime_macro_result() {
-        let before = before();
-        let after = after();
-
         let input = quote! {
             async fn main() -> Result<(), Error> {
                 let x = 3;
@@ -138,20 +71,9 @@ mod tests {
 
         let control = quote! {
             fn main() -> Result<(), Error> {
-                let rt = ::hermes_five::utils::tokio::runtime::Builder::new_multi_thread()
-                .worker_threads(4)
-                .enable_all()
-                .build()
-                .unwrap();
+                let rt = ::hermes_five::utils::task::setup_rt(false);
                 rt.block_on(async {
-                    #before
-
-                    // Original code
                     let x = 3;
-                    // ---
-
-                    #after
-
                     Ok(())
                 })
             }
@@ -167,9 +89,6 @@ mod tests {
 
     #[test]
     fn test_runtime_macro_no_result() {
-        let before = before();
-        let after = after();
-
         let input = quote! {
             async fn main() {
                 let x = 3;
@@ -179,20 +98,10 @@ mod tests {
 
         let control = quote! {
             fn main() {
-                let rt = ::hermes_five::utils::tokio::runtime::Builder::new_multi_thread()
-                .worker_threads(4)
-                .enable_all()
-                .build()
-                .unwrap();
+                let rt = ::hermes_five::utils::task::setup_rt(false);
                 rt.block_on(async {
-                    #before
-
-                    // Original code
                     let x = 3;
                     blabla.await;
-                    // ---
-
-                    #after
                 })
             }
         };
@@ -207,9 +116,6 @@ mod tests {
 
     #[test]
     fn test_runtime_macro_explicit_void() {
-        let before = before();
-        let after = after();
-
         let input = quote! {
             async fn main() -> () {
                 let x = 3;
@@ -219,19 +125,10 @@ mod tests {
 
         let control = quote! {
             fn main() -> () {
-                let rt = ::hermes_five::utils::tokio::runtime::Builder::new_multi_thread()
-                .worker_threads(4)
-                .enable_all()
-                .build()
-                .unwrap();
+                let rt = ::hermes_five::utils::task::setup_rt(false);
                 rt.block_on(async {
-                    #before
-
-                    // Original code
                     let x = 3;
-                    // ---
-
-                    #after
+                    ()
                 })
             }
         };
@@ -246,9 +143,6 @@ mod tests {
 
     #[test]
     fn test_runtime_macro_test() {
-        let before = before();
-        let after = after();
-
         let input = quote! {
             async fn main() { }
         };
@@ -256,15 +150,8 @@ mod tests {
         let control = quote! {
             #[test]
             fn main() {
-                let rt = ::hermes_five::utils::tokio::runtime::Runtime::new().unwrap();
-                rt.block_on(async {
-                    #before
-
-                    // Original code
-                    // ---
-
-                    #after
-                })
+                let rt = ::hermes_five::utils::task::setup_rt(true);
+                rt.block_on(async { })
             }
         };
 
