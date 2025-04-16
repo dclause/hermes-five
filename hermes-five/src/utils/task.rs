@@ -1,9 +1,10 @@
 //! Defines Hermes-Five Runtime task runner.
-use std::future::Future;
 use std::sync::OnceLock;
+use std::task::Poll;
+use std::{future::Future, task::ready};
 
-use parking_lot::{Mutex, MutexGuard};
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use futures::{stream::FuturesUnordered, StreamExt};
+use parking_lot::RwLock;
 use tokio::sync::oneshot;
 use tokio::task;
 use tokio::task::JoinHandle;
@@ -21,12 +22,7 @@ pub enum TaskResult {
 /// Represents an arc protected handler for a task.
 pub type TaskHandler = JoinHandle<Result<(), Error>>;
 
-/// Globally accessible runtime transmitter(TX)/receiver(RX) (not initialised yet)
-static RUNTIME_TX: OnceLock<Mutex<UnboundedSender<oneshot::Receiver<TaskResult>>>> =
-    OnceLock::new();
-
-#[doc(hidden)]
-static RUNTIME_RX: OnceLock<Mutex<UnboundedReceiver<oneshot::Receiver<TaskResult>>>> =
+static RUNTIME_TASKS: OnceLock<RwLock<FuturesUnordered<oneshot::Receiver<TaskResult>>>> =
     OnceLock::new();
 
 impl From<Result<(), Error>> for TaskResult {
@@ -44,21 +40,34 @@ impl From<()> for TaskResult {
     }
 }
 
-pub async fn init_task_channel(
-) -> MutexGuard<'static, UnboundedReceiver<oneshot::Receiver<TaskResult>>> {
-    // If no receiver is configured, create a new one (with associated sender).
-    let rx = RUNTIME_RX.get_or_init(|| {
-        // Arbitrary limit to 100 simultaneous tasks.
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<oneshot::Receiver<TaskResult>>();
+pub fn init_task_channel() -> TaskQueueConsumer {
+    TaskQueueConsumer {
+        queue: RUNTIME_TASKS.get_or_init(|| RwLock::new(FuturesUnordered::new())),
+    }
+}
 
-        // Set the runtime sender.
-        RUNTIME_TX.get_or_init(|| Mutex::new(tx));
+pub struct TaskQueueConsumer {
+    queue: &'static RwLock<FuturesUnordered<oneshot::Receiver<TaskResult>>>,
+}
 
-        // Set the runtime receiver.
-        Mutex::new(rx)
-    });
-
-    rx.lock()
+impl TaskQueueConsumer {
+    pub async fn wait(self) {
+        futures::stream::poll_fn(|cx| self.queue.write().poll_next_unpin(cx))
+            .for_each(|task_result| async {
+                match task_result {
+                    Ok(TaskResult::Ok) => {}
+                    Err(_) => {
+                        log::error!("Task aborted");
+                        eprintln!("Task aborted");
+                    }
+                    Ok(TaskResult::Err(err)) => {
+                        log::error!("Task failed: {:?}", err.to_string());
+                        eprintln!("Task failed: {:?}", err.to_string());
+                    }
+                }
+            })
+            .await
+    }
 }
 
 /// Runs a given future as a Tokio task while ensuring the main function (marked by `#[hermes_five::runtime]`)
@@ -98,21 +107,15 @@ where
     let handler = task::spawn(async move {
         // ...to send the result of the future through that channel.
         let result = future.await.into();
-        task_tx.send(result).map_err(|_result: TaskResult| UnknownError {
-            info: "task receiver was closed".to_string(),
-        })?;
-        Ok(())
+        task_tx
+            .send(result)
+            .map_err(|_result: TaskResult| UnknownError {
+                info: "task receiver was closed".to_string(),
+            })
     });
 
-    // --
-    // Send the receiver(rx) side of the task-channel to the runtime.
-
-    let cell = RUNTIME_TX.get().ok_or(RuntimeError)?;
-    let runtime_tx = cell.lock();
-
-    runtime_tx.send(task_rx).map_err(|err| UnknownError {
-        info: err.to_string(),
-    })?;
+    let tasks = RUNTIME_TASKS.get().ok_or(RuntimeError)?;
+    tasks.read().push(task_rx);
 
     Ok(handler)
 }

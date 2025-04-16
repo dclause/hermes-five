@@ -73,7 +73,7 @@ pub fn runtime_macro(item: TokenStream, tokio: TokioMode) -> TokenStream {
 
     // Generate the function body
     let mut body = vec![quote! {
-        let mut receiver = #hermes_five::utils::task::init_task_channel().await;
+        let receiver = #hermes_five::utils::task::init_task_channel();
 
         // // Original code
     }];
@@ -91,29 +91,7 @@ pub fn runtime_macro(item: TokenStream, tokio: TokioMode) -> TokenStream {
     }));
 
     // Insert custom code after the original function body
-    body.push(quote! {
-        // ---
-
-        let receiver = &mut *receiver;
-
-        // Wait for all dynamically spawned tasks to complete.
-        while receiver.len() > 0 {
-            // We receive the task specific receiver.
-            if let Some(mut task_receiver) = receiver.recv().await {
-
-                // We receive the task result through that new receiver.
-                if let Ok(task_result) = task_receiver.await {
-                    match task_result {
-                        #hermes_five::utils::task::TaskResult::Ok => {},
-                        #hermes_five::utils::task::TaskResult::Err(err) => {
-                            #hermes_five::utils::log::error!("Task failed: {:?}", err.to_string());
-                            eprintln!("Task failed: {:?}", err.to_string());
-                        },
-                    }
-                }
-            }
-        }
-    });
+    body.push(quote! { receiver.wait().await; });
 
     // Add the return expression if there is one
     if let Some(return_stmt) = return_expr {
@@ -141,30 +119,10 @@ mod tests {
     use crate::internals::{runtime_macro, TokioMode};
 
     fn before() -> TokenStream {
-        quote! {let mut receiver = ::hermes_five::utils::task::init_task_channel().await;}
+        quote! {let receiver = ::hermes_five::utils::task::init_task_channel();}
     }
     fn after() -> TokenStream {
-        quote! {
-            let receiver = &mut *receiver;
-
-            // Wait for all dynamically spawned tasks to complete.
-            while receiver.len() > 0 {
-                // We receive the task specific receiver.
-                if let Some(mut task_receiver) = receiver.recv().await {
-
-                    // We receive the task result through that new receiver.
-                    if let Ok(task_result) = task_receiver.await {
-                        match task_result {
-                            ::hermes_five::utils::task::TaskResult::Ok => {},
-                            ::hermes_five::utils::task::TaskResult::Err(err) => {
-                                ::hermes_five::utils::log::error!("Task failed: {:?}", err.to_string());
-                                eprintln!("Task failed: {:?}", err.to_string());
-                            },
-                        }
-                    }
-                }
-            }
-        }
+        quote! { receiver.wait().await; }
     }
     #[test]
     fn test_runtime_macro_result() {
