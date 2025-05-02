@@ -1,14 +1,11 @@
 //! Defines Hermes-Five Runtime task runner.
-use std::cell::RefCell;
 use std::future::Future;
-use std::sync::Arc;
+use std::panic::AssertUnwindSafe;
 
-use futures::{stream::FuturesUnordered, StreamExt};
-use parking_lot::RwLock;
-use tokio::runtime::Runtime;
-use tokio::sync::oneshot;
-use tokio::task;
+use futures::FutureExt;
+use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
+use tokio::{task, task_local};
 
 use crate::errors::{Error, RuntimeError, UnknownError};
 
@@ -22,13 +19,6 @@ pub enum TaskResult {
 
 /// Represents an arc protected handler for a task.
 pub type TaskHandler = JoinHandle<Result<(), Error>>;
-
-type Task = oneshot::Receiver<TaskResult>;
-type Queue = Arc<RwLock<FuturesUnordered<Task>>>;
-
-thread_local! {
-    static TASKS: RefCell<Option<Queue>> = const { RefCell::new(None) };
-}
 
 impl From<Result<(), Error>> for TaskResult {
     fn from(result: Result<(), Error>) -> Self {
@@ -45,9 +35,7 @@ impl From<()> for TaskResult {
     }
 }
 
-pub fn setup_rt(test: bool) -> TaskQueueConsumer {
-    let task_queue = Arc::new(RwLock::new(FuturesUnordered::new()));
-
+pub fn setup_rt(test: bool) -> Runtime {
     let mut builder = if test {
         tokio::runtime::Builder::new_current_thread()
     } else {
@@ -56,62 +44,97 @@ pub fn setup_rt(test: bool) -> TaskQueueConsumer {
         b
     };
 
-    let queue = task_queue.clone();
-    builder.enable_all().on_thread_start(move || {
-        init_thread(queue.clone());
-    });
-
-    TaskQueueConsumer {
-        runtime: builder.build().unwrap(),
-        queue: task_queue,
+    Runtime {
+        runtime: builder.enable_all().build().unwrap(),
     }
 }
 
-fn init_thread(queue: Queue) -> Option<Queue> {
-    TASKS.with_borrow_mut(|t| std::mem::replace(t, Some(queue)))
+task_local! {
+    /// The current task registration.
+    static TASK: TaskRegistration;
 }
 
-pub struct TaskQueueConsumer {
-    runtime: Runtime,
-    queue: Queue,
+#[derive(Clone)]
+struct TaskRegistration {
+    // Tasks will not send anything if they exited without error.
+    // Tasks will not send anything if they were explicitly aborted.
+    // Tasks will send an error if they exited with error or panicked.
+    results: mpsc::UnboundedSender<Error>,
 }
 
-impl TaskQueueConsumer {
-    pub fn block_on<F: Future>(&self, f: F) -> F::Output {
-        struct ResetQueue(Option<Queue>);
-        impl Drop for ResetQueue {
-            fn drop(&mut self) {
-                if let Some(queue) = self.0.take() {
-                    init_thread(queue);
-                } else {
-                    TASKS.with_borrow_mut(|t| t.take());
-                }
+impl TaskRegistration {
+    /// Get a handle to the current task context.
+    fn get() -> Result<Self, Error> {
+        TASK.try_with(|t| t.clone()).map_err(|_| RuntimeError)
+    }
+
+    /// Runs a future within the current task context.
+    async fn catch_errors<F, T>(self, future: F) -> Result<(), Error>
+    where
+        F: Future<Output = T> + Send + 'static,
+        T: Into<TaskResult> + Send + 'static,
+    {
+        // allow ourselves to catch panics
+        let future = AssertUnwindSafe(future).catch_unwind();
+
+        // run our future within the scope our task queue.
+        let mut task = std::pin::pin!(TASK.scope(self, future));
+
+        // await the future response.
+        let res = task.as_mut().await;
+
+        // get back our task queue.
+        let queue = task.take_value().ok_or(RuntimeError)?;
+
+        // check for a panic.
+        let res: TaskResult = match res {
+            Ok(res) => res.into(),
+            Err(panic) => {
+                // ignore errors if receiver is missing.
+                _ = queue.results.send(UnknownError {
+                    info: "task panicked".to_string(),
+                });
+
+                // continue the panic.
+                std::panic::resume_unwind(panic);
             }
+        };
+
+        // send error, if there was one.
+        if let TaskResult::Err(e) = res {
+            queue.results.send(e).map_err(|_| RuntimeError)?;
         }
 
-        let _guard = ResetQueue(init_thread(self.queue.clone()));
-        self.runtime.block_on(async {
-            let res = f.await;
+        Ok(())
+    }
 
-            // wait for tasks to complete.
-            futures::stream::poll_fn(|cx| self.queue.write().poll_next_unpin(cx))
-                .for_each(|task_result| async {
-                    match task_result {
-                        Ok(TaskResult::Ok) => {}
-                        Err(_) => {
-                            log::error!("Task aborted");
-                            eprintln!("Task aborted");
-                        }
-                        Ok(TaskResult::Err(err)) => {
-                            log::error!("Task failed: {:?}", err.to_string());
-                            eprintln!("Task failed: {:?}", err.to_string());
-                        }
-                    }
-                })
-                .await;
+    /// Create a new task context, run a task inside it,
+    /// and wait for all tasks to complete.
+    async fn run<F: Future>(f: F) -> F::Output {
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let task = Self { results: tx };
 
-            res
-        })
+        // run our future within the scope our task queue.
+        let res = TASK.scope(task, f).await;
+
+        // wait for tasks to complete.
+        // recv returns None if all corresponding senders are dropped.
+        while let Some(err) = rx.recv().await {
+            log::error!("Task failed: {:?}", err.to_string());
+            eprintln!("Task failed: {:?}", err.to_string());
+        }
+
+        res
+    }
+}
+
+pub struct Runtime {
+    runtime: tokio::runtime::Runtime,
+}
+
+impl Runtime {
+    pub fn block_on<F: Future>(&self, f: F) -> F::Output {
+        self.runtime.block_on(TaskRegistration::run(f))
     }
 }
 
@@ -144,28 +167,11 @@ where
     F: Future<Output = T> + Send + 'static,
     T: Into<TaskResult> + Send + 'static,
 {
-    // Create a transmitter(tx)/receiver(rx) unique to this task.
-    let (task_tx, task_rx) = oneshot::channel();
+    let task = TaskRegistration::get()?;
 
-    // --
-    // Create a task to run our future: note how we capture the tx...
-    let handler = task::spawn(async move {
-        // ...to send the result of the future through that channel.
-        let result = future.await.into();
-        task_tx
-            .send(result)
-            .map_err(|_result: TaskResult| UnknownError {
-                info: "task receiver was closed".to_string(),
-            })
-    });
-
-    TASKS.with_borrow(|r| {
-        r.as_deref()
-            .ok_or(RuntimeError)
-            .map(|tasks| tasks.read().push(task_rx))
-    })?;
-
-    Ok(handler)
+    // Create a task to run our future: note how we capture `task`.
+    // This `task` acts as a token to keep track of active tasks.
+    Ok(task::spawn(async move { task.catch_errors(future).await }))
 }
 
 #[macro_export]
