@@ -39,9 +39,7 @@ pub fn setup_rt(test: bool) -> Runtime {
     let mut builder = if test {
         tokio::runtime::Builder::new_current_thread()
     } else {
-        let mut b = tokio::runtime::Builder::new_multi_thread();
-        b.worker_threads(4);
-        b
+        tokio::runtime::Builder::new_multi_thread()
     };
 
     Runtime {
@@ -128,11 +126,13 @@ impl TaskRegistration {
     }
 }
 
+/// Wraps the tokio Runtime: used to customize `block_on` function call.
 pub struct Runtime {
     runtime: tokio::runtime::Runtime,
 }
 
 impl Runtime {
+    /// Runs a future to completion using the underlying Tokio runtime wrapped as a Task.
     pub fn block_on<F: Future>(&self, f: F) -> F::Output {
         self.runtime.block_on(TaskRegistration::run(f))
     }
@@ -140,8 +140,6 @@ impl Runtime {
 
 /// Runs a given future as a Tokio task while ensuring the main function (marked by `#[hermes_five::runtime]`)
 /// will not finish before all tasks running as done.
-/// This is done by using a globally accessible channel to communicate the handlers to be waited by the
-/// runtime.
 ///
 /// # Parameters
 /// * `future`: A future that implements `Future<Output = ()>`, `Send`, and has a `'static` lifetime.
