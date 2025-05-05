@@ -22,6 +22,82 @@ struct CallbackWrapper {
 }
 type SyncedCallbackMap = Mutex<HashMap<String, Vec<CallbackWrapper>>>;
 
+/// An event type specifies its NAME and `Argument` type used for the `on`/`emit` methods.
+pub trait EventType {
+    type Argument: 'static + Send + Sync + Clone;
+    const NAME: &'static str;
+}
+
+/// Defines a new event type implementing the [`EventType`] trait.
+///
+/// This macro generates a struct and implements the [`EventType`] trait for it,
+/// including the required `Argument` type and the event's static `ID`.
+///
+/// # Syntax
+///
+/// - `StructName`: The name of the event type struct to define.
+/// - `"event_name"` (optional): A static string identifier for the event (used for matching, logging, etc.). The `StructName` by default
+/// - `ArgumentType`: The type of the payload carried by the event.
+///
+/// # Example
+///
+/// ```rust
+/// use hermes_five::create_event_type;
+/// use hermes_five::utils::EventType;
+///
+/// struct MyPayload;
+///
+/// create_event_type!(MyEvent, MyPayload);
+/// ```
+#[macro_export]
+macro_rules! create_event_type {
+    // Case with explicit event name
+    ($struct_name:ident, $event_name:literal, $arg_ty:ty) => {
+        pub struct $struct_name;
+
+        impl $crate::utils::EventType for $struct_name {
+            type Argument = $arg_ty;
+            const NAME: &'static str = $event_name;
+        }
+    };
+
+    // Case without explicit event name
+    ($struct_name:ident, $arg_ty:ty) => {
+        pub struct $struct_name;
+
+        impl $crate::utils::EventType for $struct_name {
+            type Argument = $arg_ty;
+            const NAME: &'static str = stringify!($struct_name);
+        }
+    };
+}
+
+// Interne — ne pas exporter
+#[macro_export]
+#[doc(hidden)]
+macro_rules! __create_event_type_internal {
+    ($struct_name:ident, $event_name:literal, $arg_ty:ty) => {
+        pub struct $struct_name;
+
+        impl $crate::EventType for $struct_name {
+            type Argument = $arg_ty;
+            const NAME: &'static str = $event_name;
+        }
+    };
+}
+
+macro_rules! _create_event_type {
+    // Case with explicit event name
+    ($struct_name:ident, $event_name:literal, $arg_ty:ty) => {
+        pub struct $struct_name;
+
+        impl $crate::EventType for $struct_name {
+            type Argument = $arg_ty;
+            const NAME: &'static str = $event_name;
+        }
+    };
+}
+
 #[derive(Clone, Default)]
 pub struct EventManager {
     callbacks: Arc<SyncedCallbackMap>,
@@ -74,20 +150,20 @@ impl EventManager {
     ///     events.emit("ready", ("bar"));
     /// }
     /// ```
-    pub fn on<S, F, T, Fut>(&self, event: S, mut callback: F) -> EventHandler
+    pub fn on<T, E, F, Fut>(&self, _: E, mut callback: F) -> EventHandler
     where
-        S: Into<String>,
-        T: 'static + Send + Sync + Clone,
-        F: FnMut(T) -> Fut + Send + 'static,
+        T: EventType,
+        E: Into<T>,
+        F: FnMut(T::Argument) -> Fut + Send + 'static,
         Fut: std::future::Future<Output = Result<(), Error>> + Send + 'static,
     {
-        let event_name = event.into();
+        let event_name: String = T::NAME.into();
         // Generate a unique ID.
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         // Boxes the callback and downcast its parameter.
         let boxed_callback =
             Box::new(
-                move |arg: Arc<dyn Any + Send + Sync>| match arg.downcast::<T>() {
+                move |arg: Arc<dyn Any + Send + Sync>| match arg.downcast::<T::Argument>() {
                     Ok(arg) => callback((*arg).clone()).boxed(),
                     Err(_) => Box::pin(async { Ok(()) }),
                 },
@@ -146,13 +222,12 @@ impl EventManager {
     ///     events.emit("nothing", ());
     /// }
     /// ```
-    pub fn emit<S, T>(&self, event: S, payload: T)
+    pub fn emit<E>(&self, event: E, payload: E::Argument)
     where
-        S: Into<String>,
-        T: 'static + Send + Sync,
+        E: EventType
     {
         let payload_any: Arc<dyn Any + Send + Sync> = Arc::new(payload);
-        if let Some(callbacks) = self.callbacks.lock().get_mut(&event.into()) {
+        if let Some(callbacks) = self.callbacks.lock().get_mut(E::NAME) {
             for wrapper in callbacks.iter_mut() {
                 let payload_clone = payload_any.clone();
                 let future = (wrapper.callback)(payload_clone);

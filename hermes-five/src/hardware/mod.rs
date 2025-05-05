@@ -6,6 +6,7 @@ mod pca9685;
 use crate::io::{IoProtocol, IO};
 pub use board::Board;
 pub use board::BoardEvent;
+pub use board::OnReadyEvent;
 pub use pca9685::PCA9685;
 
 /// You most likely don't need this function (outside this crate).

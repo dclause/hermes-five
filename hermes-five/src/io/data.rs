@@ -287,7 +287,7 @@ impl PinModeId {
             0x0E => Ok(PinModeId::TONE),
             0x0F => Ok(PinModeId::DHT),
             0x7F => Ok(PinModeId::UNSUPPORTED),
-            x => Err(UnknownError {
+            x => Err(MiscError {
                 info: format!("PinMode not found with value: {}", x),
             }),
         }

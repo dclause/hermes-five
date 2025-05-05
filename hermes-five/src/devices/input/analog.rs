@@ -3,13 +3,13 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 
-use crate::devices::input::{Input, InputEvent};
+use crate::devices::input::{Input, InputEvent, OnChangeEvent};
 use crate::devices::Device;
 use crate::errors::Error;
 use crate::hardware::Hardware;
 use crate::io::{IoProtocol, PinIdOrName, PinModeId};
 use crate::pause;
-use crate::utils::task;
+use crate::utils::{task, EventType};
 use crate::utils::{EventHandler, EventManager, State, TaskHandler};
 
 /// Represents an analog sensor of unspecified type: an [`Input`] [`Device`] that reads analog values
@@ -96,7 +96,7 @@ impl AnalogInput {
                         let state_value = *self_clone.state.read();
                         if pin_value != state_value {
                             *self_clone.state.write() = pin_value;
-                            self_clone.events.emit(InputEvent::OnChange, pin_value);
+                            self_clone.events.emit(OnChangeEvent, pin_value.into());
                         }
 
                         // Change can only be done 10x a sec. to avoid bouncing.
@@ -157,11 +157,11 @@ impl AnalogInput {
     ///     });
     /// }
     /// ```
-    pub fn on<S, F, T, Fut>(&self, event: S, callback: F) -> EventHandler
+    pub fn on<T, E, F, Fut>(&self, event: E, callback: F) -> EventHandler
     where
-        S: Into<String>,
-        T: 'static + Send + Sync + Clone,
-        F: FnMut(T) -> Fut + Send + 'static,
+        T: EventType,
+        E: Into<T>,
+        F: FnMut(T::Argument) -> Fut + Send + 'static,
         Fut: std::future::Future<Output = Result<(), Error>> + Send + 'static,
     {
         self.events.on(event, callback)

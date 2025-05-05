@@ -7,7 +7,7 @@ use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio::{task, task_local};
 
-use crate::errors::{Error, RuntimeError, UnknownError};
+use crate::errors::{Error, RuntimeError, MiscError};
 
 /// Represents the result of a TaskResult.
 /// A task may return either () or Result<(), Error> for flexibility which
@@ -89,7 +89,7 @@ impl TaskRegistration {
             Ok(res) => res.into(),
             Err(panic) => {
                 // ignore errors if receiver is missing.
-                _ = queue.results.send(UnknownError {
+                _ = queue.results.send(MiscError {
                     info: "task panicked".to_string(),
                 });
 
@@ -194,7 +194,7 @@ mod tests {
 
     use serial_test::serial;
 
-    use crate::errors::{Error, UnknownError};
+    use crate::errors::{Error, MiscError};
     use crate::utils::task;
 
     #[hermes_five_macros::runtime]
@@ -311,7 +311,7 @@ mod tests {
         assert!(task.is_ok(), "An Ok(()) task do not panic the runtime");
 
         let task = task::run(async move {
-            Err(UnknownError {
+            Err(MiscError {
                 info: "wow panic!".to_string(),
             })
         });

@@ -3,31 +3,24 @@ use std::fmt::{Display, Formatter};
 use parking_lot::RwLock;
 
 use crate::errors::Error;
-use crate::utils::{task, EventHandler, EventManager, TaskHandler};
+use crate::utils::{task, EventHandler, EventManager, EventType, TaskHandler};
 
 use crate::animations::{Segment, Track};
+use crate::create_event_type;
 use std::sync::Arc;
 
-/// Lists all events a Animation can emit/listen.
-pub enum AnimationEvent {
-    /// Triggered when the animation starts.
-    OnSegmentDone,
-    /// Triggered when the animation starts.
-    OnStart,
-    /// Triggered when the animation finishes.
-    OnComplete,
-}
+create_event_type!(OnStartEvent, Animation);
+create_event_type!(OnCompleteEvent, Animation);
+create_event_type!(OnSegmentDoneEvent, Segment);
 
-/// Convert events to string to facilitate usage with [`EventManager`].
-impl From<AnimationEvent> for String {
-    fn from(event: AnimationEvent) -> Self {
-        let event = match event {
-            AnimationEvent::OnSegmentDone => "segment_done",
-            AnimationEvent::OnStart => "start",
-            AnimationEvent::OnComplete => "complete",
-        };
-        event.into()
-    }
+/// Lists all events an Animation can emit/listen with the expected payload type.
+pub enum AnimationEvent {
+    // Triggered when the animation starts, argument is an integer.
+    OnSegmentDone(OnSegmentDoneEvent),
+    // Triggered when the animation starts, argument is a String.
+    OnStart(OnStartEvent),
+    // Triggered when the animation finishes, argument is an Animation object.
+    OnComplete(OnCompleteEvent),
 }
 
 /// Represents an animation: a collection of ordered [`Segment`] to be run in sequence.
@@ -111,7 +104,7 @@ impl Animation {
         let events_clone = self.events.clone();
         let mut self_clone = self.clone();
 
-        self.events.emit(AnimationEvent::OnStart, self.clone());
+        self.events.emit(OnStartEvent, self.clone());
         if self.get_duration() > 0 {
             let handler = task::run(async move {
                 // Loop through the segments and run them one by one.
@@ -121,12 +114,12 @@ impl Animation {
                     // Retrieve the currently running segment.
                     let segment_playing = self_clone.segments.get_mut(index).unwrap();
                     segment_playing.play().await?;
-                    events_clone.emit(AnimationEvent::OnSegmentDone, segment_playing.clone());
+                    events_clone.emit(OnSegmentDoneEvent, segment_playing.clone());
                 }
 
                 *self_clone.current.write() = 0; // reset to the beginning
                 *self_clone.interval.write() = None;
-                events_clone.emit(AnimationEvent::OnComplete, self_clone);
+                events_clone.emit(OnCompleteEvent, self_clone);
                 Ok(())
             })
             .unwrap();
@@ -302,11 +295,11 @@ impl Animation {
     ///     });
     /// }
     /// ```
-    pub fn on<S, F, T, Fut>(&self, event: S, callback: F) -> EventHandler
+    pub fn on<T, E, F, Fut>(&self, event: E, callback: F) -> EventHandler
     where
-        S: Into<String>,
-        T: 'static + Send + Sync + Clone,
-        F: FnMut(T) -> Fut + Send + 'static,
+        T: EventType,
+        E: Into<T>,
+        F: FnMut(T::Argument) -> Fut + Send + 'static,
         Fut: std::future::Future<Output = Result<(), Error>> + Send + 'static,
     {
         self.events.on(event, callback)

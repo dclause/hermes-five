@@ -2,29 +2,21 @@ use crate::errors::Error;
 use crate::hardware::Hardware;
 use crate::io::{IoData, IoTransport, RemoteIo, IO};
 use crate::io::{IoProtocol, PinModeId};
-use crate::utils::{task, Range};
+use crate::utils::{task, EventType, Range};
 use crate::utils::{EventHandler, EventManager};
 use parking_lot::RwLock;
 use std::fmt::Display;
 use std::sync::Arc;
+use crate::create_event_type;
 
 /// Lists all events a Board can emit/listen.
+create_event_type!(OnReadyEvent, Board);
+create_event_type!(OnCloseEvent, Board);
 pub enum BoardEvent {
     /// Triggered when the board connexion is established and the handshake has been made.
-    OnReady,
+    OnReady(OnReadyEvent),
     /// Triggered when the board connexion is closed (gracefully).
-    OnClose,
-}
-
-/// Convert events to string to facilitate usage with [`EventManager`].
-impl From<BoardEvent> for String {
-    fn from(value: BoardEvent) -> Self {
-        let event = match value {
-            BoardEvent::OnReady => "ready",
-            BoardEvent::OnClose => "close",
-        };
-        event.into()
-    }
+    OnClose(OnCloseEvent),
 }
 
 /// Represents a physical board (Arduino most-likely) where your [`crate::devices::Device`] can be attached and controlled through this API.
@@ -162,7 +154,7 @@ impl Board {
 
         task::run(async move {
             let board = callback_board.blocking_open()?;
-            events_clone.emit(BoardEvent::OnReady, board);
+            events_clone.emit(OnReadyEvent, board);
             Ok(())
         })
         .expect("Task failed");
@@ -202,7 +194,7 @@ impl Board {
         let callback_board = self.clone();
         task::run(async move {
             let board = callback_board.blocking_close()?;
-            events.emit(BoardEvent::OnClose, board);
+            events.emit(OnCloseEvent, board);
             Ok(())
         })
         .expect("Task failed");
@@ -250,11 +242,11 @@ impl Board {
     ///     });
     /// }
     /// ```
-    pub fn on<S, F, T, Fut>(&self, event: S, callback: F) -> EventHandler
+    pub fn on<T, E, F, Fut>(&self, event: E, callback: F) -> EventHandler
     where
-        S: Into<String>,
-        T: 'static + Send + Sync + Clone,
-        F: FnMut(T) -> Fut + Send + 'static,
+        T: EventType,
+        E: Into<T>,
+        F: FnMut(T::Argument) -> Fut + Send + 'static,
         Fut: std::future::Future<Output = Result<(), Error>> + Send + 'static,
     {
         self.events.on(event, callback)

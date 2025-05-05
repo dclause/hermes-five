@@ -1,3 +1,4 @@
+use crate::create_event_type;
 use crate::devices::Device;
 use crate::utils::State;
 
@@ -16,30 +17,22 @@ pub trait Input: Device {
 }
 dyn_clone::clone_trait_object!(Input);
 
+create_event_type!(OnChangeEvent, State);
+create_event_type!(OnPressEvent, ());
+create_event_type!(OnReleaseEvent, ());
+create_event_type!(OnHighEvent, ());
+create_event_type!(OnLowEvent, ());
+
 /// Lists all events a Input type device can emit/listen.
 pub enum InputEvent {
     /// Triggered when the Input value changes.
-    OnChange,
+    OnChange(OnChangeEvent),
     /// Triggered when the button is pressed.
-    OnPress,
+    OnPress(()),
     /// Triggered when the button is released.
-    OnRelease,
+    OnRelease(()),
     /// Triggered when a value changes to HIGH.
-    OnHigh,
+    OnHigh(()),
     /// Triggered when a value changes to LOW.
-    OnLow,
-}
-
-/// Convert events to string to facilitate usage with [`EventManager`](crate::utils::EventManager).
-impl From<InputEvent> for String {
-    fn from(value: InputEvent) -> Self {
-        let event = match value {
-            InputEvent::OnChange => "change",
-            InputEvent::OnPress => "press",
-            InputEvent::OnRelease => "release",
-            InputEvent::OnHigh => "high",
-            InputEvent::OnLow => "low",
-        };
-        event.into()
-    }
+    OnLow(()),
 }

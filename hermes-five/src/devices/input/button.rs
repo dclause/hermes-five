@@ -4,11 +4,12 @@ use std::sync::Arc;
 use parking_lot::RwLock;
 
 use crate::devices::{Device, Input, InputEvent};
+use crate::devices::input::{OnChangeEvent, OnPressEvent, OnReleaseEvent};
 use crate::errors::Error;
 use crate::hardware::Hardware;
 use crate::io::{IoProtocol, PinIdOrName, PinModeId};
 use crate::pause;
-use crate::utils::{task, EventHandler, EventManager, State, TaskHandler};
+use crate::utils::{task, EventHandler, EventManager, EventType, State, TaskHandler};
 
 /// Represents a simple push button as an input of the board.
 /// <https://docs.arduino.cc/built-in-examples/digital/Button>
@@ -212,18 +213,18 @@ impl Button {
 
                             // Depending on logical inversion mode, pin_value is inverted.
                             match self_clone.invert {
-                                false => self_clone.events.emit(InputEvent::OnChange, pin_value),
-                                true => self_clone.events.emit(InputEvent::OnChange, !pin_value),
+                                false => self_clone.events.emit(OnChangeEvent, pin_value.into()),
+                                true => self_clone.events.emit(OnChangeEvent, State::from(!pin_value)),
                             };
 
                             match self_clone.pullup {
                                 true => match pin_value {
-                                    true => self_clone.events.emit(InputEvent::OnRelease, ()),
-                                    false => self_clone.events.emit(InputEvent::OnPress, ()),
+                                    true => self_clone.events.emit(OnReleaseEvent, ()),
+                                    false => self_clone.events.emit(OnPressEvent, ()),
                                 },
                                 false => match pin_value {
-                                    true => self_clone.events.emit(InputEvent::OnPress, ()),
-                                    false => self_clone.events.emit(InputEvent::OnRelease, ()),
+                                    true => self_clone.events.emit(OnPressEvent, ()),
+                                    false => self_clone.events.emit(OnReleaseEvent, ()),
                                 },
                             };
                         }
@@ -290,11 +291,11 @@ impl Button {
     ///     });
     /// }
     /// ```
-    pub fn on<S, F, T, Fut>(&self, event: S, callback: F) -> EventHandler
+    pub fn on<T, E, F, Fut>(&self, event: E, callback: F) -> EventHandler
     where
-        S: Into<String>,
-        T: 'static + Send + Sync + Clone,
-        F: FnMut(T) -> Fut + Send + 'static,
+        T: EventType,
+        E: Into<T>,
+        F: FnMut(T::Argument) -> Fut + Send + 'static,
         Fut: std::future::Future<Output = Result<(), Error>> + Send + 'static,
     {
         self.events.on(event, callback)
