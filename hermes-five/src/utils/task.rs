@@ -1,11 +1,11 @@
 //! Defines Hermes-Five Runtime task runner.
 use std::future::Future;
+use std::panic::AssertUnwindSafe;
 
-use parking_lot::Mutex;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
-use tokio::sync::OnceCell;
-use tokio::task;
+use futures::FutureExt;
+use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
+use tokio::{task, task_local};
 
 use crate::errors::{Error, RuntimeError, UnknownError};
 
@@ -19,12 +19,6 @@ pub enum TaskResult {
 
 /// Represents an arc protected handler for a task.
 pub type TaskHandler = JoinHandle<Result<(), Error>>;
-
-/// Globally accessible runtime transmitter(TX)/receiver(RX) (not initialised yet)
-pub static RUNTIME_TX: OnceCell<Mutex<Option<UnboundedSender<UnboundedReceiver<TaskResult>>>>> =
-    OnceCell::const_new();
-pub static RUNTIME_RX: OnceCell<Mutex<Option<UnboundedReceiver<UnboundedReceiver<TaskResult>>>>> =
-    OnceCell::const_new();
 
 impl From<Result<(), Error>> for TaskResult {
     fn from(result: Result<(), Error>) -> Self {
@@ -41,28 +35,111 @@ impl From<()> for TaskResult {
     }
 }
 
-pub async fn init_task_channel() {
-    // If no receiver is configured, create a new one (with associated sender).
-    RUNTIME_RX
-        .get_or_init(|| async {
-            // Arbitrary limit to 100 simultaneous tasks.
-            let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<UnboundedReceiver<TaskResult>>();
+pub fn setup_rt(test: bool) -> Runtime {
+    let mut builder = if test {
+        tokio::runtime::Builder::new_current_thread()
+    } else {
+        tokio::runtime::Builder::new_multi_thread()
+    };
 
-            // Set the runtime sender.
-            RUNTIME_TX
-                .get_or_init(|| async { Mutex::new(Some(tx)) })
-                .await;
+    Runtime {
+        runtime: builder.enable_all().build().unwrap(),
+    }
+}
 
-            // Set the runtime receiver.
-            Mutex::new(Some(rx))
-        })
-        .await;
+task_local! {
+    /// The current task registration.
+    static TASK: TaskRegistration;
+}
+
+#[derive(Clone)]
+struct TaskRegistration {
+    // Tasks will not send anything if they exited without error.
+    // Tasks will not send anything if they were explicitly aborted.
+    // Tasks will send an error if they exited with error or panicked.
+    results: mpsc::UnboundedSender<Error>,
+}
+
+impl TaskRegistration {
+    /// Get a handle to the current task context.
+    fn get() -> Result<Self, Error> {
+        TASK.try_with(|t| t.clone()).map_err(|_| RuntimeError)
+    }
+
+    /// Runs a future within the current task context.
+    async fn catch_errors<F, T>(self, future: F) -> Result<(), Error>
+    where
+        F: Future<Output = T> + Send + 'static,
+        T: Into<TaskResult> + Send + 'static,
+    {
+        // allow ourselves to catch panics
+        let future = AssertUnwindSafe(future).catch_unwind();
+
+        // run our future within the scope our task queue.
+        let mut task = std::pin::pin!(TASK.scope(self, future));
+
+        // await the future response.
+        let res = task.as_mut().await;
+
+        // get back our task queue.
+        let queue = task.take_value().ok_or(RuntimeError)?;
+
+        // check for a panic.
+        let res: TaskResult = match res {
+            Ok(res) => res.into(),
+            Err(panic) => {
+                // ignore errors if receiver is missing.
+                _ = queue.results.send(UnknownError {
+                    info: "task panicked".to_string(),
+                });
+
+                // continue the panic.
+                std::panic::resume_unwind(panic);
+            }
+        };
+
+        // send error, if there was one.
+        if let TaskResult::Err(e) = res {
+            queue.results.send(e).map_err(|_| RuntimeError)?;
+        }
+
+        Ok(())
+    }
+
+    /// Create a new task context, run a task inside it,
+    /// and wait for all tasks to complete.
+    async fn run<F: Future>(f: F) -> F::Output {
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let task = Self { results: tx };
+
+        // run our future within the scope our task queue.
+        let res = TASK.scope(task, f).await;
+
+        // wait for tasks to complete.
+        // recv returns None if all corresponding senders are dropped.
+        while let Some(err) = rx.recv().await {
+            log::error!("Task failed: {:?}", err.to_string());
+            eprintln!("Task failed: {:?}", err.to_string());
+        }
+
+        res
+    }
+}
+
+/// Wraps the tokio Runtime: used to customize `block_on` function call.
+pub struct Runtime {
+    runtime: tokio::runtime::Runtime,
+}
+
+impl Runtime {
+    /// Runs a future to completion using the underlying Tokio runtime wrapped as a Task.
+    pub fn block_on<F: Future>(&self, f: F) -> F::Output {
+        self.runtime.block_on(TaskRegistration::run(f))
+    }
 }
 
 /// Runs a given future as a Tokio task while ensuring the main function (marked by `#[hermes_five::runtime]`)
 /// will not finish before all tasks running as done.
-/// This is done by using a globally accessible channel to communicate the handlers to be waited by the
-/// runtime.
 ///
 /// # Parameters
 /// * `future`: A future that implements `Future<Output = ()>`, `Send`, and has a `'static` lifetime.
@@ -88,32 +165,11 @@ where
     F: Future<Output = T> + Send + 'static,
     T: Into<TaskResult> + Send + 'static,
 {
-    // Create a transmitter(tx)/receiver(rx) unique to this task.
-    let (task_tx, task_rx) = tokio::sync::mpsc::unbounded_channel();
+    let task = TaskRegistration::get()?;
 
-    // --
-    // Create a task to run our future: note how we capture the tx...
-    let handler = task::spawn(async move {
-        // ...to send the result of the future through that channel.
-        let result = future.await.into();
-        task_tx.send(result).map_err(|err| UnknownError {
-            info: err.to_string(),
-        })?;
-        Ok(())
-    });
-
-    // --
-    // Send the receiver(rx) side of the task-channel to the runtime.
-
-    let cell = RUNTIME_TX.get().ok_or(RuntimeError)?;
-    let mut lock = cell.lock();
-    let runtime_tx = lock.as_mut().ok_or(RuntimeError)?;
-
-    runtime_tx.send(task_rx).map_err(|err| UnknownError {
-        info: err.to_string(),
-    })?;
-
-    Ok(handler)
+    // Create a task to run our future: note how we capture `task`.
+    // This `task` acts as a token to keep track of active tasks.
+    Ok(task::spawn(async move { task.catch_errors(future).await }))
 }
 
 #[macro_export]
