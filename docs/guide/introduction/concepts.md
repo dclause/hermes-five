@@ -49,7 +49,7 @@ The **HARDWARE layer:** defines the real-world physical electronic board to be c
 Usually an Arduino, but that could be anything, even another computer. _Hermes-Five_ does not need to know its nature.
 
 - `Board`: The hardware must always define at least one board where devices will be attached to.
-- 
+
 ::: info
 It is possible to add _expanders_ between the board and some devices. Just switch the board by one of the available other `Hardware`.
 :::
