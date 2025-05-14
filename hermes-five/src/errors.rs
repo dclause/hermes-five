@@ -17,8 +17,8 @@ pub enum Error {
     ProtocolError { source: ProtocolError },
     /// Hardware error: {source}.
     HardwareError { source: HardwareError },
-    /// Unknown error: {info}.
-    UnknownError { info: String },
+    /// Internal error: {info}.
+    InternalError { info: String },
 }
 
 impl From<std::io::Error> for Error {
@@ -49,7 +49,7 @@ impl From<HardwareError> for Error {
 
 impl From<Utf8Error> for Error {
     fn from(value: Utf8Error) -> Self {
-        UnknownError {
+        InternalError {
             info: value.to_string(),
         }
     }
@@ -119,12 +119,12 @@ mod tests {
             "Hardware error: Pin (1) not compatible with mode (SERVO) - test context."
         );
 
-        let unknown_error = UnknownError {
+        let unknown_error = InternalError {
             info: "Some unknown error".to_string(),
         };
         assert_eq!(
             format!("{}", unknown_error),
-            "Unknown error: Some unknown error."
+            "Internal error: Some unknown error."
         );
     }
 
@@ -168,7 +168,7 @@ mod tests {
         let error: Error = utf8_error.into();
         assert_eq!(
             format!("{}", error),
-            "Unknown error: invalid utf-8 sequence of 1 bytes from index 0."
+            "Internal error: invalid utf-8 sequence of 1 bytes from index 0."
         )
     }
 }

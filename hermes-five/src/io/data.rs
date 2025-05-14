@@ -287,7 +287,7 @@ impl PinModeId {
             0x0E => Ok(PinModeId::TONE),
             0x0F => Ok(PinModeId::DHT),
             0x7F => Ok(PinModeId::UNSUPPORTED),
-            x => Err(UnknownError {
+            x => Err(InternalError {
                 info: format!("PinMode not found with value: {}", x),
             }),
         }
@@ -468,7 +468,7 @@ mod tests {
         assert!(error_mode.is_err());
         assert_eq!(
             error_mode.err().unwrap().to_string(),
-            "Unknown error: PinMode not found with value: 100."
+            "Internal error: PinMode not found with value: 100."
         );
 
         // From PinModeId to u8

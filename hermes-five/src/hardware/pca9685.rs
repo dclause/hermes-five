@@ -2,7 +2,7 @@
 // All information are relative to PCA9685 datasheets:
 // https://www.digikey.jp/htmldatasheets/production/2459480/0/0/1/pca9685.html
 
-use crate::errors::{Error, HardwareError, UnknownError};
+use crate::errors::{Error, HardwareError, InternalError};
 use crate::hardware::{Board, Expander, Hardware};
 use crate::io::{IoData, IoProtocol, Pin, PinMode, PinModeId, IO};
 use crate::utils::{Range, Scalable};
@@ -123,7 +123,7 @@ impl PCA9685 {
     pub fn set_frequency(&mut self, frequency: u16) -> Result<&Self, Error> {
         // Validate frequency range
         if !(Self::MIN_FREQUENCY..=Self::MAX_FREQUENCY).contains(&frequency) {
-            return Err(UnknownError {
+            return Err(InternalError {
                 info: format!(
                     "Frequency must be between {} and {} Hz",
                     Self::MIN_FREQUENCY,
@@ -406,14 +406,14 @@ mod tests {
         assert!(result.is_err());
         assert_eq!(
             result.err().unwrap().to_string(),
-            "Unknown error: Frequency must be between 24 and 1526 Hz."
+            "Internal error: Frequency must be between 24 and 1526 Hz."
         );
 
         let result = pca9685.set_frequency(1600);
         assert!(result.is_err());
         assert_eq!(
             result.err().unwrap().to_string(),
-            "Unknown error: Frequency must be between 24 and 1526 Hz."
+            "Internal error: Frequency must be between 24 and 1526 Hz."
         );
     }
 
