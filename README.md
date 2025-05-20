@@ -1,12 +1,14 @@
 # Hermes-Five
 
 [![License](https://img.shields.io/github/license/dclause/hermes-five?color=success)](/LICENSE)
-[![Build Status](https://github.com/dclause/hermes-five/workflows/Build/badge.svg)](https://github.com/dclause/hermes-five/actions/workflows/build.yml)
-[![Test Status](https://github.com/dclause/hermes-five/workflows/Test/badge.svg)](https://github.com/dclause/hermes-five/actions/workflows/test.yml)
-[![Code Coverage](https://codecov.io/gh/dclause/hermes-five/graph/badge.svg?token=KF8EFDUQ7A)](https://codecov.io/gh/dclause/hermes-five)
-[![crates-io](https://img.shields.io/crates/v/hermes-five.svg)](https://crates.io/crates/hermes-five)
-[![api-docs](https://docs.rs/hermes-five/badge.svg)](https://docs.rs/hermes-five)
-[![Documentation](https://img.shields.io/badge/documentation-_online-success)](https://dclause.github.io/hermes-five/)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/dclause/hermes-five/build.yml?branch=develop&label=Build)](https://github.com/dclause/hermes-five/actions/workflows/build.yml?query=branch%3Adevelop)
+[![Test Status](https://img.shields.io/github/actions/workflow/status/dclause/hermes-five/test.yml?branch=develop&label=Test)](https://github.com/dclause/hermes-five/actions/workflows/test.yml?query=branch%3Adevelop)
+[![Docs Status](https://img.shields.io/docsrs/hermes-five?label=Doc)](https://docs.rs/hermes-five)
+[![Code Coverage](https://codecov.io/gh/dclause/hermes-five/branch/develop/graph/badge.svg?token=KF8EFDUQ7A)](https://codecov.io/gh/dclause/hermes-five/branch/develop)
+[![crates.io](https://img.shields.io/crates/v/hermes-five.svg)](https://crates.io/crates/hermes-five)
+
+[![Documentation](https://img.shields.io/badge/Documentation-available%20here-success)](https://dclause.github.io/hermes-five/)
+
 
 ### The Rust Robotics & IoT Platform
 
