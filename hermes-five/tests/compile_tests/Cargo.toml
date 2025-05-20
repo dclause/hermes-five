@@ -1,0 +1,10 @@
+[package]
+name = "compile_tests"
+description = "Tests use of Hermes-Five as a library"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+
+[dependencies]
+hermes-five = { path = "../../" }
