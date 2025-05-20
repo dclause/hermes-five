@@ -170,6 +170,10 @@ impl Servo {
 
     // ########################################
     // Setters and Getters.
+    
+    pub fn get_position(&self) -> u16 {
+        *self.state.read()
+    }
 
     /// Returns the pin (id) used by the device.
     pub fn get_pin(&self) -> u8 {

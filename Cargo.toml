@@ -3,6 +3,7 @@ members = [
     "hermes-five",
     "hermes-five-macros",
     "hermes-five-macros-internals",
+    "hermes-five/examples/advanced/gamepad",
 ]
 resolver = "2"
 

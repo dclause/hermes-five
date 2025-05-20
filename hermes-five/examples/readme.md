@@ -47,3 +47,7 @@ The available examples are:
 - **animation/animation.rs:** Demonstrates how to create and run a complex animation (with multiple devices, parts,
   repeating parts, etc.).
 - **animation/multiple_animations.rs:** Demonstrates how to create multiple animations and run them at the same time.
+
+# Advanced
+
+- **advanced/gamepad:** Demonstrates how to use the `gilrs` crate to control your board using a gamepad (e.g., a PS4 DualShock controller).

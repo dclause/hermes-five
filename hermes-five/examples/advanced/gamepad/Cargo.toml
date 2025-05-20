@@ -1,0 +1,10 @@
+[package]
+name = "demo_gamepad"
+version = "0.1.0"
+edition = "2021"
+description = "Example use of a Gamepad controller (ex. Bluetooth PS4 controller)"
+authors = ["Dominique CLAUSE <dom.clause@gmail.com>"]
+
+[dependencies]
+gilrs = "0.11.0"
+hermes-five = { path = "../../../"}
