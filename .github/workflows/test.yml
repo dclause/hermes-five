@@ -40,3 +40,8 @@ jobs:
         run: cargo test --workspace --verbose --color=always
         env:
           RUST_BACKTRACE: 1
+
+      - name: Test compiling external project using Hermes-Five library
+        run: |
+          cd hermes-five/tests/compile_tests
+          cargo check
