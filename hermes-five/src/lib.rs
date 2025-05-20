@@ -80,6 +80,8 @@
 #[cfg(test)]
 extern crate self as hermes_five;
 
+pub extern crate tokio;
+
 pub mod animations;
 pub mod devices;
 pub mod errors;
