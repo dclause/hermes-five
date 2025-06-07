@@ -12,7 +12,7 @@
 
 ### The Rust Robotics & IoT Framework
 
-<img align="right" height="200" style="height:200px" alt="Schema sample of blinking led using Arduino UNO" src="/docs/public/examples/led/led-blink.gif?raw=true" />
+<img align="right" height="200" style="height:200px" alt="Schema sample of blinking led using Arduino UNO" src="/docs/public/schemas/overall.png?raw=true" />
 
 **Drive and orchestrate Arduinos and all kind of [Firmata-compatible](https://github.com/firmata) hardware in pure async Rust.
 Control LEDs, sensors, motors from your laptop with the safety and speed of Rust.**
