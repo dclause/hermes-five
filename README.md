@@ -14,10 +14,10 @@
 
 <img align="right" height="200" style="height:200px" alt="Schema sample of blinking led using Arduino UNO" src="/docs/public/schemas/overall.png?raw=true" />
 
-**Drive and orchestrate Arduinos and all kind of [Firmata-compatible](https://github.com/firmata) hardware in pure async Rust.
+**Drive and orchestrate Arduinos, ESPs, nodeMCU, RaspberryPis and all kind of [Firmata-compatible](https://github.com/firmata) hardware in pure async Rust.
 Control LEDs, sensors, motors from your laptop with the safety and speed of Rust.**
 
-_Program robots and embedded devices with confidence. Hermes-Five gives you high-level APIs to remotely control Arduino boards, LEDs, sensors, servos and more, all from safe and asynchronous Rust code. Think _Johnny-Five_, but safer, faster, and fully async._
+_Program robots and embedded devices with confidence. Hermes-Five gives you high-level APIs to remotely control boards (Arduino, ESP, nodeMCU, RaspberryPI, ..), extenders (PCA9685, PCF8575, ..) LEDs, sensors, servos and more, all from safe and asynchronous Rust code. Think _Johnny-Five_, but safer, faster, and fully async._
 
 ## Documentation
 
@@ -28,9 +28,9 @@ Hermes-Five offers three main documentation sources:
 
 ## Key Features
 
-* **🧠 High-level abstractions:** Control LEDs, sensors, buttons, servos. Write expressive, async Rust code to control them.
-* **🛜 Protocol-agnostic:** Serial supported (via Firmata); WiFi and Bluetooth coming soon.
-* **🧩 Modular design:** Plug-and-play support for boards and devices. Arduino today, ESP32 and Raspberry Pi tomorrow.
+* **🧠 High-level abstractions:** Control LEDs, sensors, buttons, servos and all kind of devices. Write expressive, async Rust code to control them.
+* **🛜 Protocol-agnostic:** Serial, WiFi and Bluetooth supported (via Firmata).
+* **🧩 Modular design:** Plug-and-play support for boards and devices. Arduino today, ESP32, nodeMCU, Raspberry Pi, etc.
 * **🕹️ Animation engine:** Interpolate servo movements, LED fades and more with ease.
 * **🧪 Test-friendly:** Includes mock mode to run and test logic without hardware.
 
