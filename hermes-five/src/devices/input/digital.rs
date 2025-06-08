@@ -203,14 +203,14 @@ mod tests {
     use crate::devices::input::Input;
     use crate::devices::input::InputEvent;
     use crate::hardware::Board;
-    use crate::mocks::plugin_io::MockIoProtocol;
+    use crate::mocks::MockProtocol;
     use crate::pause;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
 
     #[hermes_five_macros::test]
     fn test_new_digital_input() {
-        let board = Board::new(MockIoProtocol::default());
+        let board = Board::new(MockProtocol::default());
         let sensor = DigitalInput::new(&board, 2).unwrap();
         assert_eq!(sensor.get_pin(), 2);
         assert!(sensor.get_state().as_bool());
@@ -226,7 +226,7 @@ mod tests {
 
     #[hermes_five_macros::test]
     fn test_digital_display() {
-        let board = Board::new(MockIoProtocol::default());
+        let board = Board::new(MockProtocol::default());
         let sensor = DigitalInput::new(&board, "D5").unwrap();
         assert!(!sensor.get_state().as_bool());
         assert_eq!(
@@ -240,7 +240,7 @@ mod tests {
 
     #[hermes_five_macros::test]
     fn test_digital_events() {
-        let board = Board::new(MockIoProtocol::default());
+        let board = Board::new(MockProtocol::default());
         let button = DigitalInput::new(&board, 5).unwrap();
 
         // CHANGE

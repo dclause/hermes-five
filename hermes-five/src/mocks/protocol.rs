@@ -12,14 +12,14 @@ use std::sync::Arc;
 /// Uses [`create_test_plugin_io_data`] for the hardware:
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
-pub struct MockIoProtocol {
+pub struct MockProtocol {
     #[cfg_attr(feature = "serde", serde(skip))]
     pub connected: bool,
     #[cfg_attr(feature = "serde", serde(skip))]
     pub data: Arc<RwLock<IoData>>,
 }
 
-impl Default for MockIoProtocol {
+impl Default for MockProtocol {
     fn default() -> Self {
         Self {
             connected: false,
@@ -28,7 +28,7 @@ impl Default for MockIoProtocol {
     }
 }
 
-impl Display for MockIoProtocol {
+impl Display for MockProtocol {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let data = self.data.read();
         write!(
@@ -43,7 +43,7 @@ impl Display for MockIoProtocol {
 }
 
 #[cfg_attr(feature = "serde", typetag::serde)]
-impl IoProtocol for MockIoProtocol {
+impl IoProtocol for MockProtocol {
     fn open(&mut self) -> Result<(), Error> {
         pause_sync!(100);
         self.connected = true;
@@ -69,7 +69,7 @@ impl IoProtocol for MockIoProtocol {
     }
 }
 
-impl IO for MockIoProtocol {
+impl IO for MockProtocol {
     fn get_io(&self) -> &Arc<RwLock<IoData>> {
         &self.data
     }

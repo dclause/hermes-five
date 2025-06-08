@@ -14,7 +14,6 @@ use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::sync::Arc;
-use std::time::Duration;
 
 /// Implements the [Firmata protocol](https://github.com/firmata/protocol) within an [`IoProtocol`].
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -70,9 +69,6 @@ impl IoProtocol for RemoteIo {
 
         // Perform handshake.
         self.handshake()?;
-
-        // Reduce timeout.
-        self.transport.set_timeout(Duration::from_millis(500))?;
 
         self.data.write().connected = true;
         Ok(())
@@ -647,30 +643,30 @@ mod tests {
     use crate::io::constants::Message;
     use crate::io::{IoProtocol, PinModeId, RemoteIo, Serial, IO};
     use crate::mocks::create_test_plugin_io_data;
+    use crate::mocks::MockTransport;
     use crate::utils::{format_as_hex, Range};
-    use hermes_five::mocks::transport_layer::MockTransportLayer;
     use parking_lot::lock_api::RwLock;
     use std::sync::Arc;
 
     fn _create_mock_protocol() -> RemoteIo {
-        let mut protocol = RemoteIo::from(MockTransportLayer::default());
+        let mut protocol = RemoteIo::from(MockTransport::default());
         protocol.data = Arc::new(RwLock::new(create_test_plugin_io_data()));
         protocol
     }
 
     fn _create_mock_protocol_with_data(data: &[u8]) -> RemoteIo {
-        let mut transport = MockTransportLayer::default();
+        let mut transport = MockTransport::default();
         transport.read_buf[..data.len()].copy_from_slice(data);
         let mut protocol = RemoteIo::from(transport);
         protocol.data = Arc::new(RwLock::new(create_test_plugin_io_data()));
         protocol
     }
 
-    fn _get_mock_transport(protocol: &RemoteIo) -> &MockTransportLayer {
+    fn _get_mock_transport(protocol: &RemoteIo) -> &MockTransport {
         protocol
             .transport
             .as_any()
-            .downcast_ref::<MockTransportLayer>()
+            .downcast_ref::<MockTransport>()
             .unwrap()
     }
 
@@ -685,11 +681,8 @@ mod tests {
         assert!(transport.is_some());
         assert_eq!(transport.unwrap().get_port(), String::from("try"));
 
-        let protocol = RemoteIo::from(MockTransportLayer::default());
-        let transport = protocol
-            .transport
-            .as_any()
-            .downcast_ref::<MockTransportLayer>();
+        let protocol = RemoteIo::from(MockTransport::default());
+        let transport = protocol.transport.as_any().downcast_ref::<MockTransport>();
         assert!(transport.is_some());
     }
 
@@ -1328,10 +1321,10 @@ mod tests {
     fn test_debug_and_display() {
         let protocol = _create_mock_protocol();
         let boxed_protocol: Box<dyn IoProtocol> = Box::new(protocol);
-        // assert_eq!(protocol.get_protocol_name(), "MockIoProtocol");
+        // assert_eq!(protocol.get_protocol_name(), "MockProtocol");
         assert_eq!(
             format!("{}", boxed_protocol),
-            "RemoteIo [firmware=Fake protocol, version=fake.2.3, protocol=fake.1.0, transport=MockTransportLayer]"
+            "RemoteIo [firmware=Fake protocol, version=fake.2.3, protocol=fake.1.0, transport=MockTransport]"
         )
     }
 }

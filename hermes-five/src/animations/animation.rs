@@ -377,7 +377,7 @@ mod tests {
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
     use crate::animations::Keyframe;
-    use crate::mocks::output_device::MockOutputDevice;
+    use crate::mocks::MockOutputDevice;
     use crate::pause;
 
     use super::*;

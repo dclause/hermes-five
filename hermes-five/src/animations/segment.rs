@@ -267,7 +267,7 @@ mod tests {
 
     use crate::animations::Track;
     use crate::animations::{Keyframe, Segment};
-    use crate::mocks::output_device::MockOutputDevice;
+    use crate::mocks::MockOutputDevice;
 
     #[test]
     fn test_segment_default() {

@@ -190,13 +190,13 @@ mod tests {
     use crate::devices::Output;
     use crate::hardware::Board;
     use crate::io::PinModeId;
-    use crate::mocks::plugin_io::MockIoProtocol;
+    use crate::mocks::MockProtocol;
     use crate::pause;
     use crate::utils::State;
 
     #[test]
     fn test_creation() {
-        let board = Board::new(MockIoProtocol::default());
+        let board = Board::new(MockProtocol::default());
 
         // Default LOW state.
         let output = DigitalOutput::new(&board, 13, false).unwrap();
@@ -228,7 +228,7 @@ mod tests {
     #[test]
     fn test_set_high() {
         let mut output =
-            DigitalOutput::new(&Board::new(MockIoProtocol::default()), 4, false).unwrap();
+            DigitalOutput::new(&Board::new(MockProtocol::default()), 4, false).unwrap();
         output.turn_on().unwrap();
         assert!(output.turn_on().is_ok());
         assert!(*output.state.read());
@@ -237,7 +237,7 @@ mod tests {
     #[test]
     fn test_set_low() {
         let mut output =
-            DigitalOutput::new(&Board::new(MockIoProtocol::default()), 5, true).unwrap();
+            DigitalOutput::new(&Board::new(MockProtocol::default()), 5, true).unwrap();
         assert!(output.turn_off().is_ok());
         assert!(!*output.state.read());
     }
@@ -245,7 +245,7 @@ mod tests {
     #[test]
     fn test_toggle() {
         let mut output =
-            DigitalOutput::new(&Board::new(MockIoProtocol::default()), 5, false).unwrap();
+            DigitalOutput::new(&Board::new(MockProtocol::default()), 5, false).unwrap();
         assert!(output.toggle().is_ok()); // Toggle to HIGH
         assert!(*output.state.read());
         assert!(output.toggle().is_ok()); // Toggle to LOW
@@ -255,7 +255,7 @@ mod tests {
     #[test]
     fn test_set_state() {
         let mut output =
-            DigitalOutput::new(&Board::new(MockIoProtocol::default()), 13, false).unwrap();
+            DigitalOutput::new(&Board::new(MockProtocol::default()), 13, false).unwrap();
         assert!(output.set_state(State::Boolean(true)).is_ok());
         assert!(*output.state.read());
         assert!(output.set_state(State::Boolean(false)).is_ok());
@@ -279,7 +279,7 @@ mod tests {
 
     #[test]
     fn test_get_pin_info() {
-        let output = DigitalOutput::new(&Board::new(MockIoProtocol::default()), 13, false).unwrap();
+        let output = DigitalOutput::new(&Board::new(MockProtocol::default()), 13, false).unwrap();
         let pin_info = output.get_pin_info();
         assert!(pin_info.is_ok());
         assert_eq!(pin_info.unwrap().id, 13);
@@ -288,7 +288,7 @@ mod tests {
     #[hermes_five_macros::test]
     fn test_animation() {
         let mut output =
-            DigitalOutput::new(&Board::new(MockIoProtocol::default()), 13, false).unwrap();
+            DigitalOutput::new(&Board::new(MockProtocol::default()), 13, false).unwrap();
         assert!(!output.is_busy());
         // Stop something not started should not fail.
         output.stop();
@@ -302,7 +302,7 @@ mod tests {
     #[test]
     fn test_display_impl() {
         let mut output =
-            DigitalOutput::new(&Board::new(MockIoProtocol::default()), 13, true).unwrap();
+            DigitalOutput::new(&Board::new(MockProtocol::default()), 13, true).unwrap();
         let _ = output.turn_off();
         let display_str = format!("{}", output);
         assert_eq!(
