@@ -62,7 +62,7 @@ pub mod arc_rwlock_serde {
     mod serde_tests {
         use serde_json;
 
-        use crate::mocks::output_device::MockOutputDevice;
+        use crate::mocks::MockOutputDevice;
 
         #[test]
         fn test_serialize() {

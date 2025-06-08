@@ -176,7 +176,7 @@ impl Display for Track {
 #[cfg(test)]
 mod tests {
     use crate::animations::Keyframe;
-    use crate::mocks::output_device::MockOutputDevice;
+    use crate::mocks::MockOutputDevice;
     use crate::utils::Range;
 
     use super::*;

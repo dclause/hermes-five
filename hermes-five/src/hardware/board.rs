@@ -27,7 +27,7 @@ impl From<BoardEvent> for String {
     }
 }
 
-/// Represents a physical board (Arduino most-likely) where your [`crate::devices::Device`] can be attached and controlled through this API.
+/// Represents a physical board (Arduino most-likely) where your [`Device`] can be attached and controlled through this API.
 /// The board gives access to [`IoData`] through a communication [`IoProtocol`].
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone)]
@@ -350,8 +350,8 @@ mod tests {
     use super::*;
     use crate::io::Serial;
     use crate::io::IO;
-    use crate::mocks::plugin_io::MockIoProtocol;
-    use crate::mocks::transport_layer::MockTransportLayer;
+    use crate::mocks::MockProtocol;
+    use crate::mocks::MockTransport;
     use crate::pause;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
@@ -370,10 +370,10 @@ mod tests {
     #[test]
     fn test_board_from() {
         // Custom protocol can be used.
-        let board = Board::new(MockIoProtocol::default());
+        let board = Board::new(MockProtocol::default());
         assert_eq!(
             board.get_protocol_name(),
-            "MockIoProtocol",
+            "MockProtocol",
             "Board can be created with a custom protocol"
         );
         // Custom transport can be used.
@@ -387,7 +387,7 @@ mod tests {
 
     #[hermes_five_macros::test]
     async fn test_board_open() {
-        let mut transport = MockTransportLayer {
+        let mut transport = MockTransport {
             read_index: 10,
             ..Default::default()
         };
@@ -417,7 +417,7 @@ mod tests {
 
     #[test]
     fn test_board_blocking_open() {
-        let mut transport = MockTransportLayer {
+        let mut transport = MockTransport {
             read_index: 10,
             ..Default::default()
         };
@@ -440,7 +440,7 @@ mod tests {
         let flag = Arc::new(AtomicBool::new(false));
         let moved_flag = flag.clone();
 
-        let board = Board::new(MockIoProtocol::default()).open().close();
+        let board = Board::new(MockProtocol::default()).open().close();
 
         board.on(BoardEvent::OnClose, move |board: Board| {
             let captured_flag = moved_flag.clone();
@@ -465,17 +465,17 @@ mod tests {
 
     #[test]
     fn test_board_get_hardware() {
-        let board = Board::new(MockIoProtocol::default());
+        let board = Board::new(MockProtocol::default());
         assert_eq!(board.get_io().read().protocol_version, "fake.1.0");
     }
 
     #[test]
     fn test_board_display() {
-        let board = Board::new(MockIoProtocol::default());
+        let board = Board::new(MockProtocol::default());
         let output = format!("{}", board);
         assert_eq!(
             output,
-            "Board (MockIoProtocol [firmware=Fake protocol, version=fake.2.3, protocol=fake.1.0])"
+            "Board (MockProtocol [firmware=Fake protocol, version=fake.2.3, protocol=fake.1.0])"
         );
     }
 }
@@ -485,7 +485,7 @@ mod tests {
 mod serde_tests {
     use crate::hardware::{Board, Hardware};
     use crate::io::RemoteIo;
-    use crate::mocks::plugin_io::MockIoProtocol;
+    use crate::mocks::MockProtocol;
 
     #[test]
     fn test_board_serialize() {
@@ -496,9 +496,9 @@ mod serde_tests {
             r#"{"protocol":{"type":"RemoteIo","transport":{"type":"Serial","port":"mock"}}}"#
         );
 
-        let board = Board::new(MockIoProtocol::default());
+        let board = Board::new(MockProtocol::default());
         let json = serde_json::to_string(&board).unwrap();
-        assert_eq!(json, r#"{"protocol":{"type":"MockIoProtocol"}}"#);
+        assert_eq!(json, r#"{"protocol":{"type":"MockProtocol"}}"#);
     }
 
     #[test]
@@ -508,8 +508,8 @@ mod serde_tests {
         let board: Board = serde_json::from_str(json).unwrap();
         assert_eq!(board.get_protocol_name(), "RemoteIo");
 
-        let json = r#"{"protocol":{"type":"MockIoProtocol"}}"#;
+        let json = r#"{"protocol":{"type":"MockProtocol"}}"#;
         let board: Board = serde_json::from_str(json).unwrap();
-        assert_eq!(board.get_protocol_name(), "MockIoProtocol");
+        assert_eq!(board.get_protocol_name(), "MockProtocol");
     }
 }

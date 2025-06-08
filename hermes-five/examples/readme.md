@@ -6,6 +6,11 @@ The available examples are:
 - **board/events.rs:** Shows how to react to board events.
 - **board/hardware.rs:** Shows how to access and control the hardware associated with a board: low level style!
 
+# Various Protocols and Transports
+
+- **io/remote_serial.rs:** Shows how to use RemoteIo protocol with serial transport layer.
+- **io/remote_wifi.rs:** Shows how to use RemoteIo protocol with wifi transport layer.
+
 # Generic devices
 
 ## Output

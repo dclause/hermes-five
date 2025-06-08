@@ -332,13 +332,13 @@ mod tests {
     use std::sync::atomic::{AtomicBool, Ordering};
 
     use crate::hardware::Board;
-    use crate::mocks::plugin_io::MockIoProtocol;
+    use crate::mocks::MockProtocol;
 
     use super::*;
 
     #[hermes_five_macros::test]
     fn test_new_button_creation() {
-        let board = Board::new(MockIoProtocol::default());
+        let board = Board::new(MockProtocol::default());
         let button = Button::new(&board, 4);
 
         assert!(button.is_ok());
@@ -354,7 +354,7 @@ mod tests {
 
     #[hermes_five_macros::test]
     fn test_new_inverted_button_creation() {
-        let board = Board::new(MockIoProtocol::default());
+        let board = Board::new(MockProtocol::default());
         let button = Button::new_inverted(&board, 4);
 
         assert!(button.is_ok());
@@ -370,7 +370,7 @@ mod tests {
 
     #[hermes_five_macros::test]
     fn test_new_pullup_button_creation() {
-        let board = Board::new(MockIoProtocol::default());
+        let board = Board::new(MockProtocol::default());
         let button = Button::new_pullup(&board, 4);
 
         assert!(button.is_ok());
@@ -386,7 +386,7 @@ mod tests {
 
     #[hermes_five_macros::test]
     fn test_new_inverted_pullup_button_creation() {
-        let board = Board::new(MockIoProtocol::default());
+        let board = Board::new(MockProtocol::default());
         let button = Button::new_inverted_pullup(&board, 4);
 
         assert!(button.is_ok());
@@ -402,7 +402,7 @@ mod tests {
 
     #[hermes_five_macros::test]
     fn test_button_helper() {
-        let board = Board::new(MockIoProtocol::default());
+        let board = Board::new(MockProtocol::default());
         let button = Button::start_with(
             Button {
                 pin: 0,
@@ -427,7 +427,7 @@ mod tests {
 
     #[hermes_five_macros::test]
     fn test_button_inverted_state_logic() {
-        let board = Board::new(MockIoProtocol::default());
+        let board = Board::new(MockProtocol::default());
         let button = Button::new_inverted(&board, 5).unwrap();
         assert_eq!(button.get_state().as_bool(), true);
 
@@ -440,7 +440,7 @@ mod tests {
 
     #[hermes_five_macros::test]
     fn test_button_events() {
-        let board = Board::new(MockIoProtocol::default());
+        let board = Board::new(MockProtocol::default());
         let button = Button::new(&board, 5).unwrap();
 
         // CHANGE
@@ -515,7 +515,7 @@ mod tests {
 
     #[hermes_five_macros::test]
     fn test_inverted_button_events() {
-        let board = Board::new(MockIoProtocol::default());
+        let board = Board::new(MockProtocol::default());
         let button = Button::new_inverted(&board, 5).unwrap();
 
         // CHANGE
@@ -590,7 +590,7 @@ mod tests {
 
     // #[hermes_five_macros::test]
     // fn test_pullup_button_events() {
-    //     let board = Board::new(MockIoProtocol::default());
+    //     let board = Board::new(MockProtocol::default());
     //     let button = Button::new_pullup(&board, 5).unwrap();
     //
     //     // CHANGE
@@ -665,7 +665,7 @@ mod tests {
 
     #[hermes_five_macros::test]
     fn test_button_display() {
-        let board = Board::new(MockIoProtocol::default());
+        let board = Board::new(MockProtocol::default());
         let button = Button::new(&board, 4).unwrap();
 
         assert_eq!(

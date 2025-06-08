@@ -2,10 +2,12 @@ use crate::errors::Error;
 use crate::io::private::TraitToAny;
 use dyn_clone::DynClone;
 use std::fmt::{Debug, Display};
-use std::time::Duration;
 
 mod serial;
+mod wifi;
+
 pub use serial::Serial;
+pub use wifi::WiFi;
 
 /// Only used for tests to downcast the transport layer.
 pub(crate) mod private {
@@ -34,12 +36,6 @@ pub trait IoTransport: Debug + Display + DynClone + Send + Sync + TraitToAny {
 
     /// Gracefully shuts down the transport layer.
     fn close(&mut self) -> Result<(), Error>;
-
-    /// Sets a timeout for the transport layer
-    ///
-    /// # Notes
-    /// This function is optional and may not be supported by all transport layers.
-    fn set_timeout(&mut self, duration: Duration) -> Result<(), Error>;
 
     /// Write bytes to the internal connection. For more details see [`std::io::Write::write`].
     ///

@@ -454,19 +454,19 @@ mod tests {
     use crate::devices::{Output, Servo};
     use crate::hardware::Board;
     use crate::io::PinModeId;
-    use crate::mocks::plugin_io::MockIoProtocol;
+    use crate::mocks::MockProtocol;
     use crate::pause;
     use crate::utils::{Range, State};
     use hermes_five::devices::ServoType;
 
     fn _setup_servo(pin: u8) -> Servo {
-        let board = Board::new(MockIoProtocol::default()); // Assuming a mock Board implementation
+        let board = Board::new(MockProtocol::default()); // Assuming a mock Board implementation
         Servo::new(&board, pin, 90).unwrap()
     }
 
     #[test]
     fn test_servo_creation() {
-        let board = Board::new(MockIoProtocol::default());
+        let board = Board::new(MockProtocol::default());
 
         let servo = Servo::new(&board, 12, 90).unwrap();
         assert_eq!(servo.get_pin(), 12);
@@ -634,12 +634,12 @@ mod tests {
 #[cfg(test)]
 mod serde_tests {
     use crate::hardware::{Board, Hardware, PCA9685};
-    use crate::mocks::plugin_io::MockIoProtocol;
+    use crate::mocks::MockProtocol;
     use hermes_five::devices::Servo;
 
     #[test]
     fn test_servo_serialize() {
-        let board = Board::new(MockIoProtocol::default());
+        let board = Board::new(MockProtocol::default());
         let servo = Servo::new(&board, 12, 90).expect("servo");
         let json = serde_json::to_string(&servo).unwrap();
         assert_eq!(
@@ -663,8 +663,8 @@ mod serde_tests {
         let board: Board = serde_json::from_str(json).unwrap();
         assert_eq!(board.get_protocol_name(), "RemoteIo");
 
-        let json = r#"{"protocol":{"type":"MockIoProtocol"}}"#;
+        let json = r#"{"protocol":{"type":"MockProtocol"}}"#;
         let board: Board = serde_json::from_str(json).unwrap();
-        assert_eq!(board.get_protocol_name(), "MockIoProtocol");
+        assert_eq!(board.get_protocol_name(), "MockProtocol");
     }
 }

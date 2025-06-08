@@ -358,8 +358,8 @@ mod tests {
     use super::*;
     use crate::io::RemoteIo;
     use crate::mocks::create_test_plugin_io_data;
-    use crate::mocks::plugin_io::MockIoProtocol;
-    use crate::mocks::transport_layer::MockTransportLayer;
+    use crate::mocks::MockProtocol;
+    use crate::mocks::MockTransport;
     use crate::utils::Range;
 
     #[test]
@@ -372,7 +372,7 @@ mod tests {
 
     #[test]
     fn test_default_initialization() {
-        let board = Board::new(MockIoProtocol::default());
+        let board = Board::new(MockProtocol::default());
         let pca9685 = PCA9685::default(&board).unwrap();
 
         assert_eq!(pca9685.address, 0x40);
@@ -381,7 +381,7 @@ mod tests {
 
     #[test]
     fn test_custom_initialization() {
-        let board = Board::new(MockIoProtocol::default());
+        let board = Board::new(MockProtocol::default());
         let pca9685 = PCA9685::new(&board, 0x41).unwrap();
 
         assert_eq!(pca9685.address, 0x41);
@@ -390,7 +390,7 @@ mod tests {
 
     #[test]
     fn test_set_frequency_valid() {
-        let board = Board::new(MockIoProtocol::default());
+        let board = Board::new(MockProtocol::default());
         let mut pca9685 = PCA9685::default(&board).unwrap();
 
         assert!(pca9685.set_frequency(100).is_ok());
@@ -399,7 +399,7 @@ mod tests {
 
     #[test]
     fn test_set_frequency_outofbound() {
-        let board = Board::new(MockIoProtocol::default());
+        let board = Board::new(MockProtocol::default());
         let mut pca9685 = PCA9685::default(&board).unwrap();
 
         let result = pca9685.set_frequency(20);
@@ -419,7 +419,7 @@ mod tests {
 
     #[test]
     fn test_write_to_reg() {
-        let transport = MockTransportLayer::default();
+        let transport = MockTransport::default();
         let board = Board::new(RemoteIo::from(transport));
         let mut pca9685 = PCA9685::default(&board).unwrap();
 
@@ -428,7 +428,7 @@ mod tests {
 
     #[test]
     fn test_read_from_reg() {
-        let mut transport = MockTransportLayer::default();
+        let mut transport = MockTransport::default();
 
         // Mock data for reading I2C reply of a single 0x69 register with value 0x42.
         let data = &[0xF0, 0x77, 0x40, 0x00, 0x69, 0x00, 0x42, 0x00, 0xF7];
@@ -445,7 +445,7 @@ mod tests {
 
     #[test]
     fn test_read_from_reg_failure() {
-        let mut transport = MockTransportLayer::default();
+        let mut transport = MockTransport::default();
 
         // Mock data for reading I2C reply too short.
         let data = &[0xF0, 0x77, 0x40, 0x00, 0xF7];
@@ -462,7 +462,7 @@ mod tests {
 
     #[test]
     fn test_set_pin_mode() {
-        let board = Board::new(MockIoProtocol::default());
+        let board = Board::new(MockProtocol::default());
         let mut pca9685 = PCA9685::default(&board).unwrap();
 
         // Test setting pin mode to OUTPUT
@@ -492,7 +492,7 @@ mod tests {
 
     #[test]
     fn test_digital_write() {
-        let board = Board::new(MockIoProtocol::default());
+        let board = Board::new(MockProtocol::default());
         let mut pca9685 = PCA9685::new(&board, 0x41).unwrap();
 
         assert!(pca9685.digital_write(1, true).is_ok());
@@ -506,7 +506,7 @@ mod tests {
 
     #[test]
     fn test_analog_write() {
-        let board = Board::new(MockIoProtocol::default());
+        let board = Board::new(MockProtocol::default());
         let mut pca9685 = PCA9685::default(&board).unwrap();
 
         assert!(pca9685.analog_write(0, 128).is_ok());
@@ -530,7 +530,7 @@ mod tests {
 
     #[test]
     fn test_servo_config() {
-        let board = Board::new(MockIoProtocol::default());
+        let board = Board::new(MockProtocol::default());
         let mut pca9685 = PCA9685::default(&board).unwrap();
 
         // Test configuring the servo
@@ -545,7 +545,7 @@ mod tests {
 
     #[test]
     fn test_open() {
-        let board = Board::new(MockIoProtocol::default());
+        let board = Board::new(MockProtocol::default());
         let mut pca9685 = PCA9685::default(&board).unwrap();
         assert!(pca9685.open().is_ok());
         assert!(pca9685.is_connected());
@@ -553,7 +553,7 @@ mod tests {
 
     #[test]
     fn test_close() {
-        let board = Board::new(MockIoProtocol::default());
+        let board = Board::new(MockProtocol::default());
         let mut pca9685 = PCA9685::default(&board).unwrap();
         pca9685.data.write().connected = true; // force
         assert!(pca9685.close().is_ok());
@@ -562,7 +562,7 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let board = Board::new(MockIoProtocol::default());
+        let board = Board::new(MockProtocol::default());
         let pca9685 = PCA9685::default(&board).unwrap();
 
         assert_eq!(
@@ -573,7 +573,7 @@ mod tests {
 
     #[test]
     fn test_hardware() {
-        let board = Board::new(MockIoProtocol::default());
+        let board = Board::new(MockProtocol::default());
         let pca9685 = PCA9685::new(&board, 0x41).unwrap();
         assert_eq!(
             pca9685.get_protocol().to_string(),

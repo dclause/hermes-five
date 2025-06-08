@@ -195,14 +195,14 @@ mod tests {
     use crate::devices::input::Input;
     use crate::devices::input::InputEvent;
     use crate::hardware::Board;
-    use crate::mocks::plugin_io::MockIoProtocol;
+    use crate::mocks::MockProtocol;
     use crate::pause;
     use std::sync::atomic::{AtomicU16, Ordering};
     use std::sync::Arc;
 
     #[hermes_five_macros::test]
     fn test_new_analog_input() {
-        let board = Board::new(MockIoProtocol::default());
+        let board = Board::new(MockProtocol::default());
         let sensor = AnalogInput::new(&board, 14);
         assert!(sensor.is_ok());
         let sensor = sensor.unwrap();
@@ -220,7 +220,7 @@ mod tests {
 
     #[hermes_five_macros::test]
     fn test_analog_display() {
-        let board = Board::new(MockIoProtocol::default());
+        let board = Board::new(MockProtocol::default());
         let sensor = AnalogInput::new(&board, "A15").unwrap();
         assert_eq!(sensor.get_state().as_integer(), 200);
         assert_eq!(
@@ -235,7 +235,7 @@ mod tests {
     #[hermes_five_macros::test]
     fn test_analog_events() {
         let pin = "A14";
-        let board = Board::new(MockIoProtocol::default());
+        let board = Board::new(MockProtocol::default());
         let sensor = AnalogInput::new(&board, pin).unwrap();
         assert_eq!(sensor.get_state().as_integer(), 100);
 

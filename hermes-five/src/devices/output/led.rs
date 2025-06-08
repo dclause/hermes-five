@@ -287,13 +287,13 @@ impl Output for Led {
 #[cfg(test)]
 mod tests {
     use crate::hardware::Board;
-    use crate::mocks::plugin_io::MockIoProtocol;
+    use crate::mocks::MockProtocol;
     use crate::pause;
 
     use super::*;
 
     fn _setup_led(pin: u8) -> Led {
-        let board = Board::new(MockIoProtocol::default()); // Assuming a mock Board implementation
+        let board = Board::new(MockProtocol::default()); // Assuming a mock Board implementation
         Led::new(&board, pin, false).unwrap()
     }
 
@@ -425,7 +425,7 @@ mod tests {
     fn test_default_value() {
         let led = _setup_led(13);
         assert_eq!(led.get_state().as_integer(), 0); // Should be full OFF by default.
-        let led = Led::new(&Board::new(MockIoProtocol::default()), 13, true).unwrap(); // Setup with default value TRUE
+        let led = Led::new(&Board::new(MockProtocol::default()), 13, true).unwrap(); // Setup with default value TRUE
         assert_eq!(led.get_default().as_integer(), 0xFF); // Default should be fully ON (255).
         assert_eq!(led.get_state().as_integer(), 0xFF); // State should be equal to default.
     }

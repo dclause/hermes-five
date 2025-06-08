@@ -2,11 +2,10 @@ use crate::errors::Error;
 use crate::io::IoTransport;
 use crate::pause_sync;
 use std::fmt::{Display, Formatter};
-use std::time::Duration;
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug, Default)]
-pub struct MockTransportLayer {
+pub struct MockTransport {
     pub connected: bool,
     #[cfg_attr(feature = "serde", serde(skip))]
     pub read_buf: [u8; 32],
@@ -18,14 +17,14 @@ pub struct MockTransportLayer {
     pub write_index: usize,
 }
 
-impl Display for MockTransportLayer {
+impl Display for MockTransport {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "MockTransportLayer")
+        write!(f, "MockTransport")
     }
 }
 
 #[cfg_attr(feature = "serde", typetag::serde)]
-impl IoTransport for MockTransportLayer {
+impl IoTransport for MockTransport {
     fn open(&mut self) -> Result<(), Error> {
         pause_sync!(100);
         self.connected = true;
@@ -35,10 +34,6 @@ impl IoTransport for MockTransportLayer {
     fn close(&mut self) -> Result<(), Error> {
         pause_sync!(100);
         self.connected = false;
-        Ok(())
-    }
-
-    fn set_timeout(&mut self, _: Duration) -> Result<(), Error> {
         Ok(())
     }
 
