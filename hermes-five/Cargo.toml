@@ -146,3 +146,14 @@ path = "examples/servo/animate.rs"
 [[example]]
 name = "servo_p9685"
 path = "examples/servo/pca9685.rs"
+
+# ########################################
+# IO examples
+
+[[example]]
+name = "remote_serial"
+path = "examples/io/remote_serial.rs"
+
+[[example]]
+name = "remote_wifi"
+path = "examples/io/remote_wifi.rs"

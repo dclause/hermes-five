@@ -27,7 +27,7 @@ impl From<BoardEvent> for String {
     }
 }
 
-/// Represents a physical board (Arduino most-likely) where your [`crate::devices::Device`] can be attached and controlled through this API.
+/// Represents a physical board (Arduino most-likely) where your [`Device`] can be attached and controlled through this API.
 /// The board gives access to [`IoData`] through a communication [`IoProtocol`].
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone)]

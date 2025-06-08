@@ -4,7 +4,10 @@ use dyn_clone::DynClone;
 use std::fmt::{Debug, Display};
 
 mod serial;
+mod wifi;
+
 pub use serial::Serial;
+pub use wifi::WiFi;
 
 /// Only used for tests to downcast the transport layer.
 pub(crate) mod private {

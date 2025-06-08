@@ -17,12 +17,20 @@ repository [examples folder](https://github.com/dclause/hermes-five/tree/develop
 
 ## Various Hardware
 
-- **[board/creation.rs](https://github.com/dclause/hermes-five/tree/0.1.0/hermes-five/examples/board/creation.rs):**
+- **[board/creation.rs](https://github.com/dclause/hermes-five/tree/0.2.0/hermes-five/examples/board/creation.rs):**
   Shows how to instantiate a simple board using various protocols / transports layer.
 - **[board/events.rs](https://github.com/dclause/hermes-five/tree/0.1.0/hermes-five/examples/board/events.rs):** Shows
   how to react to board events.
 - **[board/hardware.rs](https://github.com/dclause/hermes-five/tree/0.1.0/hermes-five/examples/board/hardware.rs):**
   Shows how to access and control the hardware associated with a board: low level style!
+
+## Various Protocols and Transports
+
+- **[io/remote_serial.rs](https://github.com/dclause/hermes-five/tree/0.2.0/hermes-five/examples/io/remote_serial.rs):**
+  Shows how to use RemoteIo protocol with serial transport layer.
+- **[io/remote_wifi.rs](https://github.com/dclause/hermes-five/tree/0.2.0/hermes-five/examples/io/remote_wifi.rs):**
+  Shows how to use RemoteIo protocol with serial transport layer.
+
 
 ## Generic devices
 

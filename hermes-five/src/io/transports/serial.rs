@@ -1,6 +1,6 @@
 use crate::errors::Error;
 use crate::errors::ProtocolError::NotInitialized;
-use crate::io::IoTransport;
+use crate::io::{IoTransport};
 use parking_lot::Mutex;
 use serialport::{DataBits, FlowControl, Parity, SerialPort, StopBits};
 use std::fmt::{Display, Formatter};

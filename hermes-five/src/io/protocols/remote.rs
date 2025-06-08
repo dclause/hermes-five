@@ -15,7 +15,10 @@ use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::sync::Arc;
 
-/// Implements the [Firmata protocol](https://github.com/firmata/protocol) within an [`IoProtocol`].
+/// `RemoteIo` is the protocol used to control boards and devices remotely using various compatible `IoProtocol`.
+/// Have a look at the [examples/io folder](https://github.com/dclause/hermes-five/tree/develop/hermes-five/examples/io) for examples.
+/// 
+/// Internally, implements the [Firmata protocol](https://github.com/firmata/protocol) within an [`IoProtocol`].
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone)]
 pub struct RemoteIo {
