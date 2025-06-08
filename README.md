@@ -117,18 +117,7 @@ RUST_LOG=DEBUG cargo run --example folder_examplename
 ## Roadmap
 
 For details, see the full [roadmap](/roadmap.md): currently working
-toward release 0.1
-
-In short:
-
-- [version 0.1](/roadmap.md#release-version-01): proof-of-concept;
-    - basics concepts and underlying requirements (events, tasks, multi-tasking, etc.)
-    - API syntax
-    - Firmata communication to read/write data for basic input/ouput
-- [version 0.2](/roadmap.md#release-version-02): PoC of swapping the underlying bricks
-    - multi-protocol compatibility: serial, wifi, etc.
-    - multi-board compatibility: arduino, raspberry, etc.
-    - clarify the hardware layer (ex. Board/PCA9685/IOExpanders for devices)
+toward release 0.2
 
 ## Contribution
 
