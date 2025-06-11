@@ -250,6 +250,11 @@ impl Output for Led {
             _ => Err(StateError),
         }?;
 
+        // Early break if no change is required.
+        if *self.state.read() == value {
+            return Ok(value.into());
+        }
+
         match self.get_pin_info()?.mode.id {
             // on/off digital operation.
             PinModeId::OUTPUT => self.protocol.digital_write(self.pin, value > 0),

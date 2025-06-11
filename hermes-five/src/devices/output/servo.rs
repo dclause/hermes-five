@@ -377,10 +377,11 @@ impl Output for Servo {
 
         // Clamp the request within the Servo range.
         let value: u16 = value.clamp(self.range.start, self.range.end);
-        // No need to move if last move was already that one.
-        // if state == self.previous {
-        //     return Ok(state);
-        // }
+
+        // Early break if no change is required.
+        if *self.state.read() == value {
+            return Ok(value.into());
+        }
 
         let pwm: f64 = match self.inverted {
             false => value.scale(
