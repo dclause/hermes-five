@@ -1,4 +1,4 @@
-//! Defines devices of various [`Input`] / [`Output`] kinds (led, servo, button, sensor, etc.) to be controlled.
+//! Defines devices of various [`Input`] / [`OutputDevice`] kinds (led, servo, button, sensor, etc.) to be controlled.
 
 mod input;
 mod output;
@@ -14,7 +14,7 @@ pub use crate::devices::output::led::Led;
 pub use crate::devices::output::pwm::PwmOutput;
 pub use crate::devices::output::servo::Servo;
 pub use crate::devices::output::servo::ServoType;
-pub use crate::devices::output::Output;
+pub use crate::devices::output::OutputDevice;
 
 use dyn_clone::DynClone;
 use std::fmt::{Debug, Display};

@@ -1,4 +1,4 @@
-use hermes_five::devices::{Led, Output};
+use hermes_five::devices::{Led, OutputDevice};
 use hermes_five::hardware::{Board, BoardEvent};
 use hermes_five::pause;
 

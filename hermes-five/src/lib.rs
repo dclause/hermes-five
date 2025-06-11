@@ -19,7 +19,7 @@
 //!
 //! - Define remotely controllable [`Board`](hardware::Board) (Arduino currently)
 //! - Control boards though an [`IoProtocol`](io::IoProtocol) connection ([`Serial`](io::Serial) for the moment)
-//! - Remote control all types of [`Device`](devices::Device)s such as [`Output`](devices::Output)s (LED, servo, etc.) or [`Input`](devices::Input)s (button, switch, sensors,
+//! - Remote control all types of [`Device`](devices::Device)s such as [`OutputDevice`](devices::OutputDevice)s (LED, servo, etc.) or [`Input`](devices::Input)s (button, switch, sensors,
 //! - etc.) individually
 //! - Create and play [`Animation`](animations::Animation) with auto-interpolate movements
 //!

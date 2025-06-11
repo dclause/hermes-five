@@ -3,12 +3,13 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 
-use crate::animations::{Animation, Easing, Keyframe, Segment, Track};
-use crate::devices::{Device, Output};
+use crate::animations::{Animation, Keyframe, Segment, Track};
+use crate::devices::OutputDevice;
 use crate::errors::HardwareError::IncompatiblePin;
 use crate::errors::{Error, StateError};
 use crate::hardware::Hardware;
 use crate::io::{IoProtocol, Pin, PinMode, PinModeId};
+use crate::generate_output_device_boilerplate;
 use crate::utils::{Scalable, State};
 
 /// Represents a LED controlled by a digital pin.
@@ -214,32 +215,12 @@ impl Led {
     }
 }
 
-impl Display for Led {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "LED (pin={}) [state={}, default={}, brightness={}]",
-            self.pin,
-            self.state.read(),
-            self.default,
-            self.brightness
-        )
-    }
-}
-
-#[cfg_attr(feature = "serde", typetag::serde)]
-impl Device for Led {}
-
-#[cfg_attr(feature = "serde", typetag::serde)]
+generate_output_device_boilerplate!(Led);
 impl Output for Led {
-    /// Returns  the actuator current state.
-    fn get_state(&self) -> State {
-        (*self.state.read()).into()
-    }
+    type Value = u16;
 
-    /// Internal only: you should rather use [`Self::turn_on()`], [`Self::turn_off()`], [`Self::set_brightness()`] functions.
-    fn set_state(&mut self, state: State) -> Result<State, Error> {
-        let value = match state {
+    fn parse_state(&self, state: State) -> Result<Self::Value, Error> {
+        match state {
             State::Boolean(value) => match value {
                 true => Ok(self.brightness),
                 false => Ok(0),
@@ -248,13 +229,10 @@ impl Output for Led {
             State::Float(value) => Ok(value as u16),
             State::Signed(value) => Ok(value.max(0) as u16),
             _ => Err(StateError),
-        }?;
-
-        // Early break if no change is required.
-        if *self.state.read() == value {
-            return Ok(value.into());
         }
+    }
 
+    fn apply_value(&mut self, value: Self::Value) -> Result<(), Error> {
         match self.get_pin_info()?.mode.id {
             // on/off digital operation.
             PinModeId::OUTPUT => self.protocol.digital_write(self.pin, value > 0),
@@ -265,38 +243,34 @@ impl Output for Led {
                 pin: self.pin,
                 context: "update LED",
             })),
-        }?;
-        *self.state.write() = value;
-        Ok(value.into())
-    }
-    fn get_default(&self) -> State {
-        self.default.into()
-    }
-
-    fn animate<S: Into<State>>(&mut self, state: S, duration: u64, transition: Easing) {
-        self.stop();
-        let mut animation = Animation::from(
-            Track::new(self.clone())
-                .with_keyframe(Keyframe::new(state, 0, duration).set_transition(transition)),
-        );
-        animation.play();
-        self.animation = Arc::new(Some(animation));
-    }
-
-    fn is_busy(&self) -> bool {
-        self.animation.is_some()
-    }
-
-    fn stop(&mut self) {
-        if let Some(animation) = Arc::get_mut(&mut self.animation).and_then(Option::as_mut) {
-            animation.stop();
         }
-        self.animation = Arc::new(None);
+    }
+
+    // Expose the required fields
+    fn get_default_value(&self) -> &Self::Value {  &self.default }
+    fn state_lock(&self) -> &RwLock<Self::Value> { &self.state }
+    fn animation_arc(&self) -> &Arc<Option<Animation>> { &self.animation }
+    fn animation_arc_mut(&mut self) -> &mut Arc<Option<Animation>> { &mut self.animation }
+}
+
+impl Display for Led {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "LED (pin={}) [mode={}, state={}, default={}, brightness={}, animating={}]",
+            self.pin,
+            self.get_pin_info().map_or("unknown".to_string(), |p| format!("{:?}", p.mode.id)),
+            self.state.read(),
+            self.default,
+            self.brightness,
+            self.is_busy()
+        )
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::animations::Easing;
     use crate::hardware::Board;
     use crate::mocks::MockProtocol;
     use crate::pause;
@@ -366,7 +340,7 @@ mod tests {
 
         // Incorrect pin type.
         let _ = led.protocol.set_pin_mode(led.pin, PinModeId::UNSUPPORTED);
-        assert!(led.set_state(State::Boolean(false)).is_err()); // Should return an error due to incompatible pin mode.
+        assert!(led.set_state(State::Boolean(true)).is_err()); // Should return an error due to incompatible pin mode.
     }
 
     #[test]
@@ -406,7 +380,8 @@ mod tests {
 
     #[test]
     fn test_set_brightness_valid() {
-        let result = _setup_led(8).set_brightness(50);
+        let led = _setup_led(8);
+        let result = led.set_brightness(50);
         assert!(result.is_ok()); // Set brightness to 50%
         let mut led = result.unwrap();
 
@@ -495,10 +470,14 @@ mod tests {
         assert!(!led.is_off());
     }
 
-    #[test]
+    #[hermes_five_macros::test]
     fn test_display_impl() {
-        let led = _setup_led(13);
+        let mut led = _setup_led(13);
         let display_str = format!("{}", led);
-        assert!(display_str.contains("LED (pin=13) [state=0, default=0, brightness=255]"));
+        assert_eq!(display_str, "LED (pin=13) [mode=OUTPUT, state=0, default=0, brightness=255, animating=false]");
+
+        led.blink(200);
+        let display_str = format!("{}", led);
+        assert_eq!(display_str, "LED (pin=13) [mode=OUTPUT, state=0, default=0, brightness=255, animating=true]");
     }
 }

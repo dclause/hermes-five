@@ -4,11 +4,11 @@ use std::sync::Arc;
 use parking_lot::RwLock;
 
 use crate::animations::Easing;
-use crate::devices::{Device, Output};
+use crate::devices::{Device, OutputDevice};
 use crate::errors::Error;
 use crate::utils::State;
 
-/// Mock [`Output`] for testing purposes.
+/// Mock [`OutputDevice`] for testing purposes.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
 pub struct MockOutputDevice {
@@ -40,7 +40,7 @@ impl Display for MockOutputDevice {
 impl Device for MockOutputDevice {}
 
 #[cfg_attr(feature = "serde", typetag::serde)]
-impl Output for MockOutputDevice {
+impl OutputDevice for MockOutputDevice {
     fn get_state(&self) -> State {
         self.state.into()
     }

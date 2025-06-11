@@ -1,11 +1,11 @@
 use std::fmt::{Display, Formatter};
 
 use crate::animations::Keyframe;
-use crate::devices::Output;
+use crate::devices::OutputDevice;
 use crate::errors::Error;
 use crate::utils::{Range, State};
 
-/// Represents an animation track within a [`Segment`](crate::animations::Segment) for a given [`Output`](Output) device.
+/// Represents an animation track within a [`Segment`](crate::animations::Segment) for a given [`OutputDevice`](OutputDevice) device.
 ///
 /// The `Track` struct manages the state and keyframes for an actuator device through a sequence.
 /// It represents the evolution of the device internal state over the sequence (animation) period
@@ -40,9 +40,9 @@ use crate::utils::{Range, State};
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
 pub struct Track {
-    /// The [`Output`] device that this track is associated with.
+    /// The [`OutputDevice`] device that this track is associated with.
     /// All keyframes [`Keyframe::target`] values will reference this device.
-    device: Box<dyn Output>,
+    device: Box<dyn OutputDevice>,
     /// The [`Keyframe`]s belonging to this track.
     keyframes: Vec<Keyframe>,
 
@@ -57,7 +57,7 @@ pub struct Track {
 impl Track {
     /// Creates a new `Track` associated with the given actuator.
     #[allow(private_bounds)]
-    pub fn new<T: Output + 'static>(device: T) -> Self {
+    pub fn new<T: OutputDevice + 'static>(device: T) -> Self {
         let history = device.get_state();
         Self {
             device: Box::new(device),
@@ -93,9 +93,7 @@ impl Track {
             Some(keyframe) => {
                 self.update_history(keyframe.get_target());
                 let progress = keyframe.compute_target_coefficient(timeframe.end);
-                let state =
-                    self.device
-                        .scale_state(self.previous.clone(), keyframe.get_target(), progress);
+                let state = self.previous.scale_to(keyframe.get_target(), progress);
                 self.device.set_state(state)?;
             }
         };
@@ -142,7 +140,7 @@ impl Track {
     }
 
     /// Returns the device associated with the [`Track`].
-    pub fn get_device(&self) -> &dyn Output {
+    pub fn get_device(&self) -> &dyn OutputDevice {
         &*self.device
     }
     /// Returns the keyframes of this [`Track`].

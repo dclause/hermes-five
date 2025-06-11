@@ -1,6 +1,6 @@
 //! This example demonstrates how to loop sweep a servo in a given range of motion.
 
-use hermes_five::devices::{Output, Servo};
+use hermes_five::devices::{OutputDevice, Servo};
 use hermes_five::hardware::{Board, BoardEvent};
 use hermes_five::pause;
 

@@ -3,15 +3,17 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 
-use crate::animations::{Animation, Easing, Keyframe, Track};
-use crate::devices::{Device, Output};
+use crate::animations::Animation;
+use crate::devices::output::sealed;
+use crate::devices::OutputDevice;
 use crate::errors::HardwareError::IncompatiblePin;
 use crate::errors::{Error, StateError};
 use crate::hardware::Hardware;
 use crate::io::{IoProtocol, Pin, PinIdOrName, PinModeId};
+use crate::generate_output_device_boilerplate;
 use crate::utils::State;
 
-/// Represents an analog actuator of unspecified type: an [`Output`] [`Device`] that write analog values from a PWM compatible pin.
+/// Represents an analog actuator of unspecified type: an [`OutputDevice`] that write analog values from a PWM compatible pin.
 /// <https://docs.arduino.cc/language-reference/en/functions/analog-io/analogWrite/>
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
@@ -118,6 +120,42 @@ impl PwmOutput {
     }
 }
 
+generate_output_device_boilerplate!(PwmOutput);
+impl sealed::Output for PwmOutput {
+    type Value = u16;
+
+    fn parse_state(&self, state: State) -> Result<Self::Value, Error> {
+       match state {
+            State::Integer(value) => Ok(value as u16),
+            State::Signed(value) => match value >= 0 {
+                true => Ok(value as u16),
+                false => Err(StateError),
+            },
+            State::Float(value) => match value >= 0.0 {
+                true => Ok(value as u16),
+                false => Err(StateError),
+            },
+            _ => Err(StateError),
+        }
+    }
+
+    fn apply_value(&mut self, value: Self::Value) -> Result<(), Error> {
+        match self.get_pin_info()?.mode.id {
+            PinModeId::PWM => self.protocol.analog_write(self.pin, value),
+            id => Err(Error::from(IncompatiblePin {
+                mode: id,
+                pin: self.pin,
+                context: "update pwm output",
+            })),
+        }
+    }
+
+    fn get_default_value(&self) -> &Self::Value {  &self.default }
+    fn state_lock(&self) -> &RwLock<Self::Value> { &self.state }
+    fn animation_arc(&self) -> &Arc<Option<Animation>> { &self.animation }
+    fn animation_arc_mut(&mut self) -> &mut Arc<Option<Animation>> { &mut self.animation }
+}
+
 impl Display for PwmOutput {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -131,74 +169,11 @@ impl Display for PwmOutput {
     }
 }
 
-#[cfg_attr(feature = "serde", typetag::serde)]
-impl Device for PwmOutput {}
-
-#[cfg_attr(feature = "serde", typetag::serde)]
-impl Output for PwmOutput {
-    fn get_state(&self) -> State {
-        (*self.state.read()).into()
-    }
-
-    /// Internal only: you should rather use [`Self::set_value()`] function.
-    fn set_state(&mut self, state: State) -> Result<State, Error> {
-        let value = match state {
-            State::Integer(value) => Ok(value as u16),
-            State::Signed(value) => match value >= 0 {
-                true => Ok(value as u16),
-                false => Err(StateError),
-            },
-            State::Float(value) => match value >= 0.0 {
-                true => Ok(value as u16),
-                false => Err(StateError),
-            },
-            _ => Err(StateError),
-        }?;
-
-        // Early break if no change is required.
-        if *self.state.read() == value {
-            return Ok(value.into());
-        }
-
-        match self.get_pin_info()?.mode.id {
-            PinModeId::PWM => self.protocol.analog_write(self.pin, value),
-            id => Err(Error::from(IncompatiblePin {
-                mode: id,
-                pin: self.pin,
-                context: "update pwm output",
-            })),
-        }?;
-        *self.state.write() = value;
-        Ok(value.into())
-    }
-    fn get_default(&self) -> State {
-        self.default.into()
-    }
-    fn animate<S: Into<State>>(&mut self, state: S, duration: u64, transition: Easing) {
-        self.stop();
-        let mut animation = Animation::from(
-            Track::new(self.clone())
-                .with_keyframe(Keyframe::new(state, 0, duration).set_transition(transition)),
-        );
-        animation.play();
-        self.animation = Arc::new(Some(animation));
-    }
-    fn is_busy(&self) -> bool {
-        self.animation.is_some()
-    }
-    fn stop(&mut self) {
-        if let Some(animation) = Arc::get_mut(&mut self.animation).and_then(Option::as_mut) {
-            animation.stop();
-        }
-        self.animation = Arc::new(None);
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use crate::animations::Easing;
     use crate::devices::output::pwm::PwmOutput;
-    use crate::devices::Output;
+    use crate::devices::OutputDevice;
     use crate::hardware::Board;
     use crate::io::PinModeId;
     use crate::mocks::MockProtocol;

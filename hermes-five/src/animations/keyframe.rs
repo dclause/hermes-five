@@ -4,8 +4,8 @@ use crate::utils::State;
 
 /// Represents a keyframe in an animation sequence.
 ///
-/// A `Keyframe` specifies a target value to be applied to the [`Output`](crate::devices::Output) of the
-/// [`Track`](crate::animations::Track) to which this keyframe belongs. The [`Output`](crate::devices::Output)'s state will be
+/// A `Keyframe` specifies a target value to be applied to the [`OutputDevice`](crate::devices::OutputDevice) of the
+/// [`Track`](crate::animations::Track) to which this keyframe belongs. The [`OutputDevice`](crate::devices::OutputDevice)'s state will be
 /// smoothly transitioned from its current state to the target value during the animation.
 /// This transition occurs between the `start` timestamp and the `end` timestamp.
 ///
@@ -15,7 +15,7 @@ use crate::utils::State;
 /// # Example
 ///
 /// If a `Keyframe` is set with a target value of 100, a start time of 0 ms, and an end time of 1000 ms,
-/// the `Output`'s value will gradually move towards value 100 (whatever it means to it: let it
+/// the `OutputDevice`'s value will gradually move towards value 100 (whatever it means to it: let it
 /// be the brightness of a LED, or the position of a Servo), over 1000 milliseconds, following the
 /// defined easing function.
 /// ```
@@ -25,7 +25,7 @@ use crate::utils::State;
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
 pub struct Keyframe {
-    /// The target value of the keyframe: will be applied as a state for the [`Output`](crate::devices::Output) of the
+    /// The target value of the keyframe: will be applied as a state for the [`OutputDevice`](crate::devices::OutputDevice) of the
     /// [`Track`] this keyframe belong to.
     target: State,
     /// The start time of the keyframe in milliseconds.

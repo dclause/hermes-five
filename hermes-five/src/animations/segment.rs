@@ -7,7 +7,7 @@ use crate::pause;
 
 /// Represents an [`Animation`](crate::animations::Animation) unit, called a `Segment`.
 ///
-/// A `Segment` is composed of multiple [`Track`](Track)s, each containing sets of [`Keyframe`](Track) associated with an [`Output`](crate::devices::Output).
+/// A `Segment` is composed of multiple [`Track`](Track)s, each containing sets of [`Keyframe`](Track) associated with an [`OutputDevice`](crate::devices::OutputDevice).
 ///
 /// The `Segment` plays the keyframes of its track in a logical and temporal order.
 /// - A segment searches for keyframe to execute and updates the associated devices based on a given
