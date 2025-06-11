@@ -155,6 +155,11 @@ impl Output for PwmOutput {
             _ => Err(StateError),
         }?;
 
+        // Early break if no change is required.
+        if *self.state.read() == value {
+            return Ok(value.into());
+        }
+
         match self.get_pin_info()?.mode.id {
             PinModeId::PWM => self.protocol.analog_write(self.pin, value),
             id => Err(Error::from(IncompatiblePin {
