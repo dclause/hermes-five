@@ -479,5 +479,7 @@ mod tests {
         led.blink(200);
         let display_str = format!("{}", led);
         assert_eq!(display_str, "LED (pin=13) [mode=OUTPUT, state=0, default=0, brightness=255, animating=true]");
+
+        led.stop();
     }
 }
