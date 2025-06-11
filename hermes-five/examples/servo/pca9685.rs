@@ -1,7 +1,7 @@
 //! Demonstrates how to use and control a servo through a PWM-driver board like the PCA9685.
 //! <https://learn.adafruit.com/16-channel-pwm-servo-driver>
 
-use hermes_five::devices::{Output, Servo};
+use hermes_five::devices::{OutputDevice, Servo};
 use hermes_five::hardware::{Board, BoardEvent, PCA9685};
 use hermes_five::pause;
 

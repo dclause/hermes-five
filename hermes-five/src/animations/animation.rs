@@ -279,7 +279,7 @@ impl Animation {
     /// ```
     /// use hermes_five::hardware::Board;
     /// use hermes_five::hardware::BoardEvent;
-    /// use hermes_five::devices::{Output, Led};
+    /// use hermes_five::devices::{OutputDevice, Led};
     /// use hermes_five::animations::{Animation, AnimationEvent, Easing};
     ///
     /// #[hermes_five::runtime]

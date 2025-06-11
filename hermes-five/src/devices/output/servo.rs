@@ -4,14 +4,14 @@ use std::time::SystemTime;
 
 use parking_lot::RwLock;
 
-use crate::animations::{Animation, Easing, Keyframe, Segment, Track};
-use crate::devices::{Device, Output};
+use crate::animations::{Animation, Keyframe, Segment, Track};
+use crate::devices::OutputDevice;
 use crate::errors::HardwareError::IncompatiblePin;
 use crate::errors::{Error, StateError};
 use crate::hardware::Hardware;
 use crate::io::{IoProtocol, Pin, PinModeId};
 use crate::utils::{task, Range, Scalable, State};
-use crate::{pause, pause_sync};
+use crate::{generate_output_device_boilerplate, pause, pause_sync};
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
@@ -69,9 +69,6 @@ pub struct Servo {
 
     // ########################################
     // # Volatile utility data.
-    /// Last move done by the servo.
-    #[cfg_attr(feature = "serde", serde(skip))]
-    previous: u16,
     #[cfg_attr(feature = "serde", serde(skip))]
     protocol: Box<dyn IoProtocol>,
     /// Inner handler to the task running the animation.
@@ -115,7 +112,6 @@ impl Servo {
             inverted,
             auto_detach: false,
             detach_delay: 20000,
-            previous: u16::MAX, // Ensure previous out-of-range: forces default at start
             protocol: board.get_protocol(),
             animation: Arc::new(None),
             last_move: Arc::new(RwLock::new(None)),
@@ -337,31 +333,11 @@ impl Servo {
     }
 }
 
-impl Display for Servo {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "SERVO (pin={}) [state={}, default={}, range={}-{}]",
-            self.pin,
-            self.state.read(),
-            self.default,
-            self.range.start,
-            self.range.end
-        )
-    }
-}
-
-#[cfg_attr(feature = "serde", typetag::serde)]
-impl Device for Servo {}
-
-#[cfg_attr(feature = "serde", typetag::serde)]
+generate_output_device_boilerplate!(Servo);
 impl Output for Servo {
-    fn get_state(&self) -> State {
-        (*self.state.read()).into()
-    }
-    /// Internal only: you should rather use [`Self::to()`] function.
-    fn set_state(&mut self, state: State) -> Result<State, Error> {
-        // Convert from state.
+    type Value = u16;
+
+    fn parse_state(&self, state: State) -> Result<Self::Value, Error> {
         let value = match state {
             State::Integer(value) => Ok(value as u16),
             State::Signed(value) => match value >= 0 {
@@ -378,10 +354,10 @@ impl Output for Servo {
         // Clamp the request within the Servo range.
         let value: u16 = value.clamp(self.range.start, self.range.end);
 
-        // Early break if no change is required.
-        if *self.state.read() == value {
-            return Ok(value.into());
-        }
+        Ok(value)
+    }
+
+    fn apply_value(&mut self, value: Self::Value) -> Result<(), Error> {
 
         let pwm: f64 = match self.inverted {
             false => value.scale(
@@ -421,40 +397,35 @@ impl Output for Servo {
                     }
                 })?;
             }
-        }
-        let current = *self.state.read();
-        self.previous = current;
-        *self.state.write() = value;
-        Ok(value.into())
-    }
-    fn get_default(&self) -> State {
-        self.default.into()
+        };
+
+        Ok(())
     }
 
-    fn animate<S: Into<State>>(&mut self, state: S, duration: u64, transition: Easing) {
-        self.stop();
-        let mut animation = Animation::from(
-            Track::new(self.clone())
-                .with_keyframe(Keyframe::new(state, 0, duration).set_transition(transition)),
-        );
-        animation.play();
-        self.animation = Arc::new(Some(animation));
-    }
-    fn is_busy(&self) -> bool {
-        self.animation.is_some()
-    }
-    fn stop(&mut self) {
-        if let Some(animation) = Arc::get_mut(&mut self.animation).and_then(Option::as_mut) {
-            animation.stop();
-        }
-        self.animation = Arc::new(None);
+    // Expose the required fields
+    fn get_default_value(&self) -> &Self::Value {  &self.default }
+    fn state_lock(&self) -> &RwLock<Self::Value> { &self.state }
+    fn animation_arc(&self) -> &Arc<Option<Animation>> { &self.animation }
+    fn animation_arc_mut(&mut self) -> &mut Arc<Option<Animation>> { &mut self.animation }
+}
+impl Display for Servo {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "SERVO (pin={}) [state={}, default={}, range={}-{}]",
+            self.pin,
+            self.state.read(),
+            self.default,
+            self.range.start,
+            self.range.end
+        )
     }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::animations::Easing;
-    use crate::devices::{Output, Servo};
+    use crate::devices::{OutputDevice, Servo};
     use crate::hardware::Board;
     use crate::io::PinModeId;
     use crate::mocks::MockProtocol;
@@ -543,7 +514,7 @@ mod tests {
         assert!(servo.is_auto_detach());
 
         // Moving should auto-reattach.
-        servo.to(180).expect("");
+        servo.to(90).expect("");
         assert_eq!(servo.get_pin_info().unwrap().mode.id, PinModeId::SERVO);
         pause!(80);
         // Continue moving should reset detach timer

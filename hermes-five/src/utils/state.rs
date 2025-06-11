@@ -1,3 +1,4 @@
+use crate::utils::Scalable;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 
@@ -199,6 +200,23 @@ impl State {
             _ => HashMap::<String, State>::default(),
         }
     }
+
+    /// Return the intermediate state from self to target at a given progress (between 0 and 1).
+    pub fn scale_to(&self, target: State, progress: f32) -> State {
+        match target {
+            State::Integer(value) => {
+                State::Integer(progress.scale(0, 1, self.as_integer(), value))
+            }
+            State::Signed(value) => {
+                State::Signed(progress.scale(0, 1, self.as_signed_integer(), value))
+            }
+            State::Float(value) => State::Float(progress.scale(0, 1, self.as_float(), value)),
+            _ => match progress {
+                0.0 => self.clone(),
+                _ => target,
+            },
+        }
+    }
 }
 
 // **********************************************
@@ -254,9 +272,8 @@ impl<T: Into<State>> FromIterator<T> for State {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
     use super::*;
+    use std::collections::HashMap;
 
     #[test]
     fn test_as_boolean() {
@@ -474,6 +491,60 @@ mod tests {
             state,
             State::Array(vec![State::Signed(1), State::Signed(2)])
         );
+    }
+
+    #[test]
+    fn test_scale_to_integer() {
+        // Halfway between 10 and 20
+        let result = State::Integer(10).scale_to(State::Integer(20), 0.5);
+        assert_eq!(result, State::Integer(15));
+
+        // 75% between 10 and 20
+        let result = State::Integer(10).scale_to(State::Integer(20), 0.75);
+        assert_eq!(result, State::Integer(18));
+
+        // 120% between 10 and 20
+        let result = State::Integer(10).scale_to(State::Integer(20), 1.2);
+        assert_eq!(result, State::Integer(22));
+    }
+
+    #[test]
+    fn test_scale_to_signed() {
+        // Halfway between 10 and 20
+        let result = State::Signed(-10).scale_to(State::Signed(10), 0.5);
+        assert_eq!(result, State::Signed(0));
+
+        // 75% between 10 and 20
+        let result = State::Signed(-10).scale_to(State::Signed(10), 0.75);
+        assert_eq!(result, State::Signed(5));
+
+        // 120% between 10 and 20
+        let result = State::Signed(-10).scale_to(State::Signed(10), 1.2);
+        assert_eq!(result, State::Signed(14));
+    }
+
+    #[test]
+    fn test_scale_to_float() {
+        // Halfway between 10 and 20
+        let result = State::Float(1.0).scale_to(State::Float(2.0), 0.5);
+        assert_eq!(result, State::Float(1.5));
+
+        // 75% between 10 and 20
+        let result = State::Float(1.0).scale_to(State::Float(2.0), 0.75);
+        assert_eq!(result, State::Float(1.75));
+
+        // 120% between 10 and 20
+        let result = State::Float(1.0).scale_to(State::Float(2.0), 1.2);
+        assert_eq!(result, State::Float(2.200000047683716));
+    }
+
+    #[test]
+    fn test_scale_to_non_numeric() {
+        let result = State::Boolean(false).scale_to(State::Boolean(true), 0.0);
+        assert_eq!(result, State::Boolean(false));
+
+        let result = State::Boolean(false).scale_to(State::Boolean(true), 0.5);
+        assert_eq!(result, State::Boolean(true));
     }
 
     #[test]

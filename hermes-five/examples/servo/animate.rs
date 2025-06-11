@@ -1,7 +1,7 @@
 //! Demonstrates how to move a servo in an animated way (control of speed).
 
 use hermes_five::animations::Easing;
-use hermes_five::devices::{Output, Servo};
+use hermes_five::devices::{OutputDevice, Servo};
 use hermes_five::hardware::{Board, BoardEvent};
 use hermes_five::pause;
 
