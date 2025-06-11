@@ -114,6 +114,7 @@ impl Led {
     /// Blinks the LED on/off in phases of milliseconds duration.
     /// This is an animation and can be stopped by calling [`Led::stop()`].
     pub fn blink(&mut self, ms: u64) -> &Self {
+        self.stop();
         let mut animation = Animation::from(
             Segment::from(
                 Track::new(self.clone())
@@ -131,6 +132,7 @@ impl Led {
     /// Pulses the LED on/off (using fading) in phases of ms (milliseconds) duration.
     /// This is an animation and can be stopped by calling [`Led::stop()`].
     pub fn pulse(&mut self, ms: u64) -> &Self {
+        self.stop();
         let mut animation = Animation::from(
             Segment::from(
                 Track::new(self.clone())
@@ -265,7 +267,9 @@ impl Output for Led {
     fn get_default(&self) -> State {
         self.default.into()
     }
+
     fn animate<S: Into<State>>(&mut self, state: S, duration: u64, transition: Easing) {
+        self.stop();
         let mut animation = Animation::from(
             Track::new(self.clone())
                 .with_keyframe(Keyframe::new(state, 0, duration).set_transition(transition)),
@@ -273,9 +277,11 @@ impl Output for Led {
         animation.play();
         self.animation = Arc::new(Some(animation));
     }
+
     fn is_busy(&self) -> bool {
         self.animation.is_some()
     }
+
     fn stop(&mut self) {
         if let Some(animation) = Arc::get_mut(&mut self.animation).and_then(Option::as_mut) {
             animation.stop();

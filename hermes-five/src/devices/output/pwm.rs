@@ -170,6 +170,7 @@ impl Output for PwmOutput {
         self.default.into()
     }
     fn animate<S: Into<State>>(&mut self, state: S, duration: u64, transition: Easing) {
+        self.stop();
         let mut animation = Animation::from(
             Track::new(self.clone())
                 .with_keyframe(Keyframe::new(state, 0, duration).set_transition(transition)),
