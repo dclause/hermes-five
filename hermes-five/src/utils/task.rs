@@ -63,7 +63,7 @@ struct TaskRegistration {
 impl TaskRegistration {
     /// Get a handle to the current task context.
     fn get() -> Result<Self, Error> {
-        TASK.try_with(|t| t.clone()).map_err(|_| RuntimeError)
+        TASK.try_with(|t| t.clone()).map_err(|e| InternalError {info: e.to_string()})
     }
 
     /// Runs a future within the current task context.
@@ -100,7 +100,7 @@ impl TaskRegistration {
 
         // send error, if there was one.
         if let TaskResult::Err(e) = res {
-            queue.results.send(e).map_err(|_| RuntimeError)?;
+            queue.results.send(e).map_err(|e| InternalError {info: e.to_string()})?;
         }
 
         Ok(())

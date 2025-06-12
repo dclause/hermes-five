@@ -15,11 +15,11 @@ async fn main() {
             println!("Inverted button value changed: {}", value);
             Ok(())
         });
-        button_inverted.on(InputEvent::OnPress, |_: ()| async move {
+        button_inverted.on(InputEvent::OnPress, |_: bool| async move {
             println!("Inverted button pressed");
             Ok(())
         });
-        button_inverted.on(InputEvent::OnRelease, |_: ()| async move {
+        button_inverted.on(InputEvent::OnRelease, |_: bool| async move {
             println!("Inverted button released");
             Ok(())
         });
@@ -29,11 +29,11 @@ async fn main() {
             println!("Inverted pullup button value changed: {}", value);
             Ok(())
         });
-        pullup_button_inverted.on(InputEvent::OnPress, |_: ()| async move {
+        pullup_button_inverted.on(InputEvent::OnPress, |_: bool| async move {
             println!("Inverted pullup button pressed");
             Ok(())
         });
-        pullup_button_inverted.on(InputEvent::OnRelease, |_: ()| async move {
+        pullup_button_inverted.on(InputEvent::OnRelease, |_: bool| async move {
             println!("Inverted pullup button released");
             Ok(())
         });

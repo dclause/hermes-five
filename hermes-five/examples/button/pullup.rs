@@ -19,13 +19,13 @@ async fn main() {
         });
 
         // Triggered function when the button is pressed.
-        button.on(InputEvent::OnPress, |_: ()| async move {
+        button.on(InputEvent::OnPress, |_: bool| async move {
             println!("Push button pressed");
             Ok(())
         });
 
         // Triggered function when the button is released.
-        button.on(InputEvent::OnRelease, |_: ()| async move {
+        button.on(InputEvent::OnRelease, |_: bool| async move {
             println!("Push button released");
             Ok(())
         });

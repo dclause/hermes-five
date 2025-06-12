@@ -4,8 +4,9 @@ use crate::io::IoTransport;
 use parking_lot::Mutex;
 use std::fmt::{Debug, Display, Formatter};
 use std::io::{Read, Write};
-use std::net::TcpStream;
+use std::net::{TcpStream, ToSocketAddrs};
 use std::sync::Arc;
+use std::time::Duration;
 
 /// Represents an [`IoTransport`] layer based on a WiFi connection.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -65,9 +66,16 @@ impl Display for WiFi {
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl IoTransport for WiFi {
     fn open(&mut self) -> Result<(), Error> {
-        let stream = TcpStream::connect(self.address.clone())?;
 
-        // Save the IO (required by handshake).
+        // Resolve to SocketAddr
+        let addr = self.address
+            .to_socket_addrs()?
+            .next()
+            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::Other, "Invalid address"))?;
+
+        let stream = TcpStream::connect_timeout(&addr, Duration::from_secs(10))?;
+
+        // Save the IO (required by handshake). 
         self.stream = Arc::new(Mutex::new(Some(stream)));
 
         Ok(())

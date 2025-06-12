@@ -9,8 +9,8 @@ use crate::errors::Error;
 use crate::hardware::Hardware;
 use crate::io::{IoProtocol, PinIdOrName, PinModeId};
 use crate::pause;
-use crate::utils::task;
-use crate::utils::{EventHandler, EventManager, State, TaskHandler};
+use crate::utils::{task, EventManager};
+use crate::utils::{State, TaskHandler};
 
 /// Represents an analog sensor of unspecified type: an [`Input`] [`Device`] that reads analog values
 /// from an ANALOG compatible pin.
@@ -35,7 +35,7 @@ pub struct AnalogInput {
     handler: Arc<RwLock<Option<TaskHandler>>>,
     /// The event manager for the AnalogInput.
     #[cfg_attr(feature = "serde", serde(skip))]
-    events: EventManager,
+    events: EventManager<InputEvent, u16>,
 }
 
 impl AnalogInput {
@@ -157,14 +157,12 @@ impl AnalogInput {
     ///     });
     /// }
     /// ```
-    pub fn on<S, F, T, Fut>(&self, event: S, callback: F) -> EventHandler
+    pub fn on<F, Fut>(&self, event: InputEvent, handler: F)
     where
-        S: Into<String>,
-        T: 'static + Send + Sync + Clone,
-        F: FnMut(T) -> Fut + Send + 'static,
-        Fut: std::future::Future<Output = Result<(), Error>> + Send + 'static,
+        F: Fn(u16) -> Fut + Send + Sync + 'static,
+        Fut: std::future::Future<Output = crate::utils::Result<()>> + Send + 'static,
     {
-        self.events.on(event, callback)
+        self.events.on(event, handler);
     }
 }
 
