@@ -1,19 +1,16 @@
 //! Defines Hermes-Five event manager system.
 
+use crate::utils::{task, GenericResult};
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use crate::errors::Error;
-use crate::utils::task;
+use std::sync::Arc;
 
-pub type Result<T> = std::result::Result<T, Error>;
 pub type BoxedCallback<T> =
-Box<dyn Fn(T) -> Pin<Box<dyn Future<Output = Result<()>> + Send>> + Send + Sync>;
-
+    Box<dyn Fn(T) -> Pin<Box<dyn Future<Output = GenericResult> + Send>> + Send + Sync>;
 
 pub type EventHandler = usize;
 struct CallbackWrapper<T> {
@@ -30,8 +27,8 @@ pub struct EventManager<Ev, T> {
 impl<Ev, T> EventManager<Ev, T>
 where
     Ev: Eq + std::hash::Hash + Copy + Send + Sync + 'static,
-    T: Clone {
-
+    T: Clone,
+{
     /// Register event handler for a specific event name.
     ///
     /// # Parameters
@@ -60,23 +57,29 @@ where
     ///     let events: EventManager<&str, &str> = Default::default();
     ///
     ///     // Register various handlers for the same event.
-    ///     events.on("ready", |data: &str| async move { println!("Callback 1"); Ok(()) });
-    ///     events.on("ready", |data: &str| async move { println!("Callback 2"); Ok(()) });
+    ///     events.on("ready", |data: &str| async move { println!("Callback 1"); });
+    ///     events.on("ready", |data: &str| async move { println!("Callback 2"); });
     ///
     ///     // Invoke handlers for "ready" event.
     ///     events.emit("ready", "I am ready!");
     /// }
     /// ```
-    pub fn on<F, Fut>(&self, event: Ev, handler: F) -> EventHandler
+    pub fn on<F, Fut, R>(&self, event: Ev, handler: F) -> EventHandler
     where
         F: Fn(T) -> Fut + Send + Sync + 'static,
-        Fut: Future<Output = Result<()>> + Send + 'static,
+        Fut: Future<Output = R> + Send + 'static,
+        R: Into<GenericResult>,
     {
-
         // Generate a unique ID.
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         // Boxes the callback
-        let boxed_callback: BoxedCallback<T> = Box::new(move |arg: T| Box::pin(handler(arg)));
+        let boxed_callback: BoxedCallback<T> = Box::new(move |arg: T| {
+            let fut = handler(arg);
+            Box::pin(async move {
+                let r = fut.await;
+                r.into()
+            })
+        });
 
         // Creates the callback unique wrapper
         let wrapper = CallbackWrapper {
@@ -113,11 +116,9 @@ where
     ///     // Register various handlers for the same event.
     ///     events.on("ready", |data: &str| async move {
     ///         println!("Callback 1");
-    ///         Ok(())
     ///     });
     ///     events.on("ready", |data: &str| async move {
     ///         println!("Callback 2");
-    ///         Ok(())
     ///     });
     ///
     ///     // Invoke handlers for "ready" event matching &str parameter.
@@ -128,7 +129,7 @@ where
     where
         Self: Sized + Send + Sync + 'static,
     {
-        if let Some(wrappers) =  self.callbacks.read().get(&event) {
+        if let Some(wrappers) = self.callbacks.read().get(&event) {
             for wrapper in wrappers {
                 let callback = &wrapper.callback;
                 let arg_copy = arg.clone();
@@ -152,11 +153,9 @@ where
     ///     // Register various handlers for the same event.
     ///     let handler1 = events.on("ready", |age: u8| async move {
     ///         println!("Callback 1");
-    ///         Ok(())
     ///     });
     ///     let handler2 = events.on("ready", |age: u8| async move {
     ///         println!("Callback 2");
-    ///         Ok(())
     ///     });
     ///
     ///     // Unregister handler 1.
@@ -209,7 +208,6 @@ mod tests {
 
         events.on("register", |flag: Arc<AtomicBool>| async move {
             flag.store(true, Ordering::SeqCst);
-            Ok(())
         });
 
         events.emit("register", payload.clone());
@@ -228,7 +226,6 @@ mod tests {
 
         let handler = events.on("unregister", |flag: Arc<AtomicBool>| async move {
             flag.store(true, Ordering::SeqCst);
-            Ok(())
         });
 
         events.unregister(handler);
@@ -249,7 +246,6 @@ mod tests {
         let callback = |flag: Arc<AtomicUsize>| async move {
             let value = flag.load(Ordering::SeqCst);
             flag.store(value + 1, Ordering::SeqCst);
-            Ok(())
         };
 
         events.on("multiple", callback);
@@ -267,14 +263,13 @@ mod tests {
 
     #[hermes_five_macros::test]
     async fn test_event_with_complex_payload() {
-        let events: EventManager<&str, (u8,u8,Arc<AtomicU8>)> = Default::default();
+        let events: EventManager<&str, (u8, u8, Arc<AtomicU8>)> = Default::default();
         let flag = Arc::new(AtomicU8::new(0));
 
         events.on(
             "payload",
             |(number1, number2, container): (u8, u8, Arc<AtomicU8>)| async move {
                 container.store(number1 + number2, Ordering::SeqCst);
-                Ok(())
             },
         );
         events.emit("payload", (42u8, 69u8, flag.clone()));
@@ -297,12 +292,12 @@ mod tests {
     #[test]
     fn test_event_manager_debug() {
         let events: EventManager<&str, ()> = Default::default();
-        events.on("test", |_: ()| async move { Ok(()) });
+        events.on("test", |_: ()| async move { });
         assert_eq!(
             format!("{:?}", events),
             "EventManager: 1 registered callback"
         );
-        events.on("test2", |_: ()| async move { Ok(()) });
+        events.on("test2", |_: ()| async move { });
         assert_eq!(
             format!("{:?}", events),
             "EventManager: 2 registered callbacks"

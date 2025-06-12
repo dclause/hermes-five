@@ -1,5 +1,6 @@
 //! Various utilities and helper functions.
 
+use crate::errors::Error;
 pub use log;
 #[cfg(test)]
 pub use serial_test;
@@ -17,6 +18,30 @@ pub use crate::utils::range::*;
 pub use crate::utils::scale::*;
 pub use crate::utils::state::*;
 pub use crate::utils::task::*;
+
+/// Represents the result of an event callback or a task.
+///
+/// An event callback or a task may return either () or Result<(), Error> for flexibility which
+/// will be converted to EventResult sent to the runtime.
+pub enum GenericResult {
+    Ok,
+    Err(Error),
+}
+
+impl From<Result<(), Error>> for GenericResult {
+    fn from(result: Result<(), Error>) -> Self {
+        match result {
+            Ok(_) => GenericResult::Ok,
+            Err(e) => GenericResult::Err(e),
+        }
+    }
+}
+
+impl From<()> for GenericResult {
+    fn from(_: ()) -> Self {
+        GenericResult::Ok
+    }
+}
 
 /// Helper to format a buffer as hex.
 #[allow(dead_code)]

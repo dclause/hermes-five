@@ -1,4 +1,5 @@
 use std::fmt::{Display, Formatter};
+use std::future::Future;
 use std::sync::Arc;
 
 use parking_lot::RwLock;
@@ -9,7 +10,7 @@ use crate::errors::Error;
 use crate::hardware::Hardware;
 use crate::io::{IoProtocol, PinIdOrName, PinModeId};
 use crate::pause;
-use crate::utils::{task, EventManager, State, TaskHandler};
+use crate::utils::{task, EventManager, GenericResult, State, TaskHandler};
 
 /// Represents a digital sensor of unspecified type: an [`Input`] [`Device`] that reads digital values
 /// from an INPUT compatible pin.
@@ -149,7 +150,6 @@ impl DigitalInput {
     ///         // Triggered function when the sensor state changes.
     ///         sensor.on(InputEvent::OnChange, |value: bool| async move {
     ///             println!("Sensor value changed: {}", value);
-    ///             Ok(())
     ///         });
     ///
     ///         // The above code will run forever.
@@ -165,10 +165,11 @@ impl DigitalInput {
     ///     });
     /// }
     /// ```
-    pub fn on<F, Fut>(&self, event: InputEvent, handler: F)
+    pub fn on<F, Fut, R>(&self, event: InputEvent, handler: F)
     where
         F: Fn(bool) -> Fut + Send + Sync + 'static,
-        Fut: std::future::Future<Output = crate::utils::Result<()>> + Send + 'static,
+        Fut: Future<Output = R> + Send + 'static,
+        R: Into<GenericResult>
     {
         self.events.on(event, handler);
     }
@@ -248,7 +249,6 @@ mod tests {
             let captured_flag = moved_change_flag.clone();
             async move {
                 captured_flag.store(new_state, Ordering::SeqCst);
-                Ok(())
             }
         });
 
@@ -259,7 +259,6 @@ mod tests {
             let captured_flag = moved_high_flag.clone();
             async move {
                 captured_flag.store(true, Ordering::SeqCst);
-                Ok(())
             }
         });
 
@@ -270,7 +269,6 @@ mod tests {
             let captured_flag = moved_low_flag.clone();
             async move {
                 captured_flag.store(true, Ordering::SeqCst);
-                Ok(())
             }
         });
 

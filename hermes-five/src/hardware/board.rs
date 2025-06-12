@@ -2,9 +2,10 @@ use crate::errors::Error;
 use crate::hardware::Hardware;
 use crate::io::{IoData, IoTransport, RemoteIo, IO};
 use crate::io::{IoProtocol, PinModeId};
-use crate::utils::{task, EventManager, Range};
+use crate::utils::{task, EventManager, GenericResult, Range};
 use parking_lot::RwLock;
 use std::fmt::Display;
+use std::future::Future;
 use std::sync::Arc;
 
 /// Lists all events a Board can emit/listen.
@@ -152,7 +153,6 @@ impl Board {
     ///     // Register something to do when the board is connected.
     ///     board.on(BoardEvent::OnReady, |_: Board| async move {
     ///         // Something to do when connected.
-    ///         Ok(())
     ///     });
     ///     // code here will be executed right away, before the board is actually connected.
     /// }
@@ -189,11 +189,9 @@ impl Board {
     ///         // Something to do when connected.
     ///         pause!(3000);
     ///         board.close();
-    ///         Ok(())
     ///     });
     ///     board.on(BoardEvent::OnClose, |_: Board| async move {
     ///         // Something to do when connection closes.
-    ///         Ok(())
     ///     });
     /// }
     /// ```
@@ -245,14 +243,14 @@ impl Board {
     ///     let board = Board::run();
     ///     board.on(BoardEvent::OnReady, |_: Board| async move {
     ///         // Here, you know the board to be connected and ready to receive data.
-    ///         Ok(())
     ///     });
     /// }
     /// ```
-    pub fn on<F, Fut>(&self, event: BoardEvent, handler: F)
+    pub fn on<F, Fut, R>(&self, event: BoardEvent, handler: F)
     where
         F: Fn(Board) -> Fut + Send + Sync + 'static,
-        Fut: std::future::Future<Output = crate::utils::Result<()>> + Send + 'static,
+        Fut: Future<Output = R> + Send + 'static,
+        R: Into<GenericResult>
     {
         self.events.on(event, handler);
     }
@@ -286,7 +284,6 @@ impl IO for Board {
     ///     board.on(BoardEvent::OnReady, |mut board: Board| async move {
     ///         println!("Board connected: {}", board);
     ///         println!("Pins {:#?}", board.get_io().read().pins);
-    ///         Ok(())
     ///     });
     /// }
     fn get_io(&self) -> &Arc<RwLock<IoData>> {
@@ -405,7 +402,6 @@ mod tests {
             async move {
                 captured_flag.store(true, Ordering::SeqCst);
                 assert!(board.is_connected());
-                Ok(())
             }
         });
         pause!(500);
@@ -444,7 +440,6 @@ mod tests {
             async move {
                 captured_flag.store(true, Ordering::SeqCst);
                 assert!(!board.is_connected());
-                Ok(())
             }
         });
 

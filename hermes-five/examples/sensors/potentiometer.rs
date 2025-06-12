@@ -15,7 +15,6 @@ async fn main() {
         // Triggered function when the sensor state changes.
         potentiometer.on(InputEvent::OnChange, |value: u16| async move {
             println!("Sensor value changed: {}", value);
-            Ok(())
         });
 
         Ok(())

@@ -58,7 +58,6 @@ async fn main() {
     let board = Board::run();
     board.on(BoardEvent::OnReady, |mut board: Board| async move {
         println!("Pins {:#?}", board.get_io().read().pins);
-        Ok(())
     });
 }
 ```

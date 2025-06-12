@@ -22,7 +22,6 @@ async fn main() {
     // Find more about this in the 'examples/board/creation.rs' example.
     board.on(BoardEvent::OnReady, |_: Board| async move {
         // Do something here !
-        Ok(())
     });
 
     // ----

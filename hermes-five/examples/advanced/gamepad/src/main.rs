@@ -103,5 +103,8 @@ async fn main() {
             // Pause
             pause!(UPDATE_INTERVAL_MS);
         }
+
+        #[allow(unreachable_code)]
+        Ok(())
     });
 }

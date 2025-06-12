@@ -15,19 +15,16 @@ async fn main() {
         // Triggered function when the sensor state changes.
         sensor.on(InputEvent::OnChange, |value: bool| async move {
             println!("Sensor value changed: {}", value);
-            Ok(())
         });
 
         // Triggered function when the sensor state changes to high.
         sensor.on(InputEvent::OnHigh, |_: bool| async move {
             println!("Moving object detected");
-            Ok(())
         });
 
         // Triggered function when the sensor state changes to low.
         sensor.on(InputEvent::OnLow, |_: bool| async move {
             println!("Moving object detection lost");
-            Ok(())
         });
 
         Ok(())

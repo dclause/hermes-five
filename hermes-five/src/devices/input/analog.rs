@@ -1,4 +1,5 @@
 use std::fmt::{Display, Formatter};
+use std::future::Future;
 use std::sync::Arc;
 
 use parking_lot::RwLock;
@@ -9,7 +10,7 @@ use crate::errors::Error;
 use crate::hardware::Hardware;
 use crate::io::{IoProtocol, PinIdOrName, PinModeId};
 use crate::pause;
-use crate::utils::{task, EventManager};
+use crate::utils::{task, EventManager, GenericResult};
 use crate::utils::{State, TaskHandler};
 
 /// Represents an analog sensor of unspecified type: an [`Input`] [`Device`] that reads analog values
@@ -141,7 +142,6 @@ impl AnalogInput {
     ///         // Triggered function when the sensor state changes.
     ///         potentiometer.on(InputEvent::OnChange, |value: u16| async move {
     ///             println!("Sensor value changed: {}", value);
-    ///             Ok(())
     ///         });
     ///
     ///         // The above code will run forever.
@@ -157,10 +157,11 @@ impl AnalogInput {
     ///     });
     /// }
     /// ```
-    pub fn on<F, Fut>(&self, event: InputEvent, handler: F)
+    pub fn on<F, Fut, R>(&self, event: InputEvent, handler: F)
     where
         F: Fn(u16) -> Fut + Send + Sync + 'static,
-        Fut: std::future::Future<Output = crate::utils::Result<()>> + Send + 'static,
+        Fut: Future<Output = R> + Send + 'static,
+        R: Into<GenericResult>
     {
         self.events.on(event, handler);
     }
@@ -244,7 +245,6 @@ mod tests {
             let captured_flag = moved_change_flag.clone();
             async move {
                 captured_flag.store(new_state, Ordering::SeqCst);
-                Ok(())
             }
         });
 

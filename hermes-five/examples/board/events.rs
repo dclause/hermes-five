@@ -11,7 +11,6 @@
 //! - You can register multiple callbacks for a same event.
 //! - Callbacks are asynchronous futures, hence the `async move` syntax.
 //! - Callbacks follows a strict syntax and MUST be used with the proper argument signature.
-//! - All callbacks MUST return `Result<(), Error>>`.
 
 use hermes_five::hardware::{Board, BoardEvent};
 
@@ -25,17 +24,14 @@ async fn main() {
     board.on(BoardEvent::OnReady, |board: Board| async move {
         println!("Connection done on board.");
         board.close();
-        Ok(())
     });
 
     board.on(BoardEvent::OnClose, |_: Board| async move {
         println!("Connection closed on board.");
-        Ok(())
     });
 
     // Note that you can register as many event handlers as you want on a same event.
     board.on(BoardEvent::OnReady, |_: Board| async move {
         println!("Hello from another event handler!");
-        Ok(())
     });
 }

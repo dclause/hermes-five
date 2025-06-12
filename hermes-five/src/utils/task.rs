@@ -8,32 +8,10 @@ use tokio::task::JoinHandle;
 use tokio::{task, task_local};
 
 use crate::errors::{Error, RuntimeError, InternalError};
-
-/// Represents the result of a TaskResult.
-/// A task may return either () or Result<(), Error> for flexibility which
-/// will be converted to TaskResult sent to the runtime.
-pub enum TaskResult {
-    Ok,
-    Err(Error),
-}
+use crate::utils::GenericResult;
 
 /// Represents an arc protected handler for a task.
 pub type TaskHandler = JoinHandle<Result<(), Error>>;
-
-impl From<Result<(), Error>> for TaskResult {
-    fn from(result: Result<(), Error>) -> Self {
-        match result {
-            Ok(_) => TaskResult::Ok,
-            Err(e) => TaskResult::Err(e),
-        }
-    }
-}
-
-impl From<()> for TaskResult {
-    fn from(_: ()) -> Self {
-        TaskResult::Ok
-    }
-}
 
 pub fn setup_rt(test: bool) -> Runtime {
     let mut builder = if test {
@@ -70,7 +48,7 @@ impl TaskRegistration {
     async fn catch_errors<F, T>(self, future: F) -> Result<(), Error>
     where
         F: Future<Output = T> + Send + 'static,
-        T: Into<TaskResult> + Send + 'static,
+        T: Into<GenericResult> + Send + 'static,
     {
         // allow ourselves to catch panics
         let future = AssertUnwindSafe(future).catch_unwind();
@@ -85,7 +63,7 @@ impl TaskRegistration {
         let queue = task.take_value().ok_or(RuntimeError)?;
 
         // check for a panic.
-        let res: TaskResult = match res {
+        let res: GenericResult = match res {
             Ok(res) => res.into(),
             Err(panic) => {
                 // ignore errors if receiver is missing.
@@ -99,7 +77,7 @@ impl TaskRegistration {
         };
 
         // send error, if there was one.
-        if let TaskResult::Err(e) = res {
+        if let GenericResult::Err(e) = res {
             queue.results.send(e).map_err(|e| InternalError {info: e.to_string()})?;
         }
 
@@ -163,7 +141,7 @@ impl Runtime {
 pub fn run<F, T>(future: F) -> Result<TaskHandler, Error>
 where
     F: Future<Output = T> + Send + 'static,
-    T: Into<TaskResult> + Send + 'static,
+    T: Into<GenericResult> + Send + 'static,
 {
     let task = TaskRegistration::get()?;
 

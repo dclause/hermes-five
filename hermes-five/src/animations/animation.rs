@@ -1,7 +1,7 @@
 use parking_lot::RwLock;
 use std::fmt::{Display, Formatter};
-
-use crate::utils::{task, EventManager, TaskHandler};
+use std::future::Future;
+use crate::utils::{task, EventManager, GenericResult, TaskHandler};
 
 use crate::animations::{Segment, Track};
 use std::sync::Arc;
@@ -49,7 +49,7 @@ impl From<AnimationEvent> for String {
 /// async fn main() {
 ///     let board = Board::run();
 ///     board.on(BoardEvent::OnReady, |board: Board| async move {
-///         let servo = Servo::new(&board, 9, 0).unwrap();
+///         let servo = Servo::new(&board, 9, 0)?;
 ///
 ///         let mut animation = Animation::from(
 ///             Segment::from(
@@ -299,20 +299,19 @@ impl Animation {
     ///
     ///         animation.on(AnimationEvent::OnStart, |_: Animation| async move {
     ///             println!("Animation has started");
-    ///             Ok(())
     ///         });
     ///         animation.on(AnimationEvent::OnComplete, |_: Animation| async move {
     ///             println!("Animation done");
-    ///             Ok(())
     ///         });
     ///         Ok(())
     ///     });
     /// }
     /// ```
-    pub fn on<F, Fut>(&self, event: AnimationEvent, handler: F)
+    pub fn on<F, Fut, R>(&self, event: AnimationEvent, handler: F)
     where
         F: Fn(Animation) -> Fut + Send + Sync + 'static,
-        Fut: std::future::Future<Output = crate::utils::Result<()>> + Send + 'static,
+        Fut: Future<Output = R> + Send + 'static,
+        R: Into<GenericResult>
     {
         self.events.on(event, handler);
     }
@@ -462,7 +461,6 @@ mod tests {
             async move {
                 captured_flag.store(true, Ordering::SeqCst);
                 assert_eq!(animation.get_current(), 0);
-                Ok(())
             }
         });
 
@@ -472,7 +470,6 @@ mod tests {
             async move {
                 let index = captured_active_segment.load(Ordering::SeqCst) + 1;
                 captured_active_segment.store(index, Ordering::SeqCst);
-                Ok(())
             }
         });
 
@@ -482,7 +479,6 @@ mod tests {
             async move {
                 captured_flag.store(false, Ordering::SeqCst);
                 assert_eq!(animation.get_current(), 5);
-                Ok(())
             }
         });
 

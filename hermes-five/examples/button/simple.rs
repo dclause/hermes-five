@@ -15,19 +15,16 @@ async fn main() {
         // Triggered function when the button state changes.
         button.on(InputEvent::OnChange, |value: bool| async move {
             println!("Push button value changed: {}", value);
-            Ok(())
         });
 
         // Triggered function when the button is pressed.
         button.on(InputEvent::OnPress, |_: bool| async move {
             println!("Push button pressed");
-            Ok(())
         });
 
         // Triggered function when the button is released.
         button.on(InputEvent::OnRelease, |_: bool| async move {
             println!("Push button released");
-            Ok(())
         });
 
         Ok(())
