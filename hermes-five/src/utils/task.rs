@@ -3,11 +3,12 @@ use std::future::Future;
 use std::panic::AssertUnwindSafe;
 
 use futures::FutureExt;
+use log::error;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio::{task, task_local};
 
-use crate::errors::{Error, RuntimeError, InternalError};
+use crate::errors::{Error, RuntimeError};
 use crate::utils::GenericResult;
 
 /// Represents an arc protected handler for a task.
@@ -41,7 +42,13 @@ struct TaskRegistration {
 impl TaskRegistration {
     /// Get a handle to the current task context.
     fn get() -> Result<Self, Error> {
-        TASK.try_with(|t| t.clone()).map_err(|e| InternalError {info: e.to_string()})
+        TASK.try_with(|t| t.clone()).map_err(|e| RuntimeError {
+            cause: format!(
+                "{} (you probably forgot `#[hermes_five::runtime]` annotation)",
+                e
+            )
+            .to_string(),
+        })
     }
 
     /// Runs a future within the current task context.
@@ -50,36 +57,28 @@ impl TaskRegistration {
         F: Future<Output = T> + Send + 'static,
         T: Into<GenericResult> + Send + 'static,
     {
-        // allow ourselves to catch panics
+        // Allow ourselves to catch panics.
         let future = AssertUnwindSafe(future).catch_unwind();
 
-        // run our future within the scope our task queue.
+        // Run our future within the scope our task queue.
         let mut task = std::pin::pin!(TASK.scope(self, future));
 
-        // await the future response.
+        // Await the future response.
         let res = task.as_mut().await;
 
-        // get back our task queue.
-        let queue = task.take_value().ok_or(RuntimeError)?;
+        // Get back our task queue.
+        let queue = task.take_value().unwrap();
 
-        // check for a panic.
-        let res: GenericResult = match res {
-            Ok(res) => res.into(),
-            Err(panic) => {
-                // ignore errors if receiver is missing.
-                _ = queue.results.send(InternalError {
-                    info: "task panicked".to_string(),
-                });
+        // Check for a panic.
+        if let Err(panic) = res {
 
-                // continue the panic.
-                std::panic::resume_unwind(panic);
-            }
+            queue.results.send(RuntimeError {
+                cause: "Task panicked".to_string(),
+            }).unwrap();
+
+            // Continue the panic.
+            std::panic::resume_unwind(panic);
         };
-
-        // send error, if there was one.
-        if let GenericResult::Err(e) = res {
-            queue.results.send(e).map_err(|e| InternalError {info: e.to_string()})?;
-        }
 
         Ok(())
     }
@@ -90,13 +89,13 @@ impl TaskRegistration {
         let (tx, mut rx) = mpsc::unbounded_channel();
         let task = Self { results: tx };
 
-        // run our future within the scope our task queue.
+        // Run our future within the scope our task queue.
         let res = TASK.scope(task, f).await;
 
-        // wait for tasks to complete.
+        // Wait for tasks to complete.
         // recv returns None if all corresponding senders are dropped.
         while let Some(err) = rx.recv().await {
-            log::error!("Task failed: {:?}", err.to_string());
+            error!("Task failed: {:?}", err.to_string());
             eprintln!("Task failed: {:?}", err.to_string());
         }
 
@@ -170,10 +169,9 @@ mod tests {
     use std::sync::Arc;
     use std::time::SystemTime;
 
-    use serial_test::serial;
-
     use crate::errors::{Error, InternalError};
     use crate::utils::task;
+    use serial_test::serial;
 
     #[hermes_five_macros::runtime]
     async fn my_runtime() -> Result<(), Error> {
@@ -282,18 +280,47 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_task_with_no_runtime() {
+        let task = task::run(async move { Ok(()) });
+        assert_eq!(task.unwrap_err().to_string(), "Runtime error: task-local value not set (you probably forgot `#[hermes_five::runtime]` annotation).", "A task does not run outside the runtime");
+    }
+
     #[hermes_five_macros::test]
     async fn test_task_with_result() {
+        // Successful task.
         let task = task::run(async move { Ok(()) });
-
         assert!(task.is_ok(), "An Ok(()) task do not panic the runtime");
+        assert!(task.unwrap().await.is_ok(), "The runtime notifies the win");
 
+        // Error task.
         let task = task::run(async move {
             Err(InternalError {
-                info: "wow panic!".to_string(),
+                info: "wow error!".to_string(),
             })
         });
+        assert!(task.is_ok(), "A task in error do not panic the runtime");
+        assert!(
+            task.unwrap().await.is_ok(),
+            "The runtime should catches the error"
+        );
 
+        // Panicking task.
+        let task = task::run(async move {
+            panic!("wow panic!");
+            #[allow(unreachable_code)]
+            ()
+        });
+
+        // Await the task: this will trigger the catch_errors logic and error logging.
         assert!(task.is_ok(), "A panicking task do not panic the runtime");
+        assert!(
+            task.unwrap()
+                .await
+                .unwrap_err()
+                .to_string()
+                .contains("wow panic!"),
+            "The runtime should catches the panic"
+        );
     }
 }

@@ -23,6 +23,7 @@ pub use crate::utils::task::*;
 ///
 /// An event callback or a task may return either () or Result<(), Error> for flexibility which
 /// will be converted to EventResult sent to the runtime.
+#[derive(Debug, PartialEq)]
 pub enum GenericResult {
     Ok,
     Err(Error),
@@ -53,7 +54,7 @@ pub(crate) fn format_as_hex<T: std::fmt::UpperHex>(slice: &[T]) -> String {
             result.push_str(", ");
         }
         // Use `write!` directly to append formatted byte to result
-        let _ = write!(result, "0x{:02X}", byte);
+        write!(result, "0x{:02X}", byte).unwrap()
     }
 
     result
@@ -61,7 +62,8 @@ pub(crate) fn format_as_hex<T: std::fmt::UpperHex>(slice: &[T]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::format_as_hex;
+    use crate::errors::{Error, InternalError, StateError};
+    use super::{format_as_hex, GenericResult};
 
     #[test]
     fn test_format_as_hex_empty_slice() {
@@ -96,6 +98,24 @@ mod tests {
         let input = [123456789u32, 4294967295];
         let result = format_as_hex(&input);
         assert_eq!(result, "0x75BCD15, 0xFFFFFFFF");
+    }
+
+    #[test]
+    fn test_generic_result_from_unit() {
+        let result: GenericResult = ().into();
+        assert_eq!(result, GenericResult::Ok);
+    }
+
+    #[test]
+    fn test_generic_result_from_result_ok() {
+        let result: GenericResult = Result::<(), Error>::Ok(()).into();
+        assert_eq!(result, GenericResult::Ok);
+    }
+
+    #[test]
+    fn test_generic_result_from_result_err() {
+        let result: GenericResult = Err(StateError).into();
+        assert_eq!(result, GenericResult::Err(StateError));
     }
 }
 

@@ -6,11 +6,11 @@ use snafu::Snafu;
 pub use crate::errors::Error::*;
 use crate::io::{PinIdOrName, PinModeId};
 
-#[derive(Debug, Snafu)]
+#[derive(Debug, PartialEq,  Snafu)]
 #[snafu(visibility(pub))]
 pub enum Error {
-    /// Runtime error: Are you sure your code runs inside `#[hermes_five::runtime]`?
-    RuntimeError,
+    /// Runtime error: {cause}.
+    RuntimeError { cause: String },
     /// State error: incompatible type provided.
     StateError,
     /// Protocol error: {source}.
@@ -55,7 +55,7 @@ impl From<Utf8Error> for Error {
     }
 }
 
-#[derive(Debug, Snafu)]
+#[derive(Debug, PartialEq, Snafu)]
 #[snafu(visibility(pub))]
 pub enum ProtocolError {
     /// {info}
@@ -72,7 +72,7 @@ pub enum ProtocolError {
     UnexpectedData,
 }
 
-#[derive(Debug, Snafu)]
+#[derive(Debug, PartialEq, Snafu)]
 #[snafu(visibility(pub))]
 pub enum HardwareError {
     /// Pin ({pin}) not compatible with mode ({mode}) - {context}
@@ -95,10 +95,12 @@ mod tests {
 
     #[test]
     fn test_error_display() {
-        let runtime_error = RuntimeError;
+        let runtime_error = RuntimeError {
+            cause: "what a cause!".to_string(),
+        };
         assert_eq!(
             format!("{}", runtime_error),
-            "Runtime error: Are you sure your code runs inside `#[hermes_five::runtime]`?"
+            "Runtime error: what a cause!."
         );
 
         let protocol_error = Error::from(ProtocolError::IoException {
