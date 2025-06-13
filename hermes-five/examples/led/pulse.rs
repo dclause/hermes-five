@@ -8,7 +8,7 @@ async fn main() {
 
     board.on(BoardEvent::OnReady, |board: Board| async move {
         // Register a LED on pin 13 (default arduino led).
-        let mut led = Led::new(&board, 8, false).expect("Embedded led is instantiated");
+        let mut led = Led::new(&board, 8, false)?;
 
         // Pulse the LED every 500ms.
         led.pulse(500);

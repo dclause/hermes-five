@@ -16,7 +16,8 @@ pub trait Input: Device {
 }
 dyn_clone::clone_trait_object!(Input);
 
-/// Lists all events a Input type device can emit/listen.
+/// Lists all events an Input type device can emit/listen.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum InputEvent {
     /// Triggered when the Input value changes.
     OnChange,

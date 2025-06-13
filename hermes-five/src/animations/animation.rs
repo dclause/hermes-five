@@ -1,14 +1,13 @@
-use std::fmt::{Display, Formatter};
-
 use parking_lot::RwLock;
-
-use crate::errors::Error;
-use crate::utils::{task, EventHandler, EventManager, TaskHandler};
+use std::fmt::{Display, Formatter};
+use std::future::Future;
+use crate::utils::{task, EventManager, GenericResult, TaskHandler};
 
 use crate::animations::{Segment, Track};
 use std::sync::Arc;
 
-/// Lists all events a Animation can emit/listen.
+/// Lists all events an Animation can emit/listen.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum AnimationEvent {
     /// Triggered when the animation starts.
     OnSegmentDone,
@@ -50,7 +49,7 @@ impl From<AnimationEvent> for String {
 /// async fn main() {
 ///     let board = Board::run();
 ///     board.on(BoardEvent::OnReady, |board: Board| async move {
-///         let servo = Servo::new(&board, 9, 0).unwrap();
+///         let servo = Servo::new(&board, 9, 0)?;
 ///
 ///         let mut animation = Animation::from(
 ///             Segment::from(
@@ -87,7 +86,7 @@ pub struct Animation {
     interval: Arc<RwLock<Option<TaskHandler>>>,
     /// The event manager for the animation.
     #[cfg_attr(feature = "serde", serde(skip))]
-    events: EventManager,
+    events: EventManager<AnimationEvent, Animation>,
 }
 
 // ########################################
@@ -98,7 +97,7 @@ impl Default for Animation {
             segments: vec![],
             current: Arc::new(RwLock::new(0)),
             interval: Arc::new(RwLock::new(None)),
-            events: Default::default(),
+            events: EventManager::default(),
         }
     }
 }
@@ -108,12 +107,11 @@ impl Animation {
     ///
     /// The animation will start from the current segment or from the beginning if it was stopped.
     pub fn play(&mut self) -> &mut Self {
-        let events_clone = self.events.clone();
         let mut self_clone = self.clone();
 
         self.events.emit(AnimationEvent::OnStart, self.clone());
         if self.get_duration() > 0 {
-            let handler = task::run(async move {
+            let handler = match task::run(async move {
                 // Loop through the segments and run them one by one.
                 for index in self_clone.get_current()..self_clone.segments.len() {
                     *self_clone.current.write() = index;
@@ -121,15 +119,24 @@ impl Animation {
                     // Retrieve the currently running segment.
                     let segment_playing = self_clone.segments.get_mut(index).unwrap();
                     segment_playing.play().await?;
-                    events_clone.emit(AnimationEvent::OnSegmentDone, segment_playing.clone());
+                    self_clone
+                        .events
+                        .emit(AnimationEvent::OnSegmentDone, self_clone.clone());
                 }
 
                 *self_clone.current.write() = 0; // reset to the beginning
                 *self_clone.interval.write() = None;
-                events_clone.emit(AnimationEvent::OnComplete, self_clone);
+                self_clone
+                    .events
+                    .emit(AnimationEvent::OnComplete, self_clone.clone());
                 Ok(())
-            })
-            .unwrap();
+            }) {
+                Ok(handler) => handler,
+                Err(e) => {
+                    println!("task::run failed: {:?}", e);
+                    return self;
+                }
+            };
             *self.interval.write() = Some(handler);
         }
 
@@ -292,24 +299,21 @@ impl Animation {
     ///
     ///         animation.on(AnimationEvent::OnStart, |_: Animation| async move {
     ///             println!("Animation has started");
-    ///             Ok(())
     ///         });
     ///         animation.on(AnimationEvent::OnComplete, |_: Animation| async move {
     ///             println!("Animation done");
-    ///             Ok(())
     ///         });
     ///         Ok(())
     ///     });
     /// }
     /// ```
-    pub fn on<S, F, T, Fut>(&self, event: S, callback: F) -> EventHandler
+    pub fn on<F, Fut, R>(&self, event: AnimationEvent, handler: F)
     where
-        S: Into<String>,
-        T: 'static + Send + Sync + Clone,
-        F: FnMut(T) -> Fut + Send + 'static,
-        Fut: std::future::Future<Output = Result<(), Error>> + Send + 'static,
+        F: Fn(Animation) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = R> + Send + 'static,
+        R: Into<GenericResult>
     {
-        self.events.on(event, callback)
+        self.events.on(event, handler);
     }
 }
 
@@ -457,17 +461,15 @@ mod tests {
             async move {
                 captured_flag.store(true, Ordering::SeqCst);
                 assert_eq!(animation.get_current(), 0);
-                Ok(())
             }
         });
 
         let moved_active_segment = active_segment.clone();
-        animation.on(AnimationEvent::OnSegmentDone, move |_: Segment| {
+        animation.on(AnimationEvent::OnSegmentDone, move |_: Animation| {
             let captured_active_segment = moved_active_segment.clone();
             async move {
                 let index = captured_active_segment.load(Ordering::SeqCst) + 1;
                 captured_active_segment.store(index, Ordering::SeqCst);
-                Ok(())
             }
         });
 
@@ -477,7 +479,6 @@ mod tests {
             async move {
                 captured_flag.store(false, Ordering::SeqCst);
                 assert_eq!(animation.get_current(), 5);
-                Ok(())
             }
         });
 

@@ -1,4 +1,5 @@
 use std::fmt::{Display, Formatter};
+use std::future::Future;
 use std::sync::Arc;
 
 use parking_lot::RwLock;
@@ -9,8 +10,8 @@ use crate::errors::Error;
 use crate::hardware::Hardware;
 use crate::io::{IoProtocol, PinIdOrName, PinModeId};
 use crate::pause;
-use crate::utils::task;
-use crate::utils::{EventHandler, EventManager, State, TaskHandler};
+use crate::utils::{task, EventManager, GenericResult};
+use crate::utils::{State, TaskHandler};
 
 /// Represents an analog sensor of unspecified type: an [`Input`] [`Device`] that reads analog values
 /// from an ANALOG compatible pin.
@@ -35,7 +36,7 @@ pub struct AnalogInput {
     handler: Arc<RwLock<Option<TaskHandler>>>,
     /// The event manager for the AnalogInput.
     #[cfg_attr(feature = "serde", serde(skip))]
-    events: EventManager,
+    events: EventManager<InputEvent, u16>,
 }
 
 impl AnalogInput {
@@ -141,7 +142,6 @@ impl AnalogInput {
     ///         // Triggered function when the sensor state changes.
     ///         potentiometer.on(InputEvent::OnChange, |value: u16| async move {
     ///             println!("Sensor value changed: {}", value);
-    ///             Ok(())
     ///         });
     ///
     ///         // The above code will run forever.
@@ -157,14 +157,13 @@ impl AnalogInput {
     ///     });
     /// }
     /// ```
-    pub fn on<S, F, T, Fut>(&self, event: S, callback: F) -> EventHandler
+    pub fn on<F, Fut, R>(&self, event: InputEvent, handler: F)
     where
-        S: Into<String>,
-        T: 'static + Send + Sync + Clone,
-        F: FnMut(T) -> Fut + Send + 'static,
-        Fut: std::future::Future<Output = Result<(), Error>> + Send + 'static,
+        F: Fn(u16) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = R> + Send + 'static,
+        R: Into<GenericResult>
     {
-        self.events.on(event, callback)
+        self.events.on(event, handler);
     }
 }
 
@@ -246,7 +245,6 @@ mod tests {
             let captured_flag = moved_change_flag.clone();
             async move {
                 captured_flag.store(new_state, Ordering::SeqCst);
-                Ok(())
             }
         });
 

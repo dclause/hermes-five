@@ -9,7 +9,7 @@ async fn main() {
     let board = Board::run();
 
     board.on(BoardEvent::OnReady, |board: Board| async move {
-        let servo = Servo::new(&board, 22, 0).unwrap();
+        let servo = Servo::new(&board, 22, 0)?;
 
         // This is the full animation declaration:
         // - an `Animation` contains:

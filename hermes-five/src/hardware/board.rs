@@ -2,13 +2,14 @@ use crate::errors::Error;
 use crate::hardware::Hardware;
 use crate::io::{IoData, IoTransport, RemoteIo, IO};
 use crate::io::{IoProtocol, PinModeId};
-use crate::utils::{task, Range};
-use crate::utils::{EventHandler, EventManager};
+use crate::utils::{task, EventManager, GenericResult, Range};
 use parking_lot::RwLock;
 use std::fmt::Display;
+use std::future::Future;
 use std::sync::Arc;
 
 /// Lists all events a Board can emit/listen.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum BoardEvent {
     /// Triggered when the board connexion is established and the handshake has been made.
     OnReady,
@@ -30,11 +31,11 @@ impl From<BoardEvent> for String {
 /// Represents a physical board (Arduino most-likely) where your [`Device`] can be attached and controlled through this API.
 /// The board gives access to [`IoData`] through a communication [`IoProtocol`].
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct Board {
     /// The event manager for the board.
     #[cfg_attr(feature = "serde", serde(skip))]
-    events: EventManager,
+    events: EventManager<BoardEvent, Board>,
     /// The inner protocol used by this Board.
     protocol: Box<dyn IoProtocol>,
 }
@@ -82,7 +83,7 @@ impl Default for Board {
 impl<T: IoTransport> From<T> for Board {
     fn from(transport: T) -> Self {
         Self {
-            events: Default::default(),
+            events: EventManager::default(),
             protocol: Box::new(RemoteIo::from(transport)),
         }
     }
@@ -144,25 +145,24 @@ impl Board {
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
-    ///     let board = Board::run();
+    ///
+    /// let board = Board::run();
     ///     // Is equivalent to:
     ///     let mut board = Board::default().open();
     ///
     ///     // Register something to do when the board is connected.
     ///     board.on(BoardEvent::OnReady, |_: Board| async move {
     ///         // Something to do when connected.
-    ///         Ok(())
     ///     });
     ///     // code here will be executed right away, before the board is actually connected.
     /// }
     /// ```
     pub fn open(self) -> Self {
-        let events_clone = self.events.clone();
         let callback_board = self.clone();
 
         task::run(async move {
             let board = callback_board.blocking_open()?;
-            events_clone.emit(BoardEvent::OnReady, board);
+            board.events.emit(BoardEvent::OnReady, board.clone());
             Ok(())
         })
         .expect("Task failed");
@@ -189,20 +189,17 @@ impl Board {
     ///         // Something to do when connected.
     ///         pause!(3000);
     ///         board.close();
-    ///         Ok(())
     ///     });
     ///     board.on(BoardEvent::OnClose, |_: Board| async move {
     ///         // Something to do when connection closes.
-    ///         Ok(())
     ///     });
     /// }
     /// ```
     pub fn close(self) -> Self {
-        let events = self.events.clone();
         let callback_board = self.clone();
         task::run(async move {
             let board = callback_board.blocking_close()?;
-            events.emit(BoardEvent::OnClose, board);
+            board.events.emit(BoardEvent::OnClose, board.clone());
             Ok(())
         })
         .expect("Task failed");
@@ -231,9 +228,9 @@ impl Board {
     /// Registers a callback to be executed on a given event.
     ///
     /// Available events for a board are defined by the enum: [`BoardEvent`]:
-    /// - **`OnRead` | `ready`:** Triggered when the board is connected and ready to run.    
+    /// - **`OnRead` | `ready`:** Triggered when the board is connected and ready to run.
     ///    _The callback must receive the following parameter: `|_: Board| { ... }`_
-    /// - **`OnClose` | `close`:** Triggered when the board is disconnected.        
+    /// - **`OnClose` | `close`:** Triggered when the board is disconnected.
     ///    _The callback must receive the following parameter: `|_: Board| { ... }`_
     ///
     /// # Example
@@ -246,18 +243,16 @@ impl Board {
     ///     let board = Board::run();
     ///     board.on(BoardEvent::OnReady, |_: Board| async move {
     ///         // Here, you know the board to be connected and ready to receive data.
-    ///         Ok(())
     ///     });
     /// }
     /// ```
-    pub fn on<S, F, T, Fut>(&self, event: S, callback: F) -> EventHandler
+    pub fn on<F, Fut, R>(&self, event: BoardEvent, handler: F)
     where
-        S: Into<String>,
-        T: 'static + Send + Sync + Clone,
-        F: FnMut(T) -> Fut + Send + 'static,
-        Fut: std::future::Future<Output = Result<(), Error>> + Send + 'static,
+        F: Fn(Board) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = R> + Send + 'static,
+        R: Into<GenericResult>
     {
-        self.events.on(event, callback)
+        self.events.on(event, handler);
     }
 }
 
@@ -289,7 +284,6 @@ impl IO for Board {
     ///     board.on(BoardEvent::OnReady, |mut board: Board| async move {
     ///         println!("Board connected: {}", board);
     ///         println!("Pins {:#?}", board.get_io().read().pins);
-    ///         Ok(())
     ///     });
     /// }
     fn get_io(&self) -> &Arc<RwLock<IoData>> {
@@ -408,7 +402,6 @@ mod tests {
             async move {
                 captured_flag.store(true, Ordering::SeqCst);
                 assert!(board.is_connected());
-                Ok(())
             }
         });
         pause!(500);
@@ -447,7 +440,6 @@ mod tests {
             async move {
                 captured_flag.store(true, Ordering::SeqCst);
                 assert!(!board.is_connected());
-                Ok(())
             }
         });
 

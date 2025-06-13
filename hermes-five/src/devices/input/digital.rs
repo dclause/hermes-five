@@ -1,4 +1,5 @@
 use std::fmt::{Display, Formatter};
+use std::future::Future;
 use std::sync::Arc;
 
 use parking_lot::RwLock;
@@ -9,7 +10,7 @@ use crate::errors::Error;
 use crate::hardware::Hardware;
 use crate::io::{IoProtocol, PinIdOrName, PinModeId};
 use crate::pause;
-use crate::utils::{task, EventHandler, EventManager, State, TaskHandler};
+use crate::utils::{task, EventManager, GenericResult, State, TaskHandler};
 
 /// Represents a digital sensor of unspecified type: an [`Input`] [`Device`] that reads digital values
 /// from an INPUT compatible pin.
@@ -34,7 +35,7 @@ pub struct DigitalInput {
     handler: Arc<RwLock<Option<TaskHandler>>>,
     /// The event manager for the DigitalInput.
     #[cfg_attr(feature = "serde", serde(skip))]
-    events: EventManager,
+    events: EventManager<InputEvent, bool>,
 }
 
 impl DigitalInput {
@@ -51,7 +52,7 @@ impl DigitalInput {
             state: Arc::new(RwLock::new(pin.value != 0)),
             protocol: board.get_protocol(),
             handler: Arc::new(RwLock::new(None)),
-            events: Default::default(),
+            events: EventManager::default(),
         };
 
         // Set pin mode to INPUT.
@@ -98,8 +99,8 @@ impl DigitalInput {
                             *self_clone.state.write() = pin_value;
                             self_clone.events.emit(InputEvent::OnChange, pin_value);
                             match pin_value {
-                                true => self_clone.events.emit(InputEvent::OnHigh, ()),
-                                false => self_clone.events.emit(InputEvent::OnLow, ()),
+                                true => self_clone.events.emit(InputEvent::OnHigh, pin_value),
+                                false => self_clone.events.emit(InputEvent::OnLow, pin_value),
                             }
                         }
 
@@ -149,7 +150,6 @@ impl DigitalInput {
     ///         // Triggered function when the sensor state changes.
     ///         sensor.on(InputEvent::OnChange, |value: bool| async move {
     ///             println!("Sensor value changed: {}", value);
-    ///             Ok(())
     ///         });
     ///
     ///         // The above code will run forever.
@@ -165,14 +165,13 @@ impl DigitalInput {
     ///     });
     /// }
     /// ```
-    pub fn on<S, F, T, Fut>(&self, event: S, callback: F) -> EventHandler
+    pub fn on<F, Fut, R>(&self, event: InputEvent, handler: F)
     where
-        S: Into<String>,
-        T: 'static + Send + Sync + Clone,
-        F: FnMut(T) -> Fut + Send + 'static,
-        Fut: std::future::Future<Output = Result<(), Error>> + Send + 'static,
+        F: Fn(bool) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = R> + Send + 'static,
+        R: Into<GenericResult>
     {
-        self.events.on(event, callback)
+        self.events.on(event, handler);
     }
 }
 
@@ -250,29 +249,26 @@ mod tests {
             let captured_flag = moved_change_flag.clone();
             async move {
                 captured_flag.store(new_state, Ordering::SeqCst);
-                Ok(())
             }
         });
 
         // HIGH
         let high_flag = Arc::new(AtomicBool::new(false));
         let moved_high_flag = high_flag.clone();
-        button.on(InputEvent::OnHigh, move |_: ()| {
+        button.on(InputEvent::OnHigh, move |_: bool| {
             let captured_flag = moved_high_flag.clone();
             async move {
                 captured_flag.store(true, Ordering::SeqCst);
-                Ok(())
             }
         });
 
         // LOW
         let low_flag = Arc::new(AtomicBool::new(false));
         let moved_low_flag = low_flag.clone();
-        button.on(InputEvent::OnLow, move |_: ()| {
+        button.on(InputEvent::OnLow, move |_: bool| {
             let captured_flag = moved_low_flag.clone();
             async move {
                 captured_flag.store(true, Ordering::SeqCst);
-                Ok(())
             }
         });
 

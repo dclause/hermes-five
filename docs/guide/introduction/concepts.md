@@ -98,7 +98,6 @@ async fn main() {  // [!code focus]
   let board = Board::run();
   board.on(BoardEvent::OnReady, |board: Board| async move {
     // Do something here !
-    Ok(())
   });
 }  // [!code focus]
 ```
@@ -116,7 +115,6 @@ async fn main() {
   let board = Board::run(); // [!code focus]
   board.on(BoardEvent::OnReady, |board: Board| async move {
     // Do something here !
-    Ok(())
   });
 }
 ```
@@ -136,7 +134,6 @@ async fn main() {
   let board = Board::run();
   board.on(BoardEvent::OnReady, |board: Board| async move { // [!code focus]
     // Do something here ! // [!code focus]
-    Ok(()) // [!code focus]
   });
 }
 ```

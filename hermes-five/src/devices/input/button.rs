@@ -1,4 +1,5 @@
 use std::fmt::{Display, Formatter};
+use std::future::Future;
 use std::sync::Arc;
 
 use parking_lot::RwLock;
@@ -8,7 +9,7 @@ use crate::errors::Error;
 use crate::hardware::Hardware;
 use crate::io::{IoProtocol, PinIdOrName, PinModeId};
 use crate::pause;
-use crate::utils::{task, EventHandler, EventManager, State, TaskHandler};
+use crate::utils::{task, EventManager, GenericResult, State, TaskHandler};
 
 /// Represents a simple push button as an input of the board.
 /// <https://docs.arduino.cc/built-in-examples/digital/Button>
@@ -40,10 +41,11 @@ pub struct Button {
     handler: Arc<RwLock<Option<TaskHandler>>>,
     /// The event manager for the button.
     #[cfg_attr(feature = "serde", serde(skip))]
-    events: EventManager,
+    events: EventManager<InputEvent, bool>,
 }
 
 impl Button {
+
     /// Creates an instance of a PULL-DOWN button attached to a given board:
     /// <https://docs.arduino.cc/built-in-examples/digital/Button/>
     ///
@@ -61,7 +63,7 @@ impl Button {
             pullup: false,
             protocol: board.get_protocol(),
             handler: Arc::new(RwLock::new(None)),
-            events: Default::default(),
+            events: EventManager::<InputEvent, bool>::default(),
         }
         .start_with(board, pin)
     }
@@ -84,7 +86,7 @@ impl Button {
             pullup: false,
             protocol: board.get_protocol(),
             handler: Arc::new(RwLock::new(None)),
-            events: Default::default(),
+            events: EventManager::default(),
         }
         .start_with(board, pin)
     }
@@ -106,7 +108,7 @@ impl Button {
             pullup: true,
             protocol: board.get_protocol(),
             handler: Arc::new(RwLock::new(None)),
-            events: Default::default(),
+            events: EventManager::default(),
         }
         .start_with(board, pin)
     }
@@ -133,7 +135,7 @@ impl Button {
             pullup: true,
             protocol: board.get_protocol(),
             handler: Arc::new(RwLock::new(None)),
-            events: Default::default(),
+            events: EventManager::default(),
         }
         .start_with(board, pin)
     }
@@ -218,12 +220,12 @@ impl Button {
 
                             match self_clone.pullup {
                                 true => match pin_value {
-                                    true => self_clone.events.emit(InputEvent::OnRelease, ()),
-                                    false => self_clone.events.emit(InputEvent::OnPress, ()),
+                                    true => self_clone.events.emit(InputEvent::OnRelease, pin_value),
+                                    false => self_clone.events.emit(InputEvent::OnPress, pin_value),
                                 },
                                 false => match pin_value {
-                                    true => self_clone.events.emit(InputEvent::OnPress, ()),
-                                    false => self_clone.events.emit(InputEvent::OnRelease, ()),
+                                    true => self_clone.events.emit(InputEvent::OnPress, pin_value),
+                                    false => self_clone.events.emit(InputEvent::OnRelease, pin_value),
                                 },
                             };
                         }
@@ -254,9 +256,9 @@ impl Button {
     /// - **`InputEvent::OnChange` | `change`:** Triggered when the button value changes.    
     ///   _The callback must receive the following parameter: `|value: u16| { ... }`_
     /// - **`InputEvent::OnRelease` | `released`:** Triggered when the button value changes.     
-    ///   _The callback must receive the void parameter: `|_:()| { ... }`_
+    ///   _The callback must receive the void parameter: `|value: u16| { ... }`_
     /// - **`InputEvent::OnPress` | `pressed`:** Triggered when the button value changes.     
-    ///   _The callback must receive the void parameter: `|_:()| { ... }`_
+    ///   _The callback must receive the void parameter: `|value: u16| { ... }`_
     ///
     /// # Example
     ///
@@ -272,7 +274,7 @@ impl Button {
     ///         // Register a Button on pin 2.
     ///         let button = Button::new(&board, 2)?;
     ///         // Triggered function when the button is pressed.
-    ///         button.on(InputEvent::OnPress, |_: ()| async move {
+    ///         button.on(InputEvent::OnPress, |_: bool| async move {
     ///             println!("Push button pressed");
     ///             Ok(())
     ///         });
@@ -290,14 +292,13 @@ impl Button {
     ///     });
     /// }
     /// ```
-    pub fn on<S, F, T, Fut>(&self, event: S, callback: F) -> EventHandler
+    pub fn on<F, Fut, R>(&self, event: InputEvent, handler: F)
     where
-        S: Into<String>,
-        T: 'static + Send + Sync + Clone,
-        F: FnMut(T) -> Fut + Send + 'static,
-        Fut: std::future::Future<Output = Result<(), Error>> + Send + 'static,
+        F: Fn(bool) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = R> + Send + 'static,
+        R: Into<GenericResult>
     {
-        self.events.on(event, callback)
+        self.events.on(event, handler);
     }
 }
 
@@ -411,7 +412,7 @@ mod tests {
                 pullup: false,
                 protocol: board.get_protocol(),
                 handler: Arc::new(RwLock::new(None)),
-                events: Default::default(),
+                events: EventManager::default(),
             },
             &board,
             13,
@@ -450,29 +451,26 @@ mod tests {
             let captured_flag = moved_change_flag.clone();
             async move {
                 captured_flag.store(new_state, Ordering::SeqCst);
-                Ok(())
             }
         });
 
         // PRESSED
         let pressed_flag = Arc::new(AtomicBool::new(false));
         let moved_pressed_flag = pressed_flag.clone();
-        button.on(InputEvent::OnPress, move |_: ()| {
+        button.on(InputEvent::OnPress, move |_: bool| {
             let captured_flag = moved_pressed_flag.clone();
             async move {
                 captured_flag.store(true, Ordering::SeqCst);
-                Ok(())
             }
         });
 
         // RELEASED
         let released_flag = Arc::new(AtomicBool::new(false));
         let moved_released_flag = released_flag.clone();
-        button.on(InputEvent::OnRelease, move |_: ()| {
+        button.on(InputEvent::OnRelease, move |_: bool| {
             let captured_flag = moved_released_flag.clone();
             async move {
                 captured_flag.store(true, Ordering::SeqCst);
-                Ok(())
             }
         });
 
@@ -525,14 +523,13 @@ mod tests {
             let captured_flag = moved_change_flag.clone();
             async move {
                 captured_flag.store(new_state, Ordering::SeqCst);
-                Ok(())
             }
         });
 
         // PRESSED
         let pressed_flag = Arc::new(AtomicBool::new(false));
         let moved_pressed_flag = pressed_flag.clone();
-        button.on(InputEvent::OnPress, move |_: ()| {
+        button.on(InputEvent::OnPress, move |_: bool| {
             let captured_flag = moved_pressed_flag.clone();
             async move {
                 captured_flag.store(true, Ordering::SeqCst);
@@ -543,7 +540,7 @@ mod tests {
         // RELEASED
         let released_flag = Arc::new(AtomicBool::new(false));
         let moved_released_flag = released_flag.clone();
-        button.on(InputEvent::OnRelease, move |_: ()| {
+        button.on(InputEvent::OnRelease, move |_: bool| {
             let captured_flag = moved_released_flag.clone();
             async move {
                 captured_flag.store(true, Ordering::SeqCst);
@@ -587,81 +584,6 @@ mod tests {
         button.detach();
         board.close();
     }
-
-    // #[hermes_five_macros::test]
-    // fn test_pullup_button_events() {
-    //     let board = Board::new(MockProtocol::default());
-    //     let button = Button::new_pullup(&board, 5).unwrap();
-    //
-    //     // CHANGE
-    //     let change_flag = Arc::new(AtomicBool::new(true));
-    //     let moved_change_flag = change_flag.clone();
-    //     button.on(InputEvent::OnChange, move |new_state: bool| {
-    //         let captured_flag = moved_change_flag.clone();
-    //         async move {
-    //             captured_flag.store(new_state, Ordering::SeqCst);
-    //             Ok(())
-    //         }
-    //     });
-    //
-    //     // PRESSED
-    //     let pressed_flag = Arc::new(AtomicBool::new(false));
-    //     let moved_pressed_flag = pressed_flag.clone();
-    //     button.on(InputEvent::OnPress, move |_: ()| {
-    //         let captured_flag = moved_pressed_flag.clone();
-    //         async move {
-    //             captured_flag.store(true, Ordering::SeqCst);
-    //             Ok(())
-    //         }
-    //     });
-    //
-    //     // RELEASED
-    //     let released_flag = Arc::new(AtomicBool::new(false));
-    //     let moved_released_flag = released_flag.clone();
-    //     button.on(InputEvent::OnRelease, move |_: ()| {
-    //         let captured_flag = moved_released_flag.clone();
-    //         async move {
-    //             captured_flag.store(true, Ordering::SeqCst);
-    //             Ok(())
-    //         }
-    //     });
-    //
-    //     assert!(change_flag.load(Ordering::SeqCst)); // true by default
-    //     assert!(!pressed_flag.load(Ordering::SeqCst));
-    //     assert!(!released_flag.load(Ordering::SeqCst));
-    //
-    //     // Simulate pin state change in the protocol => take value 0xFF
-    //     button
-    //         .protocol
-    //         .get_io()
-    //         .write()
-    //         .get_pin_mut(5)
-    //         .unwrap()
-    //         .value = 0;
-    //
-    //     pause!(500);
-    //
-    //     assert!(!change_flag.load(Ordering::SeqCst)); // changed to false
-    //     assert!(pressed_flag.load(Ordering::SeqCst));
-    //     assert!(!released_flag.load(Ordering::SeqCst));
-    //
-    //     // Simulate pin state change in the protocol => takes value 0
-    //     button
-    //         .protocol
-    //         .get_io()
-    //         .write()
-    //         .get_pin_mut(5)
-    //         .unwrap()
-    //         .value = 0xFF;
-    //
-    //     pause!(500);
-    //
-    //     assert!(change_flag.load(Ordering::SeqCst)); // change switched back to true
-    //     assert!(released_flag.load(Ordering::SeqCst));
-    //
-    //     button.detach();
-    //     board.close();
-    // }
 
     #[hermes_five_macros::test]
     fn test_button_display() {
