@@ -9,7 +9,7 @@ async fn main() {
     let board = Board::run();
 
     board.on(BoardEvent::OnReady, |board: Board| async move {
-        let button_inverted = Button::new_inverted(&board, 2)?;
+        let button_inverted = Button::new_inverted_pulldown(&board, 2)?;
 
         button_inverted.on(InputEvent::OnChange, |value: bool| async move {
             println!("Inverted button value changed: {}", value);

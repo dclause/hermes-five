@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 use std::future::Future;
 use std::sync::Arc;
-
+use std::sync::atomic::{AtomicBool, Ordering};
 use parking_lot::RwLock;
 
 use crate::devices::input::{Input, InputEvent};
@@ -23,8 +23,8 @@ pub struct DigitalInput {
     /// The pin (id) of the [`Board`] used to read the digital value.
     pin: u8,
     /// The current digital state.
-    #[cfg_attr(feature = "serde", serde(with = "crate::devices::arc_rwlock_serde"))]
-    state: Arc<RwLock<bool>>,
+    #[cfg_attr(feature = "serde", serde(with = "crate::utils::arc_atomic_serde"))]
+    state: Arc<AtomicBool>,
 
     // ########################################
     // # Volatile utility data.
@@ -49,7 +49,7 @@ impl DigitalInput {
 
         let mut sensor = Self {
             pin: pin.id,
-            state: Arc::new(RwLock::new(pin.value != 0)),
+            state: Arc::new(AtomicBool::new(pin.value != 0)),
             protocol: board.get_protocol(),
             handler: Arc::new(RwLock::new(None)),
             events: EventManager::default(),
@@ -94,9 +94,9 @@ impl DigitalInput {
                             .get_pin(self_clone.pin)?
                             .value
                             != 0;
-                        let state_value = *self_clone.state.read();
+                        let state_value = self_clone.state.load(Ordering::SeqCst);
                         if pin_value != state_value {
-                            *self_clone.state.write() = pin_value;
+                            self_clone.state.store(pin_value, Ordering::SeqCst);
                             self_clone.events.emit(InputEvent::OnChange, pin_value);
                             match pin_value {
                                 true => self_clone.events.emit(InputEvent::OnHigh, pin_value),
@@ -181,7 +181,7 @@ impl Display for DigitalInput {
             f,
             "DigitalInput (pin={}) [state={}]",
             self.pin,
-            self.state.read(),
+            self.state.load(Ordering::SeqCst),
         )
     }
 }
@@ -192,7 +192,7 @@ impl Device for DigitalInput {}
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl Input for DigitalInput {
     fn get_state(&self) -> State {
-        State::from(*self.state.read())
+        State::from(self.state.load(Ordering::SeqCst))
     }
 }
 

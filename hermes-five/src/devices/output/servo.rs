@@ -1,5 +1,6 @@
 use std::fmt::{Display, Formatter};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU16, Ordering};
 use std::time::SystemTime;
 
 use parking_lot::RwLock;
@@ -30,8 +31,8 @@ pub struct Servo {
     /// The pin (id) of the [`Board`] used to control the Servo.
     pin: u8,
     /// The current Servo state.
-    #[cfg_attr(feature = "serde", serde(with = "crate::devices::arc_rwlock_serde"))]
-    state: Arc<RwLock<u16>>,
+    #[cfg_attr(feature = "serde", serde(with = "crate::utils::arc_atomic_serde"))]
+    state: Arc<AtomicU16>,
     /// The LED default value (default: ON).
     default: u16,
 
@@ -103,7 +104,7 @@ impl Servo {
 
         let mut servo = Self {
             pin,
-            state: Arc::new(RwLock::new(default)),
+            state: Arc::new(AtomicU16::new(default)),
             default,
             servo_type: ServoType::default(),
             range: Range::from([0, 180]),
@@ -169,7 +170,7 @@ impl Servo {
     // Setters and Getters.
     
     pub fn get_position(&self) -> u16 {
-        *self.state.read()
+        self.get_value()
     }
 
     /// Returns the pin (id) used by the device.
@@ -403,8 +404,9 @@ impl Output for Servo {
     }
 
     // Expose the required fields
-    fn get_default_value(&self) -> &Self::Value {  &self.default }
-    fn state_lock(&self) -> &RwLock<Self::Value> { &self.state }
+    fn get_default_value(&self) -> Self::Value {  self.default }
+    fn get_value(&self) -> Self::Value { self.state.load(Ordering::SeqCst) }
+    fn set_value(&self, value: Self::Value) { self.state.store(value, Ordering::SeqCst) }
     fn animation_arc(&self) -> &Arc<Option<Animation>> { &self.animation }
     fn animation_arc_mut(&mut self) -> &mut Arc<Option<Animation>> { &mut self.animation }
 }
@@ -414,7 +416,7 @@ impl Display for Servo {
             f,
             "SERVO (pin={}) [state={}, default={}, range={}-{}]",
             self.pin,
-            self.state.read(),
+            self.get_value(),
             self.default,
             self.range.start,
             self.range.end
@@ -432,6 +434,7 @@ mod tests {
     use crate::pause;
     use crate::utils::{Range, State};
     use hermes_five::devices::ServoType;
+    use crate::devices::output::sealed::Output;
 
     fn _setup_servo(pin: u8) -> Servo {
         let board = Board::new(MockProtocol::default()); // Assuming a mock Board implementation
@@ -444,7 +447,7 @@ mod tests {
 
         let servo = Servo::new(&board, 12, 90).unwrap();
         assert_eq!(servo.get_pin(), 12);
-        assert_eq!(*servo.state.read(), 90);
+        assert_eq!(servo.get_value(), 90);
         assert!(!servo.is_inverted());
 
         let inverted_servo = Servo::new_inverted(&board, 12, 90).unwrap();
@@ -460,7 +463,7 @@ mod tests {
         let mut servo = _setup_servo(12);
         let result = servo.to(150); // Move the servo to position 150.
         assert!(result.is_ok());
-        assert_eq!(*servo.state.read(), 150); // Servo state should be updated to 150.
+        assert_eq!(servo.get_value(), 150); // Servo state should be updated to 150.
     }
 
     #[test]

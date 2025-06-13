@@ -19,6 +19,11 @@ pub use crate::utils::scale::*;
 pub use crate::utils::state::*;
 pub use crate::utils::task::*;
 
+#[cfg(feature = "serde")]
+mod serde;
+#[cfg(feature = "serde")]
+pub use crate::utils::serde::*;
+
 /// Represents the result of an event callback or a task.
 ///
 /// An event callback or a task may return either () or Result<(), Error> for flexibility which
@@ -62,7 +67,7 @@ pub(crate) fn format_as_hex<T: std::fmt::UpperHex>(slice: &[T]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use crate::errors::{Error, InternalError, StateError};
+    use crate::errors::{Error, StateError};
     use super::{format_as_hex, GenericResult};
 
     #[test]

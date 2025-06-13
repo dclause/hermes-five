@@ -47,12 +47,11 @@ pub trait OutputDevice: Device + DynClone {
 }
 dyn_clone::clone_trait_object!(OutputDevice);
 
-mod sealed {
+pub mod sealed {
     use crate::animations::Animation;
     use crate::devices::Device;
     use crate::errors::Error;
     use crate::utils::State;
-    use parking_lot::RwLock;
     use std::sync::Arc;
 
     pub trait Output: Device + Clone + 'static {
@@ -64,8 +63,9 @@ mod sealed {
 
         /// Applies the specific `Value` to the hardware.
         fn apply_value(&mut self, value: Self::Value) -> Result<(), Error>;
-        fn get_default_value(&self) -> &Self::Value;
-        fn state_lock(&self) -> &RwLock<Self::Value>;
+        fn get_default_value(&self) -> Self::Value;
+        fn get_value(&self) -> Self::Value;
+        fn set_value(&self, value: Self::Value);
         fn animation_arc(&self) -> &Arc<Option<Animation>>;
         fn animation_arc_mut(&mut self) -> &mut Arc<Option<Animation>>;
     }
@@ -73,7 +73,7 @@ mod sealed {
 
 /// Implementation of the `Device` and `OutputDevice` traits for a concrete type implementing `sealed::Output`.
 ///
-/// ⚠️ Necessary to work around the current limitation of `typetag`, which does not support
+/// This sealed trait is necessary to work around the current limitation of `typetag`, which does not support
 /// deserialization of generic implementations. This macro preserves the
 /// generic behavior in `sealed::Output` while enabling (de)serialization with `typetag`.
 ///
@@ -93,7 +93,7 @@ mod sealed {
 #[macro_export]
 macro_rules! generate_output_device_boilerplate {
     ($type:ty) => {
-        use $crate::devices::output::sealed::Output;
+        use $crate::devices::sealed::Output;
 
         #[cfg_attr(feature = "serde", typetag::serde)]
         impl $crate::devices::Device for $type {}
@@ -101,24 +101,24 @@ macro_rules! generate_output_device_boilerplate {
         #[cfg_attr(feature = "serde", typetag::serde)]
         impl $crate::devices::OutputDevice for $type {
             fn get_state(&self) -> $crate::utils::State {
-                (*self.state_lock().read()).into()
+                self.get_value().into()
             }
 
             fn set_state(&mut self, state: $crate::utils::State) -> Result<$crate::utils::State, $crate::errors::Error> {
                 let value = self.parse_state(state)?;
 
-                if *self.state_lock().read() == value {
+                if self.get_value() == value {
                     return Ok(value.into());
                 }
 
                 self.apply_value(value)?;
-                *self.state_lock().write() = value;
+                self.set_value(value);
 
                 Ok(value.into())
             }
 
             fn get_default(&self) -> $crate::utils::State {
-                (*self.get_default_value()).into()
+                self.get_default_value().into()
             }
 
             fn animate<S: Into<$crate::utils::State>>(&mut self, state: S, duration: u64, transition: $crate::animations::Easing) {
