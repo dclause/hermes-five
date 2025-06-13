@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 use std::future::Future;
 use std::sync::Arc;
-
+use std::sync::atomic::{AtomicBool, Ordering};
 use parking_lot::RwLock;
 
 use crate::devices::{Device, Input, InputEvent};
@@ -25,12 +25,12 @@ pub struct Button {
     /// The pin (id) of the [`Board`] used to read the button value.
     pin: u8,
     /// The current Button state.
-    #[cfg_attr(feature = "serde", serde(with = "crate::devices::arc_rwlock_serde"))]
-    state: Arc<RwLock<bool>>,
+    #[cfg_attr(feature = "serde", serde(with = "crate::utils::arc_atomic_serde"))]
+    state: Arc<AtomicBool>,
+    /// Defines a PULL-UP/PULL_DOWN mode button (true=pull-up, false=pull-down).
+    pullup: bool,
     /// Inverts the true/false state value.
     invert: bool,
-    /// Defines a PULL-UP mode button.
-    pullup: bool,
 
     // ########################################
     // # Volatile utility data.
@@ -46,6 +46,43 @@ pub struct Button {
 
 impl Button {
 
+    /// Creates an instance of a button attached to a given board.
+    /// <https://docs.arduino.cc/built-in-examples/digital/Button/>
+    ///
+    /// /!\ You have to specify the button mode:
+    /// - PULL-UP/PULL-DOWN
+    /// - normal or inverted
+    ///
+    /// You can use one of the helper to simplify your code:
+    /// ```ignore
+    /// Button::new_pulldown(...)
+    /// Button::new_pullup(...)
+    /// Button::new_inverted_pullup(...)
+    /// Button::new_inverted_pulldown(...)
+    /// ```
+    ///
+    /// # Errors
+    /// * `UnknownPin`: this function will bail an error if the Button pin does not exist for this board.
+    /// * `IncompatiblePin`: this function will bail an error if the Button pin does not support INPUT mode.
+
+    pub fn new<T: Into<PinIdOrName>>(
+        board: &dyn Hardware,
+        pin: T,
+        is_inverted: bool,
+        is_pullup: bool,
+    ) -> Result<Self, Error> {
+        Self {
+            pin: 0,
+            state: Arc::new(AtomicBool::new(false)),
+            invert: is_inverted,
+            pullup: is_pullup,
+            protocol: board.get_protocol(),
+            handler: Arc::new(RwLock::new(None)),
+            events: EventManager::default(),
+        }
+            .start_with(board, pin)
+    }
+
     /// Creates an instance of a PULL-DOWN button attached to a given board:
     /// <https://docs.arduino.cc/built-in-examples/digital/Button/>
     ///
@@ -55,17 +92,8 @@ impl Button {
     /// # Errors
     /// * `UnknownPin`: this function will bail an error if the Button pin does not exist for this board.
     /// * `IncompatiblePin`: this function will bail an error if the Button pin does not support INPUT mode.
-    pub fn new<T: Into<PinIdOrName>>(board: &dyn Hardware, pin: T) -> Result<Self, Error> {
-        Self {
-            pin: 0,
-            state: Arc::new(RwLock::new(false)),
-            invert: false,
-            pullup: false,
-            protocol: board.get_protocol(),
-            handler: Arc::new(RwLock::new(None)),
-            events: EventManager::<InputEvent, bool>::default(),
-        }
-        .start_with(board, pin)
+    pub fn new_pulldown<T: Into<PinIdOrName>>(board: &dyn Hardware, pin: T) -> Result<Self, Error> {
+        Self::new(board, pin, false, false)
     }
 
     /// Creates an instance of an inverted PULL-DOWN button attached to a given board:
@@ -78,17 +106,8 @@ impl Button {
     /// # Errors
     /// * `UnknownPin`: this function will bail an error if the Button pin does not exist for this board.
     /// * `IncompatiblePin`: this function will bail an error if the Button pin does not support INPUT mode.
-    pub fn new_inverted<T: Into<PinIdOrName>>(board: &dyn Hardware, pin: T) -> Result<Self, Error> {
-        Self {
-            pin: 0,
-            state: Arc::new(RwLock::new(false)),
-            invert: true,
-            pullup: false,
-            protocol: board.get_protocol(),
-            handler: Arc::new(RwLock::new(None)),
-            events: EventManager::default(),
-        }
-        .start_with(board, pin)
+    pub fn new_inverted_pulldown<T: Into<PinIdOrName>>(board: &dyn Hardware, pin: T) -> Result<Self, Error> {
+        Self::new(board, pin, true, false)
     }
 
     /// Creates an instance of a PULL-UP button attached to a given board:
@@ -101,16 +120,7 @@ impl Button {
     /// * `UnknownPin`: this function will bail an error if the Button pin does not exist for this board.
     /// * `IncompatiblePin`: this function will bail an error if the Button pin does not support INPUT mode.
     pub fn new_pullup<T: Into<PinIdOrName>>(board: &dyn Hardware, pin: T) -> Result<Self, Error> {
-        Self {
-            pin: 0,
-            state: Arc::new(RwLock::new(false)),
-            invert: false,
-            pullup: true,
-            protocol: board.get_protocol(),
-            handler: Arc::new(RwLock::new(None)),
-            events: EventManager::default(),
-        }
-        .start_with(board, pin)
+        Self::new(board, pin, false, true)
     }
 
     /// Creates an instance of an inverted PULL-UP button attached to a given board:
@@ -128,16 +138,7 @@ impl Button {
         board: &dyn Hardware,
         pin: T,
     ) -> Result<Self, Error> {
-        Self {
-            pin: 0,
-            state: Arc::new(RwLock::new(false)),
-            invert: true,
-            pullup: true,
-            protocol: board.get_protocol(),
-            handler: Arc::new(RwLock::new(None)),
-            events: EventManager::default(),
-        }
-        .start_with(board, pin)
+        Self::new(board, pin, true, true)
     }
 
     /// Private helper method shared by constructors.
@@ -150,7 +151,7 @@ impl Button {
 
         // Set pin ID and state from pin.
         self.pin = pin.id;
-        *self.state.write() = pin.value != 0;
+        self.state.store(pin.value != 0, Ordering::SeqCst);
 
         // Set pin mode to INPUT/PULLUP.
         match self.pullup {
@@ -208,9 +209,9 @@ impl Button {
                             .get_pin(self_clone.pin)?
                             .value
                             != 0;
-                        let state_value = *self_clone.state.read();
+                        let state_value = self_clone.state.load(Ordering::SeqCst);
                         if pin_value != state_value {
-                            *self_clone.state.write() = pin_value;
+                            self_clone.state.store(pin_value, Ordering::SeqCst);
 
                             // Depending on logical inversion mode, pin_value is inverted.
                             match self_clone.invert {
@@ -272,7 +273,7 @@ impl Button {
     ///     board.on(BoardEvent::OnReady, |board: Board| async move {
     ///
     ///         // Register a Button on pin 2.
-    ///         let button = Button::new(&board, 2)?;
+    ///         let button = Button::new_pulldown(&board, 2)?;
     ///         // Triggered function when the button is pressed.
     ///         button.on(InputEvent::OnPress, |_: bool| async move {
     ///             println!("Push button pressed");
@@ -302,19 +303,6 @@ impl Button {
     }
 }
 
-impl Display for Button {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "Button (pin={}) [state={}, pullup={}, inverted={}]",
-            self.pin,
-            self.state.read(),
-            self.pullup,
-            self.invert
-        )
-    }
-}
-
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl Device for Button {}
 
@@ -322,9 +310,28 @@ impl Device for Button {}
 impl Input for Button {
     fn get_state(&self) -> State {
         match self.invert {
-            false => State::from(*self.state.read()),
-            true => State::from(!*self.state.read()),
+            false => State::from(self.state.load(Ordering::SeqCst)),
+            true => State::from(!self.state.load(Ordering::SeqCst)),
         }
+    }
+}
+
+impl Drop for Button {
+    fn drop(&mut self) {
+        self.detach();
+    }
+}
+
+impl Display for Button {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Button (pin={}) [state={}, pullup={}, inverted={}]",
+            self.pin,
+            self.state.load(Ordering::SeqCst),
+            self.pullup,
+            self.invert
+        )
     }
 }
 
@@ -340,7 +347,7 @@ mod tests {
     #[hermes_five_macros::test]
     fn test_new_button_creation() {
         let board = Board::new(MockProtocol::default());
-        let button = Button::new(&board, 4);
+        let button = Button::new_pulldown(&board, 4);
 
         assert!(button.is_ok());
         let button = button.unwrap();
@@ -356,7 +363,7 @@ mod tests {
     #[hermes_five_macros::test]
     fn test_new_inverted_button_creation() {
         let board = Board::new(MockProtocol::default());
-        let button = Button::new_inverted(&board, 4);
+        let button = Button::new_inverted_pulldown(&board, 4);
 
         assert!(button.is_ok());
         let button = button.unwrap();
@@ -407,7 +414,7 @@ mod tests {
         let button = Button::start_with(
             Button {
                 pin: 0,
-                state: Arc::new(RwLock::new(false)),
+                state: Arc::new(AtomicBool::new(false)),
                 invert: true,
                 pullup: false,
                 protocol: board.get_protocol(),
@@ -429,10 +436,10 @@ mod tests {
     #[hermes_five_macros::test]
     fn test_button_inverted_state_logic() {
         let board = Board::new(MockProtocol::default());
-        let button = Button::new_inverted(&board, 5).unwrap();
+        let button = Button::new_inverted_pulldown(&board, 5).unwrap();
         assert_eq!(button.get_state().as_bool(), true);
 
-        button.state.write().clone_from(&true); // Simulate a pressed button
+        button.state.store(true, Ordering::SeqCst); // Simulate a pressed button
         assert_eq!(button.get_state().as_bool(), false);
 
         button.detach();
@@ -442,7 +449,7 @@ mod tests {
     #[hermes_five_macros::test]
     fn test_button_events() {
         let board = Board::new(MockProtocol::default());
-        let button = Button::new(&board, 5).unwrap();
+        let button = Button::new_pulldown(&board, 5).unwrap();
 
         // CHANGE
         let change_flag = Arc::new(AtomicBool::new(false));
@@ -514,7 +521,7 @@ mod tests {
     #[hermes_five_macros::test]
     fn test_inverted_button_events() {
         let board = Board::new(MockProtocol::default());
-        let button = Button::new_inverted(&board, 5).unwrap();
+        let button = Button::new_inverted_pulldown(&board, 5).unwrap();
 
         // CHANGE
         let change_flag = Arc::new(AtomicBool::new(true));
@@ -588,7 +595,7 @@ mod tests {
     #[hermes_five_macros::test]
     fn test_button_display() {
         let board = Board::new(MockProtocol::default());
-        let button = Button::new(&board, 4).unwrap();
+        let button = Button::new_pulldown(&board, 4).unwrap();
 
         assert_eq!(
             format!("{}", button),

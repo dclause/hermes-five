@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 use std::future::Future;
 use std::sync::Arc;
-
+use std::sync::atomic::{AtomicU16, Ordering};
 use parking_lot::RwLock;
 
 use crate::devices::input::{Input, InputEvent};
@@ -24,8 +24,8 @@ pub struct AnalogInput {
     /// The pin (id) of the [`Board`] used to read the analog value.
     pin: u8,
     /// The current AnalogInput state.
-    #[cfg_attr(feature = "serde", serde(with = "crate::devices::arc_rwlock_serde"))]
-    state: Arc<RwLock<u16>>,
+    #[cfg_attr(feature = "serde", serde(with = "crate::utils::arc_atomic_serde"))]
+    state: Arc<AtomicU16>,
 
     // ########################################
     // # Volatile utility data.
@@ -51,7 +51,7 @@ impl AnalogInput {
 
         let mut sensor = Self {
             pin: pin.id,
-            state: Arc::new(RwLock::new(pin.value)),
+            state: Arc::new(AtomicU16::new(pin.value)),
             protocol: board.get_protocol(),
             handler: Arc::new(RwLock::new(None)),
             events: Default::default(),
@@ -94,9 +94,9 @@ impl AnalogInput {
                             .read()
                             .get_pin(self_clone.pin)?
                             .value;
-                        let state_value = *self_clone.state.read();
+                        let state_value = self_clone.state.load(Ordering::SeqCst);
                         if pin_value != state_value {
-                            *self_clone.state.write() = pin_value;
+                            self_clone.state.store(pin_value, Ordering::SeqCst);
                             self_clone.events.emit(InputEvent::OnChange, pin_value);
                         }
 
@@ -173,7 +173,7 @@ impl Display for AnalogInput {
             f,
             "AnalogInput (pin={}) [state={}]",
             self.pin,
-            self.state.read(),
+            self.state.load(Ordering::SeqCst),
         )
     }
 }
@@ -184,7 +184,7 @@ impl Device for AnalogInput {}
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl Input for AnalogInput {
     fn get_state(&self) -> State {
-        State::from(*self.state.read())
+        State::from(self.state.load(Ordering::SeqCst))
     }
 }
 

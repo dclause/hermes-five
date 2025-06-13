@@ -5,6 +5,7 @@ use crate::utils::{task, EventManager, GenericResult, TaskHandler};
 
 use crate::animations::{Segment, Track};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// Lists all events an Animation can emit/listen.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -80,7 +81,7 @@ pub struct Animation {
     // # Volatile utility data.
     /// The index of current running [`Segment`].
     #[cfg_attr(feature = "serde", serde(skip))]
-    current: Arc<RwLock<usize>>,
+    current: Arc<AtomicUsize>,
     /// Inner handler to the task running the animation.
     #[cfg_attr(feature = "serde", serde(skip))]
     interval: Arc<RwLock<Option<TaskHandler>>>,
@@ -95,7 +96,7 @@ impl Default for Animation {
     fn default() -> Self {
         Self {
             segments: vec![],
-            current: Arc::new(RwLock::new(0)),
+            current: Arc::new(AtomicUsize::new(0)),
             interval: Arc::new(RwLock::new(None)),
             events: EventManager::default(),
         }
@@ -114,7 +115,7 @@ impl Animation {
             let handler = match task::run(async move {
                 // Loop through the segments and run them one by one.
                 for index in self_clone.get_current()..self_clone.segments.len() {
-                    *self_clone.current.write() = index;
+                    self_clone.current.store(index, Ordering::SeqCst);
 
                     // Retrieve the currently running segment.
                     let segment_playing = self_clone.segments.get_mut(index).unwrap();
@@ -124,7 +125,7 @@ impl Animation {
                         .emit(AnimationEvent::OnSegmentDone, self_clone.clone());
                 }
 
-                *self_clone.current.write() = 0; // reset to the beginning
+                self_clone.current.store(0, Ordering::SeqCst); // reset to the beginning
                 *self_clone.interval.write() = None;
                 self_clone
                     .events
@@ -171,8 +172,8 @@ impl Animation {
 
         // Move to the next segment if we are not at the end.
         match current < self.segments.len() - 1 {
-            true => *self.current.write() = current + 1,
-            false => *self.current.write() = 0,
+            true => self.current.store(current + 1, Ordering::SeqCst),
+            false => self.current.store(0, Ordering::SeqCst),
         }
 
         // Restart the animation from the beginning of the next segment, if it was running.
@@ -193,7 +194,7 @@ impl Animation {
                 segment.reset();
             }
         }
-        *self.current.write() = 0;
+        self.current.store(0, Ordering::SeqCst);
         self
     }
 
@@ -218,7 +219,7 @@ impl Animation {
     /// Gets the current play time.
     /// @todo fix: because we clone self on .play(), the progress is no longer available on segment.
     pub fn get_progress(&self) -> u64 {
-        let current_segment_index = *self.current.read();
+        let current_segment_index = self.current.load(Ordering::SeqCst);
         match self.segments.get(current_segment_index) {
             None => 0,
             Some(segment_playing) => segment_playing.get_progress(),
@@ -261,12 +262,12 @@ impl Animation {
 
     /// Returns the index of the currently running segment.
     pub fn get_current(&self) -> usize {
-        *self.current.read()
+        self.current.load(Ordering::SeqCst)
     }
 
     /// Sets the index of the currently running segment.
     pub fn set_current(&self, index: usize) {
-        *self.current.write() = index;
+        self.current.store(index, Ordering::SeqCst);
     }
 
     // ########################################

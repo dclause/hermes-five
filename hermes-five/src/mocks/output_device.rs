@@ -1,68 +1,60 @@
 use std::fmt::{Display, Formatter};
-use std::sync::Arc;
-
+use std::sync::atomic::{AtomicU16, Ordering};
+use std::sync::{Arc};
 use parking_lot::RwLock;
-
-use crate::animations::Easing;
-use crate::devices::{Device, OutputDevice};
+use crate::animations::Animation;
+use crate::devices::OutputDevice;
 use crate::errors::Error;
+use crate::generate_output_device_boilerplate;
 use crate::utils::State;
 
 /// Mock [`OutputDevice`] for testing purposes.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
 pub struct MockOutputDevice {
-    state: u16,
-    #[cfg_attr(feature = "serde", serde(with = "crate::devices::arc_rwlock_serde"))]
-    lock: Arc<RwLock<u16>>,
+    #[cfg_attr(feature = "serde", serde(with = "crate::utils::arc_atomic_serde"))]
+    state: Arc<AtomicU16>,
+    #[cfg_attr(feature = "serde", serde(with = "crate::utils::arc_rwlock_serde"))]
+    locked_state: Arc<RwLock<u16>>, // Used for serde testing
+    #[cfg_attr(feature = "serde", serde(skip))]
+    animation: Arc<Option<Animation>>,
 }
 
 impl MockOutputDevice {
     pub fn new(state: u16) -> Self {
         Self {
-            state,
-            lock: Arc::new(RwLock::new(42)),
+            state: Arc::new(AtomicU16::new(state)),
+            locked_state: Arc::new(RwLock::new(42)),
+            animation: Arc::new(None),
         }
     }
 
-    pub fn get_locked_value(&self) -> u16 {
-        *self.lock.read()
-    }
+    pub fn get_locked_value(&self) -> u16 { *self.locked_state.read() }
 }
 
 impl Display for MockOutputDevice {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "MockActuator [state={}]", self.state)
+        write!(f, "MockActuator [state={}]", self.state.load(Ordering::SeqCst))
     }
 }
 
-#[cfg_attr(feature = "serde", typetag::serde)]
-impl Device for MockOutputDevice {}
+generate_output_device_boilerplate!(MockOutputDevice);
+impl Output for MockOutputDevice {
+    type Value = u16;
 
-#[cfg_attr(feature = "serde", typetag::serde)]
-impl OutputDevice for MockOutputDevice {
-    fn get_state(&self) -> State {
-        self.state.into()
+    fn parse_state(&self, state: State) -> Result<Self::Value, Error> {
+        Ok(state.as_integer() as u16)
     }
 
-    fn set_state(&mut self, state: State) -> Result<State, Error> {
-        self.state = state.as_integer() as u16;
-        Ok(state)
+    fn apply_value(&mut self, _: Self::Value) -> Result<(), Error> {
+        // Nothing to do
+        Ok(())
     }
 
-    /// Returns  the actuator default (or neutral) state.
-    fn get_default(&self) -> State {
-        0.into()
-    }
-
-    fn animate<S: Into<State>>(&mut self, _: S, _: u64, _: Easing) {
-        todo!()
-    }
-
-    /// Indicates the busy status, ie if the device is running an animation.
-    fn is_busy(&self) -> bool {
-        false
-    }
-
-    fn stop(&mut self) {}
+    // Expose the required fields
+    fn get_default_value(&self) -> Self::Value { 0 }
+    fn get_value(&self) -> Self::Value { self.state.load(Ordering::SeqCst) }
+    fn set_value(&self, value: Self::Value) { self.state.store(value, Ordering::SeqCst) }
+    fn animation_arc(&self) -> &Arc<Option<Animation>> { &self.animation }
+    fn animation_arc_mut(&mut self) -> &mut Arc<Option<Animation>> { &mut self.animation }
 }

@@ -1,7 +1,6 @@
 use std::fmt::{Display, Formatter};
 use std::sync::Arc;
-
-use parking_lot::RwLock;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::animations::Animation;
 use crate::devices::OutputDevice;
@@ -22,8 +21,8 @@ pub struct DigitalOutput {
     /// The pin (id) of the [`Board`] used to control the output value.
     pin: u8,
     /// The current output state.
-    #[cfg_attr(feature = "serde", serde(with = "crate::devices::arc_rwlock_serde"))]
-    state: Arc<RwLock<bool>>,
+    #[cfg_attr(feature = "serde", serde(with = "crate::utils::arc_atomic_serde"))]
+    state: Arc<AtomicBool>,
     /// The output default value (default: 0).
     default: bool,
 
@@ -51,7 +50,7 @@ impl DigitalOutput {
 
         let mut output = Self {
             pin: pin.id,
-            state: Arc::new(RwLock::new(default)),
+            state: Arc::new(AtomicBool::new(default)),
             default,
             protocol: board.get_protocol(),
             animation: Arc::new(None),
@@ -104,12 +103,12 @@ impl DigitalOutput {
 
     /// Indicates if the device state is HIGH.
     pub fn is_high(&self) -> bool {
-        *self.state.read()
+        self.get_value()
     }
 
     /// Indicates if the device state is LOW.
     pub fn is_low(&self) -> bool {
-        !*self.state.read()
+        !self.get_value()
     }
 }
 
@@ -142,8 +141,9 @@ impl Output for DigitalOutput {
     }
 
     // Expose the required fields
-    fn get_default_value(&self) -> &Self::Value {  &self.default }
-    fn state_lock(&self) -> &RwLock<Self::Value> { &self.state }
+    fn get_default_value(&self) -> Self::Value {  self.default }
+    fn get_value(&self) -> Self::Value { self.state.load(Ordering::SeqCst) }
+    fn set_value(&self, value: Self::Value) { self.state.store(value, Ordering::SeqCst) }
     fn animation_arc(&self) -> &Arc<Option<Animation>> { &self.animation }
     fn animation_arc_mut(&mut self) -> &mut Arc<Option<Animation>> { &mut self.animation }
 }
@@ -154,7 +154,7 @@ impl Display for DigitalOutput {
             f,
             "DigitalOutput (pin={}) [state={}, default={}]",
             self.pin,
-            self.state.read(),
+            self.get_value(),
             self.default,
         )
     }
@@ -164,6 +164,7 @@ impl Display for DigitalOutput {
 mod tests {
     use crate::animations::Easing;
     use crate::devices::output::digital::DigitalOutput;
+    use crate::devices::output::sealed::Output;
     use crate::devices::OutputDevice;
     use crate::hardware::Board;
     use crate::io::PinModeId;
@@ -178,7 +179,7 @@ mod tests {
         // Default LOW state.
         let output = DigitalOutput::new(&board, 13, false).unwrap();
         assert_eq!(output.get_pin(), 13);
-        assert!(!*output.state.read());
+        assert!(!output.get_value());
         assert!(!output.get_state().as_bool());
         assert!(!output.get_default().as_bool());
         assert!(output.is_low());
@@ -187,7 +188,7 @@ mod tests {
         // Default HIGH state.
         let output = DigitalOutput::new(&board, 4, true).unwrap();
         assert_eq!(output.get_pin(), 4);
-        assert!(*output.state.read());
+        assert!(output.get_value());
         assert!(output.get_state().as_bool());
         assert!(output.get_default().as_bool());
         assert!(output.is_high());
@@ -208,7 +209,7 @@ mod tests {
             DigitalOutput::new(&Board::new(MockProtocol::default()), 4, false).unwrap();
         output.turn_on().unwrap();
         assert!(output.turn_on().is_ok());
-        assert!(*output.state.read());
+        assert!(output.get_value());
     }
 
     #[test]
@@ -216,7 +217,7 @@ mod tests {
         let mut output =
             DigitalOutput::new(&Board::new(MockProtocol::default()), 5, true).unwrap();
         assert!(output.turn_off().is_ok());
-        assert!(!*output.state.read());
+        assert!(!output.get_value());
     }
 
     #[test]
@@ -224,9 +225,9 @@ mod tests {
         let mut output =
             DigitalOutput::new(&Board::new(MockProtocol::default()), 5, false).unwrap();
         assert!(output.toggle().is_ok()); // Toggle to HIGH
-        assert!(*output.state.read());
+        assert!(output.get_value());
         assert!(output.toggle().is_ok()); // Toggle to LOW
-        assert!(!*output.state.read());
+        assert!(!output.get_value());
     }
 
     #[test]
@@ -234,14 +235,14 @@ mod tests {
         let mut output =
             DigitalOutput::new(&Board::new(MockProtocol::default()), 13, false).unwrap();
         assert!(output.set_state(State::Boolean(true)).is_ok());
-        assert!(*output.state.read());
+        assert!(output.get_value());
         assert!(output.set_state(State::Boolean(false)).is_ok());
-        assert!(!*output.state.read());
+        assert!(!output.get_value());
 
         assert!(output.set_state(State::Integer(1)).is_ok());
-        assert!(*output.state.read());
+        assert!(output.get_value());
         assert!(output.set_state(State::Integer(0)).is_ok());
-        assert!(!*output.state.read());
+        assert!(!output.get_value());
         assert!(output.set_state(State::Integer(42)).is_err());
 
         assert!(output

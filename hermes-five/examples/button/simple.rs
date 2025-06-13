@@ -10,7 +10,7 @@ async fn main() {
 
     board.on(BoardEvent::OnReady, |board: Board| async move {
         // Register a Button on pin 2.
-        let button = Button::new(&board, 2)?;
+        let button = Button::new_pulldown(&board, 2)?;
 
         // Triggered function when the button state changes.
         button.on(InputEvent::OnChange, |value: bool| async move {

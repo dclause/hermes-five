@@ -1,7 +1,6 @@
 use std::fmt::{Display, Formatter};
 use std::sync::Arc;
-
-use parking_lot::RwLock;
+use std::sync::atomic::{AtomicU16, Ordering};
 
 use crate::animations::Animation;
 use crate::devices::output::sealed;
@@ -23,8 +22,8 @@ pub struct PwmOutput {
     /// The pin (id) of the [`Board`] used to control the output value.
     pin: u8,
     /// The current output state.
-    #[cfg_attr(feature = "serde", serde(with = "crate::devices::arc_rwlock_serde"))]
-    state: Arc<RwLock<u16>>,
+    #[cfg_attr(feature = "serde", serde(with = "crate::utils::arc_atomic_serde"))]
+    state: Arc<AtomicU16>,
     /// The output default value (default: 0).
     default: u16,
 
@@ -56,7 +55,7 @@ impl PwmOutput {
 
         let mut output = Self {
             pin: pin.id,
-            state: Arc::new(RwLock::new(default)),
+            state: Arc::new(AtomicU16::new(default)),
             default,
             max_value: 0,
             protocol: board.get_protocol(),
@@ -80,7 +79,7 @@ impl PwmOutput {
     }
 
     /// Sets the PWM value.
-    pub fn set_value(&mut self, value: u16) -> Result<&Self, Error> {
+    pub fn set_pwm(&mut self, value: u16) -> Result<&Self, Error> {
         self.set_state(value.into())?;
         Ok(self)
     }
@@ -109,13 +108,13 @@ impl PwmOutput {
     }
 
     /// Gets the current PWM value.
-    pub fn get_value(&self) -> u16 {
-        *self.state.read()
+    pub fn get_pwm(&self) -> u16 {
+        self.get_value()
     }
 
     /// Gets the current percentage of the PWM value compared to max possible.
     pub fn get_percentage(&self) -> u8 {
-        let value = *self.state.read();
+        let value = self.get_pwm();
         ((value as f32 * 100.0) / self.max_value as f32).round() as u8
     }
 }
@@ -150,8 +149,9 @@ impl sealed::Output for PwmOutput {
         }
     }
 
-    fn get_default_value(&self) -> &Self::Value {  &self.default }
-    fn state_lock(&self) -> &RwLock<Self::Value> { &self.state }
+    fn get_default_value(&self) -> Self::Value {  self.default }
+    fn get_value(&self) -> Self::Value { self.state.load(Ordering::SeqCst) }
+    fn set_value(&self, value: Self::Value) { self.state.store(value, Ordering::SeqCst) }
     fn animation_arc(&self) -> &Arc<Option<Animation>> { &self.animation }
     fn animation_arc_mut(&mut self) -> &mut Arc<Option<Animation>> { &mut self.animation }
 }
@@ -162,7 +162,7 @@ impl Display for PwmOutput {
             f,
             "PwmOutput (pin={}) [state={} ({}%), default={}]",
             self.pin,
-            self.state.read(),
+            self.get_pwm(),
             self.get_percentage(),
             self.default,
         )
@@ -187,14 +187,14 @@ mod tests {
         // Default LOW state.
         let output = PwmOutput::new(&board, 8, 0).unwrap();
         assert_eq!(output.get_pin(), 8);
-        assert_eq!(*output.state.read(), 0);
+        assert_eq!(output.get_pwm(), 0);
         assert_eq!(output.get_state().as_integer(), 0);
         assert_eq!(output.get_default().as_integer(), 0);
 
         // Default HIGH state.
         let output = PwmOutput::new(&board, 8, 50).unwrap();
         assert_eq!(output.get_pin(), 8);
-        assert_eq!(*output.state.read(), 50);
+        assert_eq!(output.get_pwm(), 50);
         assert_eq!(output.get_state().as_integer(), 50);
         assert_eq!(output.get_default().as_integer(), 50);
 
@@ -206,21 +206,21 @@ mod tests {
     #[test]
     fn test_set_value() {
         let mut output = PwmOutput::new(&Board::new(MockProtocol::default()), 8, 0).unwrap();
-        output.set_value(127).unwrap();
-        assert_eq!(*output.state.read(), 127);
-        assert_eq!(output.get_value(), 127);
+        output.set_pwm(127).unwrap();
+        assert_eq!(output.get_pwm(), 127);
+        assert_eq!(output.get_pwm(), 127);
     }
 
     #[test]
     fn test_set_percent() {
         let mut output = PwmOutput::new(&Board::new(MockProtocol::default()), 8, 0).unwrap();
         output.set_percentage(50).unwrap();
-        assert_eq!(*output.state.read(), 127);
-        assert_eq!(output.get_value(), 127);
+        assert_eq!(output.get_pwm(), 127);
+        assert_eq!(output.get_pwm(), 127);
         assert_eq!(output.get_percentage(), 50);
         output.set_percentage(200).unwrap();
-        assert_eq!(*output.state.read(), 0xFF);
-        assert_eq!(output.get_value(), 255);
+        assert_eq!(output.get_pwm(), 0xFF);
+        assert_eq!(output.get_pwm(), 255);
         assert_eq!(output.get_percentage(), 100);
     }
 
@@ -228,20 +228,20 @@ mod tests {
     fn test_set_state() {
         let mut output = PwmOutput::new(&Board::new(MockProtocol::default()), 11, 127).unwrap();
         assert!(output.set_state(State::Integer(0)).is_ok());
-        assert_eq!(*output.state.read(), 0);
+        assert_eq!(output.get_pwm(), 0);
         assert!(output.set_state(State::Integer(127)).is_ok());
-        assert_eq!(*output.state.read(), 127);
+        assert_eq!(output.get_pwm(), 127);
 
         assert!(output.set_state(State::Signed(0)).is_ok());
-        assert_eq!(*output.state.read(), 0);
+        assert_eq!(output.get_pwm(), 0);
         assert!(output.set_state(State::Signed(127)).is_ok());
-        assert_eq!(*output.state.read(), 127);
+        assert_eq!(output.get_pwm(), 127);
         assert!(output.set_state(State::Signed(-42)).is_err());
 
         assert!(output.set_state(State::Float(0.0)).is_ok());
-        assert_eq!(*output.state.read(), 0);
+        assert_eq!(output.get_pwm(), 0);
         assert!(output.set_state(State::Float(127.0)).is_ok());
-        assert_eq!(*output.state.read(), 127);
+        assert_eq!(output.get_pwm(), 127);
         assert!(output.set_state(State::Float(-42.0)).is_err());
 
         assert!(output
@@ -278,7 +278,7 @@ mod tests {
     #[test]
     fn test_display_impl() {
         let mut output = PwmOutput::new(&Board::new(MockProtocol::default()), 11, 212).unwrap();
-        let _ = output.set_value(127);
+        let _ = output.set_pwm(127);
         let display_str = format!("{}", output);
         assert_eq!(
             display_str,

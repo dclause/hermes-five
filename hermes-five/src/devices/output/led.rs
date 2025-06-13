@@ -1,7 +1,6 @@
 use std::fmt::{Display, Formatter};
 use std::sync::Arc;
-
-use parking_lot::RwLock;
+use std::sync::atomic::{AtomicU16, Ordering};
 
 use crate::animations::{Animation, Keyframe, Segment, Track};
 use crate::devices::OutputDevice;
@@ -24,8 +23,8 @@ pub struct Led {
     /// The pin (id) of the [`Board`] used to control the LED.
     pin: u8,
     /// The current LED state.
-    #[cfg_attr(feature = "serde", serde(with = "crate::devices::arc_rwlock_serde"))]
-    state: Arc<RwLock<u16>>,
+    #[cfg_attr(feature = "serde", serde(with = "crate::utils::arc_atomic_serde"))]
+    state: Arc<AtomicU16>,
     /// The LED default value (default: 0 - OFF).
     default: u16,
 
@@ -79,7 +78,7 @@ impl Led {
 
         let mut led = Self {
             pin,
-            state: Arc::new(RwLock::new(default)),
+            state: Arc::new(AtomicU16::new(default)),
             default,
             brightness: 0xFF,
             pwm_mode,
@@ -197,7 +196,7 @@ impl Led {
         self.brightness = brightness;
 
         // If the value is higher than the brightness, we update it on the spot.
-        if self.state.read().ne(&self.brightness) {
+        if self.get_value().ne(&self.brightness) {
             self.set_state(State::Integer(self.brightness as u64))?;
         }
 
@@ -206,12 +205,12 @@ impl Led {
 
     /// Indicates if the LED is current ON (regardless its brightness).
     pub fn is_on(&self) -> bool {
-        self.state.read().gt(&0)
+        self.get_value().gt(&0)
     }
 
     /// Indicates if the LED is current OFF.
     pub fn is_off(&self) -> bool {
-        self.state.read().eq(&0)
+        self.get_value().eq(&0)
     }
 }
 
@@ -247,8 +246,9 @@ impl Output for Led {
     }
 
     // Expose the required fields
-    fn get_default_value(&self) -> &Self::Value {  &self.default }
-    fn state_lock(&self) -> &RwLock<Self::Value> { &self.state }
+    fn get_default_value(&self) -> Self::Value {  self.default }
+    fn get_value(&self) -> Self::Value { self.state.load(Ordering::SeqCst) }
+    fn set_value(&self, value: Self::Value) { self.state.store(value, Ordering::SeqCst) }
     fn animation_arc(&self) -> &Arc<Option<Animation>> { &self.animation }
     fn animation_arc_mut(&mut self) -> &mut Arc<Option<Animation>> { &mut self.animation }
 }
@@ -260,7 +260,7 @@ impl Display for Led {
             "LED (pin={}) [mode={}, state={}, default={}, brightness={}, animating={}]",
             self.pin,
             self.get_pin_info().map_or("unknown".to_string(), |p| format!("{:?}", p.mode.id)),
-            self.state.read(),
+            self.get_value(),
             self.default,
             self.brightness,
             self.is_busy()
@@ -286,7 +286,7 @@ mod tests {
     fn test_led_creation() {
         let led = _setup_led(13);
         assert_eq!(led.get_pin(), 13); // Ensure the correct pin is set
-        assert_eq!(*led.state.read(), 0); // Initial state should be 0 (OFF)
+        assert_eq!(led.get_value(), 0); // Initial state should be 0 (OFF)
         assert_eq!(led.brightness, 0xFF); // Default brightness should be 255
     }
 
@@ -294,7 +294,7 @@ mod tests {
     fn test_turn_on() {
         let mut led = _setup_led(13);
         assert!(led.turn_on().is_ok()); // Turn LED on
-        assert_eq!(*led.state.read(), 0xFF); // State should reflect the brightness (255)
+        assert_eq!(led.get_value(), 0xFF); // State should reflect the brightness (255)
     }
 
     #[test]
@@ -302,16 +302,16 @@ mod tests {
         let mut led = _setup_led(13);
         led.turn_on().unwrap(); // Turn LED on first
         assert!(led.turn_off().is_ok()); // Turn LED off
-        assert_eq!(*led.state.read(), 0); // State should be 0 (OFF)
+        assert_eq!(led.get_value(), 0); // State should be 0 (OFF)
     }
 
     #[test]
     fn test_toggle() {
         let mut led = _setup_led(13);
         assert!(led.toggle().is_ok()); // Toggle to ON
-        assert_eq!(*led.state.read(), 0xFF); // Should be ON (255)
+        assert_eq!(led.get_value(), 0xFF); // Should be ON (255)
         assert!(led.toggle().is_ok()); // Toggle to OFF
-        assert_eq!(*led.state.read(), 0); // Should be OFF (0)
+        assert_eq!(led.get_value(), 0); // Should be OFF (0)
     }
 
     #[test]
@@ -319,18 +319,18 @@ mod tests {
         let mut led = _setup_led(13);
 
         assert!(led.set_state(State::Boolean(true)).is_ok());
-        assert_eq!(*led.state.read(), 0xFF); // State should reflect the brightness (100% = 255)
+        assert_eq!(led.get_value(), 0xFF); // State should reflect the brightness (100% = 255)
         assert!(led.set_state(State::Boolean(false)).is_ok());
-        assert_eq!(*led.state.read(), 0x00); // Should be OFF (0)
+        assert_eq!(led.get_value(), 0x00); // Should be OFF (0)
 
         assert!(led.set_state(State::Integer(50)).is_ok());
-        assert_eq!(*led.state.read(), 50);
+        assert_eq!(led.get_value(), 50);
         assert!(led.set_state(State::Float(60.0)).is_ok());
-        assert_eq!(*led.state.read(), 60);
+        assert_eq!(led.get_value(), 60);
         assert!(led.set_state(State::Signed(70)).is_ok());
-        assert_eq!(*led.state.read(), 70);
+        assert_eq!(led.get_value(), 70);
         assert!(led.set_state(State::Signed(-70)).is_ok());
-        assert_eq!(*led.state.read(), 0);
+        assert_eq!(led.get_value(), 0);
 
         // Incorrect state type.
         assert!(led
@@ -357,25 +357,25 @@ mod tests {
         let led = led.set_brightness(0).unwrap();
         assert_eq!(led.get_brightness(), 0);
         assert_eq!(led.brightness, 0);
-        assert_eq!(*led.state.read(), 0);
+        assert_eq!(led.get_value(), 0);
 
         // Check brightness at 50%
         let led = led.set_brightness(50).unwrap();
         assert_eq!(led.get_brightness(), 50);
         assert_eq!(led.brightness, 512);
-        assert_eq!(*led.state.read(), 512);
+        assert_eq!(led.get_value(), 512);
 
         // Check brightness at 100%
         let led = led.set_brightness(100).unwrap();
         assert_eq!(led.get_brightness(), 100);
         assert_eq!(led.brightness, 1023);
-        assert_eq!(*led.state.read(), 1023);
+        assert_eq!(led.get_value(), 1023);
 
         // Check brightness at 120%
         let led = led.set_brightness(120).unwrap();
         assert_eq!(led.get_brightness(), 100);
         assert_eq!(led.brightness, 1023);
-        assert_eq!(*led.state.read(), 1023);
+        assert_eq!(led.get_value(), 1023);
     }
 
     #[test]
@@ -387,16 +387,16 @@ mod tests {
 
         assert_eq!(led.get_brightness(), 50); // Check the brightness is correctly set
         assert_eq!(led.brightness, 128); // 50% of 255
-        assert_eq!(*led.state.read(), 128); // State should reflect the brightness (50%)
+        assert_eq!(led.get_value(), 128); // State should reflect the brightness (50%)
 
         assert_eq!(led.get_brightness(), 50); // Check the brightness is correctly set
         assert_eq!(led.brightness, 128); // 50% of 255
-        assert_eq!(*led.state.read(), 128); // State should reflect the brightness (50%)
+        assert_eq!(led.get_value(), 128); // State should reflect the brightness (50%)
 
         assert!(led.set_state(State::Boolean(false)).is_ok());
-        assert_eq!(*led.state.read(), 0x00);
+        assert_eq!(led.get_value(), 0x00);
         assert!(led.set_state(State::Boolean(true)).is_ok());
-        assert_eq!(*led.state.read(), 128); // State should reflect the brightness (50%)
+        assert_eq!(led.get_value(), 128); // State should reflect the brightness (50%)
     }
 
     #[test]

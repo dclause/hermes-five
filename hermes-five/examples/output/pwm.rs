@@ -13,7 +13,7 @@ async fn main() {
         let mut output = PwmOutput::new(&board, 3, 0)?;
 
         // Changes the device to a specific value.
-        output.set_value(42)?;
+        output.set_pwm(42)?;
 
         // Wait for 5secs.
         pause!(5000);
