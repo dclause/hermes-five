@@ -12,12 +12,13 @@
 
 ### The Rust Robotics & IoT Framework
 
-<img align="right" height="200" style="height:200px" alt="Schema sample of blinking led using Arduino UNO" src="/docs/public/schemas/overall.png?raw=true" />
-
 **Drive and orchestrate Arduinos, ESPs, nodeMCU, RaspberryPis and all kind of [Firmata-compatible](https://github.com/firmata) hardware in pure async Rust.
 Control LEDs, sensors, motors from your laptop with the safety and speed of Rust.**
 
 _Program robots and embedded devices with confidence. Hermes-Five gives you high-level APIs to remotely control boards (Arduino, ESP, nodeMCU, RaspberryPI, ..), extenders (PCA9685, PCF8575, ..) LEDs, sensors, servos and more, all from safe and asynchronous Rust code. Think _Johnny-Five_, but safer, faster, and fully async._
+
+<img align="center" style="margin:20px 0;" alt="Schema sample of blinking led using Arduino UNO" src="/docs/public/schemas/overall.png?raw=true" />
+
 
 ## Documentation
 
