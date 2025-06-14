@@ -316,12 +316,6 @@ impl Input for Button {
     }
 }
 
-impl Drop for Button {
-    fn drop(&mut self) {
-        self.detach();
-    }
-}
-
 impl Display for Button {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(

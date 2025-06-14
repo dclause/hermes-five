@@ -89,7 +89,6 @@ pub mod sealed {
 /// This generates:
 /// - `impl Device for Led`
 /// - `impl OutputDevice for Led` with full serialization support
-/// - `impl Drop for Led` to drop any ongoing animation
 #[macro_export]
 macro_rules! generate_output_device_boilerplate {
     ($type:ty) => {
@@ -140,12 +139,6 @@ macro_rules! generate_output_device_boilerplate {
                     animation.stop();
                 }
                 *self.animation_arc_mut() = std::sync::Arc::new(None);
-            }
-        }
-
-        impl Drop for $type {
-            fn drop(&mut self) {
-                self.stop(); // Nettoie l'animation si elle est active
             }
         }
     };
