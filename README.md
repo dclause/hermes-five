@@ -6,7 +6,6 @@
 [![Docs Status](https://img.shields.io/docsrs/hermes-five?label=Doc)](https://docs.rs/hermes-five)
 [![Code Coverage](https://codecov.io/gh/dclause/hermes-five/branch/develop/graph/badge.svg?token=KF8EFDUQ7A)](https://codecov.io/gh/dclause/hermes-five/branch/develop)
 [![crates.io](https://img.shields.io/crates/v/hermes-five.svg)](https://crates.io/crates/hermes-five)
-
 [![Documentation](https://img.shields.io/badge/Documentation-available%20here-success)](https://dclause.github.io/hermes-five/)
 
 
@@ -31,9 +30,9 @@ Hermes-Five offers three main documentation sources:
 
 * **🧠 High-level abstractions:** Control LEDs, sensors, buttons, servos and all kind of devices. Write expressive, async Rust code to control them.
 * **🛜 Protocol-agnostic:** Serial, WiFi and Bluetooth supported (via Firmata).
-* **🧩 Modular design:** Plug-and-play support for boards and devices. Arduino today, ESP32, nodeMCU, Raspberry Pi, etc.
+* **🧩 Modular design:** Plug-and-play support for boards and devices. Arduino, ESP32, nodeMCU, Raspberry Pi, etc.
 * **🕹️ Animation engine:** Interpolate servo movements, LED fades and more with ease.
-* **🧪 Test-friendly:** Includes mock mode to run and test logic without hardware.
+* **🧪 Test-friendly:** Includes mocks to run and test logic without hardware.
 
 _🖱️ Prefer a GUI over code? Try [Hermes-Studio](https://github.com/dclause/hermes-studio) - a visual programming interface powered by Hermes-Five._
 
