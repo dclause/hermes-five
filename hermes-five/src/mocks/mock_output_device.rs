@@ -3,7 +3,6 @@ use std::sync::atomic::{AtomicU16, Ordering};
 use std::sync::{Arc};
 use parking_lot::RwLock;
 use crate::animations::Animation;
-use crate::devices::OutputDevice;
 use crate::errors::Error;
 use crate::generate_output_device_boilerplate;
 use crate::utils::State;

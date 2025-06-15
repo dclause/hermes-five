@@ -5,16 +5,16 @@
 use crate::io::{IoData, Pin, PinMode, PinModeId};
 use std::collections::HashMap;
 
-mod input_device;
-mod output_device;
-mod protocol;
-mod transport;
+mod mock_input_device;
+mod mock_output_device;
+mod mock_protocol;
+mod mock_transport;
 
 // re-export
-pub use input_device::*;
-pub use output_device::*;
-pub use protocol::*;
-pub use transport::*;
+pub use mock_input_device::*;
+pub use mock_output_device::*;
+pub use mock_protocol::*;
+pub use mock_transport::*;
 
 
 pub fn create_analog_pin(id: u8, value: u16) -> Pin {
