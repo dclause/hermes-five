@@ -130,7 +130,7 @@ impl Servo {
                 context: "create a new Servo device",
             })?;
         servo.protocol.servo_config(pin, pwm_range)?;
-        servo.to(servo.default)?;
+        servo.reset()?;
         servo.protocol.set_pin_mode(pin, PinModeId::SERVO)?;
         pause_sync!(100);
         Ok(servo)

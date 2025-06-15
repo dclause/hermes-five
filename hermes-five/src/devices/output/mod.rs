@@ -23,10 +23,7 @@ pub trait OutputDevice: Device + DynClone {
     /// Returns  the actuator default (or neutral) state.
     fn get_default(&self) -> State;
     /// Resets the actuator to default (or neutral) state.
-    fn reset(&mut self) -> Result<State, Error> {
-        self.stop();
-        self.set_state(self.get_default())
-    }
+    fn reset(&mut self) -> Result<State, Error>;
     /// Animates the output of the device. In other word: the state of the device will be animated from
     /// current step to targeted step through an interpolation of in-between states.
     /// The function will last for the required duration and the interpolation will follow an easing
@@ -47,7 +44,7 @@ pub trait OutputDevice: Device + DynClone {
 }
 dyn_clone::clone_trait_object!(OutputDevice);
 
-pub mod sealed {
+pub(crate) mod sealed {
     use crate::animations::Animation;
     use crate::devices::Device;
     use crate::errors::Error;
@@ -118,6 +115,14 @@ macro_rules! generate_output_device_boilerplate {
 
             fn get_default(&self) -> $crate::utils::State {
                 self.get_default_value().into()
+            }
+            
+            fn reset(&mut self) -> Result<State, Error> {
+                self.stop();
+                let value = self.parse_state(self.get_default())?;
+                self.apply_value(value)?;
+                self.set_value(value);
+                Ok(value.into())
             }
 
             fn animate<S: Into<$crate::utils::State>>(&mut self, state: S, duration: u64, transition: $crate::animations::Easing) {
