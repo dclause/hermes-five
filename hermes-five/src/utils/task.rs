@@ -70,17 +70,25 @@ impl TaskRegistration {
         let queue = task.take_value().unwrap();
 
         // Check for a panic.
-        if let Err(panic) = res {
-
-            queue.results.send(RuntimeError {
-                cause: "Task panicked".to_string(),
-            }).unwrap();
-
-            // Continue the panic.
-            std::panic::resume_unwind(panic);
-        };
-
-        Ok(())
+        match res {
+            Err(panic) => {
+                queue.results.send(RuntimeError {
+                    cause: "Task panicked".to_string(),
+                }).unwrap();
+                // Continue the panic.
+                std::panic::resume_unwind(panic);
+            }
+            Ok(res) => { 
+                // Check for an error.
+                match res.into() {
+                    GenericResult::Ok => Ok(()),
+                    GenericResult::Err(err) => {
+                        queue.results.send(err.clone()).unwrap();
+                        Err(err)
+                    }
+                }
+            }
+        }
     }
 
     /// Create a new task context, run a task inside it,
@@ -295,15 +303,14 @@ mod tests {
 
         // Error task.
         let task = task::run(async move {
-            Err(InternalError {
+            Err(Error::from(InternalError {
                 info: "wow error!".to_string(),
-            })
+            }))
         });
         assert!(task.is_ok(), "A task in error do not panic the runtime");
-        assert!(
-            task.unwrap().await.is_ok(),
-            "The runtime should catches the error"
-        );
+        let task_error_result = task.unwrap().await.unwrap();
+        assert!(task_error_result.is_err(),  "The runtime should catches the error");
+        assert_eq!(task_error_result.unwrap_err().to_string(),  "Internal error: wow error!.", "The runtime should catches the error");
 
         // Panicking task.
         let task = task::run(async move {

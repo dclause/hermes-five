@@ -6,7 +6,7 @@ use snafu::Snafu;
 pub use crate::errors::Error::*;
 use crate::io::{PinIdOrName, PinModeId};
 
-#[derive(Debug, PartialEq,  Snafu)]
+#[derive(Clone, Debug, PartialEq,  Snafu)]
 #[snafu(visibility(pub))]
 pub enum Error {
     /// Runtime error: {cause}.
@@ -55,7 +55,7 @@ impl From<Utf8Error> for Error {
     }
 }
 
-#[derive(Debug, PartialEq, Snafu)]
+#[derive(Clone, Debug, PartialEq, Snafu)]
 #[snafu(visibility(pub))]
 pub enum ProtocolError {
     /// {info}
@@ -72,7 +72,7 @@ pub enum ProtocolError {
     UnexpectedData,
 }
 
-#[derive(Debug, PartialEq, Snafu)]
+#[derive(Clone, Debug, PartialEq, Snafu)]
 #[snafu(visibility(pub))]
 pub enum HardwareError {
     /// Pin ({pin}) not compatible with mode ({mode}) - {context}
