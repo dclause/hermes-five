@@ -23,3 +23,4 @@ Cargo.lock
 **/tests/**/generated
 /**/wip
 /cobertura.xml
+/lcov.info
