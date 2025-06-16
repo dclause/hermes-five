@@ -11,10 +11,30 @@ use crate::io::{IoProtocol, Pin, PinMode, PinModeId};
 use crate::generate_output_device_boilerplate;
 use crate::utils::{Scalable, State};
 
-/// Represents a LED controlled by a digital pin.
-/// There are two kinds of pins that can be used:
-/// - OUTPUT: for digital on/off led
-/// - PWM: for more control on the LED brightness
+/// Represents a LED connected to a digital or PWM-capable pin.
+///
+/// This struct provides high-level control over an LED, abstracting both
+/// simple on/off digital control and variable brightness via PWM.
+///
+/// # Pin Compatibility
+/// - `PinMode::Output`: Supports binary on/off control.
+/// - `PinMode::Pwm`: Enables brightness control via analog-style output.
+///
+/// # Behavior
+/// - Automatically configures the pin during setup.
+/// - Internally stores LED state atomically for thread-safe updates.
+/// - Supports scaling, animation tracks, and optional sink mode (if configured).
+///
+/// # Errors
+/// Creating or operating on an LED may fail if:
+/// - The pin mode is incompatible (e.g., analog-only pin).
+/// - The hardware backend rejects pin configuration.
+/// - The LED is used in a state-inconsistent way.
+///
+/// # Features
+/// - (Optional) Serde serialization if `serde` feature is enabled.
+///
+/// Use `Led::new` or `Led::new_sink` for setup depending on circuit configuration.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
 pub struct Led {
@@ -27,6 +47,8 @@ pub struct Led {
     state: Arc<AtomicU16>,
     /// The LED default value (default: 0 - OFF).
     default: u16,
+    /// Activate led sink mode (ie cathode is plugged to the board)
+    is_sink: bool,
 
     // ########################################
     // # Settings
@@ -46,11 +68,18 @@ pub struct Led {
 }
 
 impl Led {
-    /// Creates an instance of a LED attached to a given board.
+
+    /// Creates a LED instance attached to the specified pin on the board using source mode.
+    ///
+    /// In source mode, the board pin is configured as an output that provides current (+5V) to the LED.
+    /// The LED anode (+) connects to the board pin through a current-limiting resistor,
+    /// and the cathode (-) connects to GND.
+    ///
+    /// To turn the LED on, the pin is driven HIGH (+5V).
     ///
     /// # Errors
-    /// * `UnknownPin`: this function will bail an error if the pin does not exist for this board.
-    /// * `IncompatibleMode`: this function will bail an error if the pin does not support OUTPUT or PWM mode.
+    /// - `UnknownPin`: returned if the specified pin does not exist on the board.
+    /// - `IncompatibleMode`: returned if the pin does not support OUTPUT or PWM mode.
     pub fn new(board: &dyn Hardware, pin: u8, default: bool) -> Result<Self, Error> {
         let mut protocol = board.get_protocol();
 
@@ -80,6 +109,7 @@ impl Led {
             pin,
             state: Arc::new(AtomicU16::new(default)),
             default,
+            is_sink: false,
             brightness: 0xFF,
             pwm_mode,
             protocol,
@@ -88,6 +118,23 @@ impl Led {
 
         led.reset()?;
 
+        Ok(led)
+    }
+
+    /// Creates a LED instance attached to the specified pin on the board using sink mode.
+    ///
+    /// In sink mode, the board pin is configured as an output that sinks current to GND.
+    /// The LED cathode (-) connects to +5V through a current-limiting resistor,
+    /// and the anode (+) connects to the board pin.
+    ///
+    /// To turn the LED on, the pin is driven LOW (GND).
+    ///
+    /// # Errors
+    /// - `UnknownPin`: returned if the specified pin does not exist on the board.
+    /// - `IncompatibleMode`: returned if the pin does not support OUTPUT or PWM mode.
+    pub fn new_sink(board: &dyn Hardware, pin: u8, default: bool) -> Result<Self, Error> {
+        let mut led = Led::new(board, pin, !default)?;
+        led.is_sink = true;
         Ok(led)
     }
 
@@ -172,13 +219,13 @@ impl Led {
         }
     }
 
-    /// Set the LED brightness (integer between 0-100) in percent of the max brightness. If a number
-    /// higher than 100 is used, the brightness is set to 100%.
-    /// If the requested brightness is 100%, the LED will reset to simple on/off (OUTPUT) mode.
+    /// Sets the LED brightness as an integer percentage from 0 to 100.
+    ///
+    /// Values above 100 are clamped to 100.
     ///
     /// # Errors
-    /// * `IncompatiblePin`: this function will bail an error if the LED pin does not support PWM.
-    pub fn set_brightness(mut self, brightness: u8) -> Result<Self, Error> {
+    /// * `IncompatiblePin`: returned if the LED pin does not support PWM.
+    pub fn set_brightness(&mut self, brightness: u8) -> Result<&Self, Error> {
         // Brightness can only be between 0 and 100%
         let brightness = brightness.clamp(0, 100) as u16;
 
@@ -218,8 +265,14 @@ generate_output_device_boilerplate!(Led);
 impl Output for Led {
     type Value = u16;
 
+    /// Converts the input `State` into a brightness value (u16).
+    /// For sink mode, the brightness is inverted by mapping [0..255] to [255..0]
+    /// using the `scale` function.
+    ///
+    /// # Errors
+    /// Returns `StateError` if the state variant is unsupported.
     fn parse_state(&self, state: State) -> Result<Self::Value, Error> {
-        match state {
+        let value = match state {
             State::Boolean(value) => match value {
                 true => Ok(self.brightness),
                 false => Ok(0),
@@ -228,9 +281,30 @@ impl Output for Led {
             State::Float(value) => Ok(value as u16),
             State::Signed(value) => Ok(value.max(0) as u16),
             _ => Err(StateError),
-        }
+        }?;
+        
+        // Reverse the value if sink mode.
+        let value = if self.is_sink {
+            value.scale(0, 0xFF, 0xFF, 0)
+        } else { value };
+
+        Ok(value)
     }
 
+    /// Applies the given value to the LED hardware pin according to its configured mode.
+    ///
+    /// This function checks the pin mode:
+    /// - If the pin mode is `OUTPUT`, it performs a digital write:
+    ///   the LED is turned ON if `value` > 0, OFF otherwise.
+    /// - If the pin mode is `PWM`, it performs an analog write with the provided `value`,
+    ///   controlling the LED brightness.
+    /// - If the pin mode is neither `OUTPUT` nor `PWM`, returns an `IncompatiblePin` error.
+    ///
+    /// # Parameters
+    /// * `value`: The brightness or ON/OFF state value to apply to the LED.
+    ///
+    /// # Errors
+    /// Returns `IncompatiblePin` if the pin mode does not support digital or PWM output.
     fn apply_value(&mut self, value: Self::Value) -> Result<(), Error> {
         match self.get_pin_info()?.mode.id {
             // on/off digital operation.
@@ -246,6 +320,7 @@ impl Output for Led {
     }
 
     // Expose the required fields
+
     fn get_default_value(&self) -> Self::Value {  self.default }
     fn get_value(&self) -> Self::Value { self.state.load(Ordering::SeqCst) }
     fn set_value(&self, value: Self::Value) { self.state.store(value, Ordering::SeqCst) }
@@ -344,6 +419,36 @@ mod tests {
     }
 
     #[test]
+    fn test_sink_set_state() {
+        let board = Board::new(MockProtocol::default()); // Assuming a mock Board implementation
+        let mut led = Led::new_sink(&board, 13, false).unwrap();
+
+        assert!(led.set_state(State::Boolean(true)).is_ok());
+        assert_eq!(led.get_value(), 0x00); // State should reflect the brightness (100% = 255)
+        assert!(led.set_state(State::Boolean(false)).is_ok());
+        assert_eq!(led.get_value(), 0xFF); // Should be OFF (0)
+
+        assert!(led.set_state(State::Integer(50)).is_ok());
+        assert_eq!(led.get_value(), 205);
+        assert!(led.set_state(State::Float(60.0)).is_ok());
+        assert_eq!(led.get_value(), 195);
+        assert!(led.set_state(State::Signed(70)).is_ok());
+        assert_eq!(led.get_value(), 185);
+        assert!(led.set_state(State::Signed(-70)).is_ok());
+        assert_eq!(led.get_value(), 0xFF);
+
+        // Incorrect state type.
+        assert!(led
+            .set_state(State::String(String::from("incorrect format")))
+            .is_err()); // Should return an error due to incompatible state
+        // Force an incompatible pin mode
+
+        // Incorrect pin type.
+        let _ = led.protocol.set_pin_mode(led.pin, PinModeId::UNSUPPORTED);
+        assert!(led.set_state(State::Boolean(true)).is_err()); // Should return an error due to incompatible pin mode.
+    }
+
+    #[test]
     fn test_brightness_calculation() {
         let mut led = _setup_led(8);
 
@@ -354,25 +459,25 @@ mod tests {
         });
 
         // Check brightness at 0%
-        let led = led.set_brightness(0).unwrap();
+        assert!(led.set_brightness(0).is_ok());
         assert_eq!(led.get_brightness(), 0);
         assert_eq!(led.brightness, 0);
         assert_eq!(led.get_value(), 0);
 
         // Check brightness at 50%
-        let led = led.set_brightness(50).unwrap();
+        assert!(led.set_brightness(50).is_ok());
         assert_eq!(led.get_brightness(), 50);
         assert_eq!(led.brightness, 512);
         assert_eq!(led.get_value(), 512);
 
         // Check brightness at 100%
-        let led = led.set_brightness(100).unwrap();
+        assert!(led.set_brightness(100).is_ok());
         assert_eq!(led.get_brightness(), 100);
         assert_eq!(led.brightness, 1023);
         assert_eq!(led.get_value(), 1023);
 
         // Check brightness at 120%
-        let led = led.set_brightness(120).unwrap();
+        assert!(led.set_brightness(120).is_ok());
         assert_eq!(led.get_brightness(), 100);
         assert_eq!(led.brightness, 1023);
         assert_eq!(led.get_value(), 1023);
@@ -380,14 +485,9 @@ mod tests {
 
     #[test]
     fn test_set_brightness_valid() {
-        let led = _setup_led(8);
+        let mut led = _setup_led(8);
         let result = led.set_brightness(50);
         assert!(result.is_ok()); // Set brightness to 50%
-        let mut led = result.unwrap();
-
-        assert_eq!(led.get_brightness(), 50); // Check the brightness is correctly set
-        assert_eq!(led.brightness, 128); // 50% of 255
-        assert_eq!(led.get_value(), 128); // State should reflect the brightness (50%)
 
         assert_eq!(led.get_brightness(), 50); // Check the brightness is correctly set
         assert_eq!(led.brightness, 128); // 50% of 255
@@ -401,7 +501,7 @@ mod tests {
 
     #[test]
     fn test_set_brightness_incompatible_mode() {
-        let led = _setup_led(13);
+        let mut led = _setup_led(13);
         assert_eq!(led.get_brightness(), 100);
         let result = led.set_brightness(50);
         assert!(result.is_err()); // Should return an error due to incompatible mode

@@ -9,9 +9,10 @@ async fn main() {
 
     board.on(BoardEvent::OnReady, |board: Board| async move {
         // Register a LED on pin 11.
-        let mut led = Led::new(&board, 11, false)?
-            // Lower brightness to 50%: this will now impose a PWM compatible pin.
-            .set_brightness(50)?;
+        let mut led = Led::new(&board, 11, false)?;
+
+        // Lower brightness to 50%: this will now impose a PWM compatible pin.
+        led.set_brightness(50)?;
 
         led.blink(500);
 

@@ -19,9 +19,6 @@ async fn main() {
         // Turn the LED off.
         led.turn_off()?;
 
-        // Disconnect the board since we finished with it.
-        board.close();
-
         Ok(())
     });
 }
