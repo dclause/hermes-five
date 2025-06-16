@@ -48,13 +48,13 @@ impl Serial {
     }
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 impl Default for Serial {
     /// Creates a new serial transport connection with the first available port or an empty string if no ports are available.
     ///
     /// # Notes
     /// The first available port will be used, None otherwise, which will probably lead to an error
     /// during the open phase.
-    #[cfg(not(tarpaulin_include))]
     fn default() -> Self {
         let ports = serialport::available_ports().unwrap_or_else(|_| vec![]);
         match ports.first() {
@@ -75,6 +75,7 @@ impl Display for Serial {
     }
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl IoTransport for Serial {
     fn open(&mut self) -> Result<(), Error> {
@@ -146,6 +147,12 @@ mod tests {
         };
         let custom_error: Error = serial_error.into();
         assert_eq!(custom_error.to_string(), "Protocol error: IO error.");
+    }
+
+    #[test]
+    fn test_new_serial_protocol() {
+        let protocol = Serial::new("/dev/ttyACM0");
+        assert_eq!(protocol.get_port(), "/dev/ttyACM0".to_string());
     }
 
     #[test]

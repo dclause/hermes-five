@@ -77,6 +77,11 @@
 //! - **serde** -- Enables serialize/deserialize capabilities for most entities.
 //! - **mock** -- Provides mocked entities of all kinds (useful for tests mostly).
 
+// Enable coverage() attr for nightly coverage builds, see
+// <https://github.com/rust-lang/rust/issues/84605>
+// (`coverage_nightly` is a cfg set by `cargo-llvm-cov`)
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
+
 #[cfg(test)]
 extern crate self as hermes_five;
 

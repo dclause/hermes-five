@@ -1,4 +1,4 @@
-#![cfg(not(tarpaulin_include))]
+#![cfg_attr(coverage_nightly, coverage(off))]
 
 //! Defines mock structure to test the implementations (requires `mock` feature flag).
 

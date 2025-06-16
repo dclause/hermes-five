@@ -65,7 +65,7 @@ impl<T: IoTransport + 'static> From<T> for RemoteIo {
 
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl IoProtocol for RemoteIo {
-    #[cfg(not(tarpaulin_include))]
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn open(&mut self) -> Result<(), Error> {
         self.data.write().connected = false;
         self.transport.open()?;
@@ -238,12 +238,12 @@ impl IO for RemoteIo {
         Ok(())
     }
 
-    #[cfg(not(tarpaulin_include))]
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn digital_read(&mut self, _: u8) -> Result<bool, Error> {
         unimplemented!()
     }
 
-    #[cfg(not(tarpaulin_include))]
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn analog_read(&mut self, _: u8) -> Result<u16, Error> {
         unimplemented!()
     }
@@ -289,8 +289,8 @@ impl IO for RemoteIo {
         let mut buf = vec![START_SYSEX, I2C_REQUEST, address, I2C_WRITE << 3];
 
         for &i in data.iter() {
-            buf.push(i as u8 & SYSEX_REALTIME);
-            buf.push((i >> 7) as u8 & SYSEX_REALTIME);
+            buf.push(i as u8 & SYSEX_REALTIME);           // bits 0-6
+            buf.push((i >> 7) as u8 & SYSEX_REALTIME);    // bits 7-13
         }
 
         buf.push(END_SYSEX);
