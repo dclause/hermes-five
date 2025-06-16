@@ -31,6 +31,6 @@ async fn main() {
     // All the following examples are equivalent:
     Board::new(RemoteIo::default());
     Board::new(RemoteIo::new("COM3")); // custom port
-    Board::new(RemoteIo::from(WiFi::new("COM3"))); // custom transport
+    Board::new(RemoteIo::from(WiFi::new("127.0.0.1:3030"))); // custom transport
     let _ = Board::from(Serial::default()); // RemoteIo + serial with default port.
 }

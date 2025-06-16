@@ -29,6 +29,7 @@ The available examples are:
 ## LED
 
 - **led/simple.rs:** Demonstrates how to turn on/off a simple led.
+- **led/sink.rs:** Demonstrates the usage of an LED in sink mode.
 - **led/brightness.rs:** Demonstrates how to use a simple led with control over its brightness (requires a pwm pin).
 - **led/blink.rs:** Demonstrates how to blink a simple led.
 - **led/pulse.rs:** Demonstrates how to pulse a simple led (requires a pwm pin).

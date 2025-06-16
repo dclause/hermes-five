@@ -69,7 +69,7 @@ name = "board_hardware"
 path = "examples/board/hardware.rs"
 
 # ########################################
-# Button examples
+# BUTTON examples
 
 [[example]]
 name = "button_simple"
@@ -89,6 +89,10 @@ path = "examples/button/inverted.rs"
 [[example]]
 name = "led_simple"
 path = "examples/led/simple.rs"
+
+[[example]]
+name = "led_sink"
+path = "examples/led/sink.rs"
 
 [[example]]
 name = "led_blink"
