@@ -48,7 +48,7 @@ impl From<AnimationEvent> for String {
 ///
 /// #[hermes_five::runtime]
 /// async fn main() {
-///     let board = Board::run();
+///     let board = Board::start().unwrap();
 ///     board.on(BoardEvent::OnReady, |board: Board| async move {
 ///         let servo = Servo::new(&board, 9, 0)?;
 ///
@@ -292,7 +292,7 @@ impl Animation {
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
-    ///     let board = Board::run();
+    ///     let board = Board::start().unwrap();
     ///     board.on(BoardEvent::OnReady, |board: Board| async move {
     ///         let mut led = Led::new(&board, 11, false)?;
     ///         // This is a dummy animation (does nothing).

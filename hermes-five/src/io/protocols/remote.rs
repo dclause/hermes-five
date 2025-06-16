@@ -240,12 +240,12 @@ impl IO for RemoteIo {
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn digital_read(&mut self, _: u8) -> Result<bool, Error> {
-        unimplemented!()
+        Err(Error::NotImplemented)
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn analog_read(&mut self, _: u8) -> Result<u16, Error> {
-        unimplemented!()
+        Err(Error::NotImplemented)
     }
 
     fn servo_config(&mut self, pin: u8, pwm_range: Range<u16>) -> Result<(), Error> {
@@ -312,7 +312,7 @@ impl RemoteIo {
     fn handshake(&mut self) -> Result<(), Error> {
         // self.set_connected(false);
 
-        // Forces a software reset: some board do not restart automatically when the connexion is opened.
+        // Forces a software reset: some board do not restart automatically when the connection is opened.
         // Therefore, running two different software in a raw may result to unexpected settings leftover,
         // for instance the report_analog and report_digital on some pins may continue otherwise.
         self.software_reset()?;

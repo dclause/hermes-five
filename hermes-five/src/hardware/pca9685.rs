@@ -185,7 +185,8 @@ impl Hardware for PCA9685 {
         Box::new(self.clone())
     }
 
-    #[cfg(not(tarpaulin_include))]
+    /// @todo remove this when hermes_studio finds a way around.
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn set_protocol(&mut self, protocol: Box<dyn IoProtocol>) {
         self.protocol = protocol;
     }
@@ -205,19 +206,17 @@ impl IoProtocol for PCA9685 {
         Ok(())
     }
 
-    #[cfg(not(tarpaulin_include))]
-    fn report_analog(&mut self, _: u8, _: bool) -> Result<(), Error> {
-        unimplemented!();
-    }
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn report_analog(&mut self, _: u8, _: bool) -> Result<(), Error> { Err(Error::NotImplemented) }
 
-    #[cfg(not(tarpaulin_include))]
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn report_digital(&mut self, _: u8, _: bool) -> Result<(), Error> {
-        unimplemented!()
+        Err(Error::NotImplemented)
     }
 
-    #[cfg(not(tarpaulin_include))]
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn sampling_interval(&mut self, _: u16) -> Result<(), Error> {
-        unimplemented!()
+        Err(Error::NotImplemented)
     }
 }
 
@@ -269,7 +268,7 @@ impl IO for PCA9685 {
     }
 
     fn digital_write(&mut self, pin: u8, level: bool) -> Result<(), Error> {
-        let value = if level { 255 } else { 0 };
+        let value = if level { 0xFF } else { 0x00 };
         self.analog_write(pin, value)
     }
 
@@ -292,8 +291,8 @@ impl IO for PCA9685 {
                 let level = level.clamp(0, 255);
                 match level {
                     0 => (0, 4096),
-                    255 => (4096, 0),
-                    level => (0, level.scale(0, 255, 0, 4095)),
+                    0xFF => (4096, 0),
+                    level => (0, level.scale(0, 0xFF, 0, 4095)),
                 }
             }
         };
@@ -312,14 +311,14 @@ impl IO for PCA9685 {
         self.protocol.i2c_write(self.address, payload)
     }
 
-    #[cfg(not(tarpaulin_include))]
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn digital_read(&mut self, _: u8) -> Result<bool, Error> {
-        unimplemented!()
+        Err(Error::NotImplemented)
     }
 
-    #[cfg(not(tarpaulin_include))]
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn analog_read(&mut self, _: u8) -> Result<u16, Error> {
-        unimplemented!()
+        Err(Error::NotImplemented)
     }
 
     fn servo_config(&mut self, pin: u8, pwm_range: Range<u16>) -> Result<(), Error> {
@@ -344,8 +343,9 @@ impl Display for PCA9685 {
         let data = self.data.read();
         write!(
             f,
-            "{} [firmware={}, version={}, protocol={}, transport=I2C]",
+            "{} [address=0x{:02X}, firmware={}, version={}, protocol={}, transport=I2C]",
             self.get_name(),
+            self.address,
             data.firmware_name,
             data.firmware_version,
             data.protocol_version,
@@ -519,7 +519,7 @@ mod tests {
 
         assert!(pca9685.analog_write(0, 255).is_ok());
         let value = pca9685.data.read().get_pin(0).unwrap().value;
-        assert_eq!(value, 255);
+        assert_eq!(value, 0xFF);
 
         pca9685.data.write().get_pin_mut(1).unwrap().mode.id = PinModeId::SERVO;
         assert!(pca9685.servo_config(1, Range::from([300, 600])).is_ok());
@@ -567,7 +567,7 @@ mod tests {
 
         assert_eq!(
             format!("{}", pca9685),
-            "PCA9685 [firmware=PCA9685, version=n/a, protocol=PCA9685, transport=I2C]"
+            "PCA9685 [address=0x40, firmware=PCA9685, version=n/a, protocol=PCA9685, transport=I2C]"
         );
     }
 
@@ -577,7 +577,7 @@ mod tests {
         let pca9685 = PCA9685::new(&board, 0x41).unwrap();
         assert_eq!(
             pca9685.get_protocol().to_string(),
-            "PCA9685 [firmware=PCA9685, version=n/a, protocol=PCA9685, transport=I2C]"
+            "PCA9685 [address=0x41, firmware=PCA9685, version=n/a, protocol=PCA9685, transport=I2C]"
         );
         assert_eq!(pca9685.get_io().read().firmware_name, "PCA9685");
         assert!(pca9685.is_connected());

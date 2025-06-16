@@ -11,21 +11,10 @@ use std::sync::Arc;
 /// Lists all events a Board can emit/listen.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum BoardEvent {
-    /// Triggered when the board connexion is established and the handshake has been made.
+    /// Triggered when the board connection is established and the handshake has been made.
     OnReady,
-    /// Triggered when the board connexion is closed (gracefully).
+    /// Triggered when the board connection is closed (gracefully).
     OnClose,
-}
-
-/// Convert events to string to facilitate usage with [`EventManager`].
-impl From<BoardEvent> for String {
-    fn from(value: BoardEvent) -> Self {
-        let event = match value {
-            BoardEvent::OnReady => "ready",
-            BoardEvent::OnClose => "close",
-        };
-        event.into()
-    }
 }
 
 /// Represents a physical board (Arduino most-likely) where your [`Device`] can be attached and controlled through this API.
@@ -44,9 +33,10 @@ impl Default for Board {
     /// Default implementation for a board.
     ///
     /// This method creates a board using the default [`RemoteIo`] protocol with [`Serial`](crate::io::Serial) transport layer.
-    /// The port will be auto-detected as the first available serial port matching a board.
+    /// The port is auto-detected as the first available serial port matching a board.
     ///
-    /// **_/!\ The board will NOT be connected until the [`Board::open`] method is called._**
+    /// # Warning
+    /// **_The board will NOT be connected until the [`Board::connect`] method is called._**
     ///
     /// # Example
     ///
@@ -57,9 +47,9 @@ impl Default for Board {
     /// #[hermes_five::runtime]
     /// async fn main() {
     ///     // Following lines are all equivalent:
-    ///     let board = Board::run();
-    ///     let board = Board::default().open();
-    ///     let board = Board::new(RemoteIo::default()).open();
+    ///     let board = Board::start().unwrap();
+    ///     let board = Board::default().connect().unwrap();
+    ///     let board = Board::new(RemoteIo::default()).connect().unwrap();
     /// }
     /// ```
     fn default() -> Self {
@@ -77,10 +67,10 @@ impl Default for Board {
 ///
 /// #[hermes_five::runtime]
 /// async fn main() {
-///     let board = Board::from(Serial::new("/dev/ttyUSB0")).open();
+///     let board = Board::from(Serial::new("/dev/ttyUSB0")).connect().unwrap();
 /// }
 /// ```
-impl<T: IoTransport> From<T> for Board {
+impl<T: IoTransport + 'static> From<T> for Board {
     fn from(transport: T) -> Self {
         Self {
             events: EventManager::default(),
@@ -103,13 +93,13 @@ impl Board {
     /// #[hermes_five::runtime]
     /// async fn main() {
     ///     // Following lines are all equivalent:
-    ///     let board = Board::run();
-    ///     let board = Board::default().open();
-    ///     let board = Board::new(RemoteIo::default()).open();
+    ///     let board = Board::start().unwrap();
+    ///     let board = Board::default().connect().unwrap();
+    ///     let board = Board::new(RemoteIo::default()).connect().unwrap();
     /// }
     /// ```
-    pub fn run() -> Self {
-        Self::default().open()
+    pub fn start() -> Result<Self, Error> {
+        Self::default().connect()
     }
 
     /// Creates a board using a given protocol.
@@ -121,7 +111,7 @@ impl Board {
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
-    ///     let board = Board::new(RemoteIo::new("COM4")).open();
+    ///     let board = Board::new(RemoteIo::new("COM4")).connect().unwrap();
     /// }
     /// ```
     pub fn new<P: IoProtocol + 'static>(protocol: P) -> Self {
@@ -131,9 +121,10 @@ impl Board {
         }
     }
 
-    /// Starts a board connexion procedure (using the appropriate configured protocol) in an asynchronous way.
-    /// _Note 1:    you probably might not want to call this method yourself and use [`Self::run()`] instead._
-    /// _Note 2:    after this method, you cannot consider the board to be connected until you receive the "ready" event._
+    /// Starts a board connection procedure (using the appropriate configured protocol) in an asynchronous way.
+    ///
+    /// # Warning
+    /// After this method, you cannot consider the board to be connected until you receive the "ready" event._
     ///
     /// # Example
     ///
@@ -146,9 +137,9 @@ impl Board {
     /// #[hermes_five::runtime]
     /// async fn main() {
     ///
-    /// let board = Board::run();
+    ///     let board = Board::start().unwrap();
     ///     // Is equivalent to:
-    ///     let mut board = Board::default().open();
+    ///     let mut board = Board::default().connect().unwrap();
     ///
     ///     // Register something to do when the board is connected.
     ///     board.on(BoardEvent::OnReady, |_: Board| async move {
@@ -157,20 +148,19 @@ impl Board {
     ///     // code here will be executed right away, before the board is actually connected.
     /// }
     /// ```
-    pub fn open(self) -> Self {
+    pub fn connect(self) -> Result<Self, Error> {
         let callback_board = self.clone();
 
         task::run(async move {
             let board = callback_board.blocking_open()?;
             board.events.emit(BoardEvent::OnReady, board.clone());
             Ok(())
-        })
-        .expect("Task failed");
+        })?;
 
-        self
+        Ok(self)
     }
 
-    /// Close a board connexion (using the appropriate configured protocol) in an asynchronous way.
+    /// Close a board connection (using the appropriate configured protocol) in an asynchronous way.
     /// _Note:    after this method, you cannot consider the board to be connected until you receive the "close" event._
     ///
     /// # Example
@@ -184,36 +174,35 @@ impl Board {
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
-    ///     let board = Board::run();
+    ///     let board = Board::start().unwrap();
     ///     board.on(BoardEvent::OnReady, |mut board: Board| async move {
     ///         // Something to do when connected.
     ///         pause!(3000);
-    ///         board.close();
+    ///         board.disconnect().unwrap();
     ///     });
     ///     board.on(BoardEvent::OnClose, |_: Board| async move {
     ///         // Something to do when connection closes.
     ///     });
     /// }
     /// ```
-    pub fn close(self) -> Self {
+    pub fn disconnect(self) -> Result<Self, Error> {
         let callback_board = self.clone();
         task::run(async move {
             let board = callback_board.blocking_close()?;
             board.events.emit(BoardEvent::OnClose, board.clone());
             Ok(())
-        })
-        .expect("Task failed");
-        self
+        })?;
+        Ok(self)
     }
 
-    /// Blocking version of [`Self::open()`] method.
+    /// Blocking version of [`Self::connect()`] method.
     pub fn blocking_open(mut self) -> Result<Self, Error> {
         self.protocol.open()?;
         // trace!"Board is ready: {:#?}", self.get_io());
         Ok(self)
     }
 
-    /// Blocking version of [`Self::close()`] method.
+    /// Blocking version of [`Self::disconnect()`] method.
     pub fn blocking_close(mut self) -> Result<Self, Error> {
         // Detach all pins.
         let pins: Vec<u8> = self.get_io().read().pins.keys().copied().collect();
@@ -221,16 +210,16 @@ impl Board {
             let _ = self.set_pin_mode(id, PinModeId::OUTPUT);
         }
         self.protocol.close()?;
-        // trace!"Board is closed");
+        // trace!("Board is closed");
         Ok(self)
     }
 
     /// Registers a callback to be executed on a given event.
     ///
     /// Available events for a board are defined by the enum: [`BoardEvent`]:
-    /// - **`OnRead` | `ready`:** Triggered when the board is connected and ready to run.
+    /// - **`OnRead`:** Triggered when the board is connected and ready to run.
     ///    _The callback must receive the following parameter: `|_: Board| { ... }`_
-    /// - **`OnClose` | `close`:** Triggered when the board is disconnected.
+    /// - **`OnClose`:** Triggered when the board is disconnected.
     ///    _The callback must receive the following parameter: `|_: Board| { ... }`_
     ///
     /// # Example
@@ -240,7 +229,7 @@ impl Board {
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
-    ///     let board = Board::run();
+    ///     let board = Board::start().unwrap();
     ///     board.on(BoardEvent::OnReady, |_: Board| async move {
     ///         // Here, you know the board to be connected and ready to receive data.
     ///     });
@@ -250,7 +239,7 @@ impl Board {
     where
         F: Fn(Board) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = R> + Send + 'static,
-        R: Into<GenericResult>
+        R: Into<GenericResult>,
     {
         self.events.on(event, handler);
     }
@@ -261,6 +250,8 @@ impl Hardware for Board {
         self.protocol.clone()
     }
 
+    /// @todo remove this when hermes_studio finds a way around.
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn set_protocol(&mut self, protocol: Box<dyn IoProtocol>) {
         self.protocol = protocol;
     }
@@ -279,7 +270,7 @@ impl IO for Board {
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
-    ///     let board = Board::run();
+    ///     let board = Board::start().unwrap();
     ///     board.on(BoardEvent::OnReady, |mut board: Board| async move {
     ///         println!("Board connected: {}", board);
     ///         println!("Pins {:#?}", board.get_io().read().pins);
@@ -306,11 +297,11 @@ impl IO for Board {
     }
 
     fn digital_read(&mut self, _: u8) -> Result<bool, Error> {
-        unimplemented!()
+        Err(Error::NotImplemented)
     }
 
     fn analog_read(&mut self, _: u8) -> Result<u16, Error> {
-        unimplemented!()
+        Err(Error::NotImplemented)
     }
 
     fn servo_config(&mut self, pin: u8, pwm_range: Range<u16>) -> Result<(), Error> {
@@ -393,7 +384,7 @@ mod tests {
 
         let flag = Arc::new(AtomicBool::new(false));
         let moved_flag = flag.clone();
-        let board = Board::new(RemoteIo::from(transport)).open();
+        let board = Board::new(RemoteIo::from(transport)).connect().unwrap();
         board.on(BoardEvent::OnReady, move |board: Board| {
             let captured_flag = moved_flag.clone();
             async move {
@@ -430,7 +421,8 @@ mod tests {
         let flag = Arc::new(AtomicBool::new(false));
         let moved_flag = flag.clone();
 
-        let board = Board::new(MockProtocol::default()).open().close();
+        let board = Board::new(MockProtocol::default()).connect().unwrap();
+        let board = board.disconnect().unwrap();
 
         board.on(BoardEvent::OnClose, move |board: Board| {
             let captured_flag = moved_flag.clone();
@@ -446,10 +438,10 @@ mod tests {
     }
 
     #[hermes_five_macros::test]
-    fn test_board_run() {
-        let board = Board::run();
+    fn test_board_start() {
+        let board = Board::start().unwrap();
         assert_eq!(board.get_protocol_name(), "RemoteIo");
-        board.close();
+        board.disconnect().unwrap();
     }
 
     #[test]

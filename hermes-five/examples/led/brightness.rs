@@ -5,7 +5,7 @@ use hermes_five::hardware::{Board, BoardEvent};
 
 #[hermes_five::runtime]
 async fn main() {
-    let board = Board::run();
+    let board = Board::start().unwrap();
 
     board.on(BoardEvent::OnReady, |board: Board| async move {
         // Register a LED on pin 11.

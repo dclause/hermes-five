@@ -54,7 +54,7 @@
 //!
 //!     // Register a new board.
 //!     // (of type arduino + auto-detected serial port by default)
-//!     let board = Board::run();
+//!     let board = Board::start().unwrap();
 //!
 //!     // When board communication is ready:
 //!     board.on(BoardEvent::OnReady, |board: Board| async move {
@@ -84,7 +84,6 @@
 
 #[cfg(test)]
 extern crate self as hermes_five;
-
 pub extern crate tokio;
 
 pub mod animations;

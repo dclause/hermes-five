@@ -18,12 +18,12 @@ use hermes_five::hardware::{Board, BoardEvent};
 async fn main() {
     // This line creates a new board using the default configuration.
     // For more advanced scenarios, consult the 'examples/board/creation.rs' example.
-    // Note: this line is equivalent to: `Board::default().open()`
-    let board = Board::run();
+    // Note: this line is equivalent to: `Board::default().connect().unwrap()`
+    let board = Board::start().unwrap();
 
     board.on(BoardEvent::OnReady, |board: Board| async move {
         println!("Connection done on board.");
-        board.close();
+        board.disconnect().unwrap();
     });
 
     board.on(BoardEvent::OnClose, |_: Board| async move {

@@ -269,7 +269,7 @@ impl Button {
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
-    ///     let board = Board::run();
+    ///     let board = Board::start().unwrap();
     ///     board.on(BoardEvent::OnReady, |board: Board| async move {
     ///
     ///         // Register a Button on pin 2.
@@ -287,7 +287,7 @@ impl Button {
     ///         // It means the program will run forever listening to the InputEvent,
     ///         // until we detach the device and close the board.
     ///         button.detach();
-    ///         board.close();
+    ///         board.disconnect().unwrap();
     ///
     ///         Ok(())
     ///     });
@@ -351,7 +351,7 @@ mod tests {
         assert!(!button.is_pullup());
 
         button.detach();
-        board.close();
+        board.disconnect().unwrap();
     }
 
     #[hermes_five_macros::test]
@@ -367,7 +367,7 @@ mod tests {
         assert!(!button.is_pullup());
 
         button.detach();
-        board.close();
+        board.disconnect().unwrap();
     }
 
     #[hermes_five_macros::test]
@@ -383,7 +383,7 @@ mod tests {
         assert!(button.is_pullup());
 
         button.detach();
-        board.close();
+        board.disconnect().unwrap();
     }
 
     #[hermes_five_macros::test]
@@ -399,7 +399,7 @@ mod tests {
         assert!(button.is_pullup());
 
         button.detach();
-        board.close();
+        board.disconnect().unwrap();
     }
 
     #[hermes_five_macros::test]
@@ -424,7 +424,7 @@ mod tests {
         assert!(button.handler.read().is_some());
         button.detach();
         assert!(button.handler.read().is_none());
-        board.close();
+        board.disconnect().unwrap();
     }
 
     #[hermes_five_macros::test]
@@ -437,7 +437,7 @@ mod tests {
         assert_eq!(button.get_state().as_bool(), false);
 
         button.detach();
-        board.close();
+        board.disconnect().unwrap();
     }
 
     #[hermes_five_macros::test]
@@ -509,7 +509,7 @@ mod tests {
         assert!(released_flag.load(Ordering::SeqCst));
 
         button.detach();
-        board.close();
+        board.disconnect().unwrap();
     }
 
     #[hermes_five_macros::test]
@@ -583,7 +583,7 @@ mod tests {
         assert!(released_flag.load(Ordering::SeqCst));
 
         button.detach();
-        board.close();
+        board.disconnect().unwrap();
     }
 
     #[hermes_five_macros::test]
@@ -597,6 +597,6 @@ mod tests {
         );
 
         button.detach();
-        board.close();
+        board.disconnect().unwrap();
     }
 }

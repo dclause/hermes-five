@@ -7,7 +7,7 @@ use hermes_five::pause;
 
 #[hermes_five::runtime]
 async fn main() {
-    let board = Board::run();
+    let board = Board::start().unwrap();
 
     board.on(BoardEvent::OnReady, |board: Board| async move {
         // Register a Servo on pin 9.

@@ -5,18 +5,17 @@
 //! can use various [`IoTransport`] underneath (serial, bluetooth, wifi, etc.).
 
 use hermes_five::hardware::{Board, BoardEvent};
-use hermes_five::io::{RemoteIo, WiFi};
 use hermes_five::io::Serial;
+use hermes_five::io::{RemoteIo, WiFi};
 
 #[hermes_five::runtime]
 async fn main() {
-
     // The easiest way to register a board is the `Board::run()` method which both instantiates a Board with all default
     // protocol and transport (firmata+serial) but also immediately opens the communication.
-    let board = Board::run();
+    let board = Board::start().expect("You forgot the runtime annotation");
 
     // The equivalent would be:
-    // Board::default().open();
+    // Board::default().connect().unwrap();
 
     // Beware: the program will stop here since no work as been registered through the `BoardEvent::OnReady` event.
     // Find more about this in the 'examples/board/creation.rs' example.

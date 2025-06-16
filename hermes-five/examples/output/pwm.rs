@@ -6,7 +6,7 @@ use hermes_five::pause;
 
 #[hermes_five::runtime]
 async fn main() {
-    let board = Board::run();
+    let board = Board::start().unwrap();
 
     board.on(BoardEvent::OnReady, |board: Board| async move {
         // This is a generic analog device on pin 3.
@@ -22,7 +22,7 @@ async fn main() {
         output.set_percentage(50)?;
 
         // Disconnect the board since we finished with it.
-        board.close();
+        board.disconnect().unwrap();
 
         Ok(())
     });

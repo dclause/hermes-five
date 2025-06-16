@@ -134,7 +134,7 @@ impl AnalogInput {
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
-    ///     let board = Board::run();
+    ///     let board = Board::start().unwrap();
     ///     board.on(BoardEvent::OnReady, |board: Board| async move {
     ///
     ///         // Register a Sensor on pin 14 (A0).
@@ -151,7 +151,7 @@ impl AnalogInput {
     ///         // It means the program will run forever listening to the InputEvent,
     ///         // until we detach the device and close the board.
     ///         potentiometer.detach();
-    ///         board.close();
+    ///         board.disconnect().unwrap();
     ///
     ///         Ok(())
     ///     });
@@ -214,7 +214,7 @@ mod tests {
         assert_eq!(sensor.get_state().as_integer(), 222);
 
         sensor.detach();
-        board.close();
+        board.disconnect().unwrap();
     }
 
     #[hermes_five_macros::test]
@@ -228,7 +228,7 @@ mod tests {
         );
 
         sensor.detach();
-        board.close();
+        board.disconnect().unwrap();
     }
 
     #[hermes_five_macros::test]

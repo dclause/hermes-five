@@ -6,7 +6,7 @@ use hermes_five::pause;
 
 #[hermes_five::runtime]
 async fn main() {
-    let board = Board::run();
+    let board = Board::start().unwrap();
 
     board.on(BoardEvent::OnReady, |board: Board| async move {
         // This is a generic ON/OFF device on pin 13.
@@ -22,7 +22,7 @@ async fn main() {
         output.turn_off()?;
 
         // Disconnect the board since we finished with it.
-        board.close();
+        board.disconnect().unwrap();
 
         Ok(())
     });
