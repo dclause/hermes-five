@@ -52,7 +52,6 @@ pub trait IoProtocol: IO + DynClone + Send + Sync + Debug + Display {
     fn sampling_interval(&mut self, interval: u16) -> Result<(), Error>;
 }
 
-#[cfg(not(tarpaulin_include))]
 impl Default for Box<dyn IoProtocol> {
     fn default() -> Self {
         Box::new(RemoteIo::default())

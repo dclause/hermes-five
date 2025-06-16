@@ -1,45 +1,44 @@
 name: Coverage
 
 on:
-  push:
-    branches: [ "develop" ]
-  pull_request:
-    branches: [ "develop" ]
+  schedule:
+    - cron: '0 0 * * 0'  # each Sunday at 00:00 UTC
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   coverage:
-
-    name: ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     permissions:
       contents: read
 
-    strategy:
-      matrix:
-        os: [ ubuntu-latest ]
-
     steps:
-      - name: Build | install dependencies
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install libudev-dev
-
-      - name: Install tarpaulin
-        run: cargo install cargo-tarpaulin
-
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Generate code coverage
-        run: cargo tarpaulin --follow-exec --all-features --packages hermes-five hermes-five-macros-internals --out Xml --verbose
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libudev-dev
+
+      - name: Setup Rust with llvm-tools-preview
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          components: llvm-tools-preview
+
+      - name: Install cargo-llvm-cov
+        run: cargo install cargo-llvm-cov
+
+      - name: Run coverage with llvm-cov
+        run: cargo llvm-cov --all-features --package hermes-five --package hermes-five-macros-internals --lcov --output-path lcov.info --verbose
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v3
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
+          files: ./lcov.info
           fail_ci_if_error: true

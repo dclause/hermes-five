@@ -19,7 +19,7 @@ pub struct WiFi {
     stream: Arc<Mutex<Option<TcpStream>>>,
 }
 
-#[cfg(not(tarpaulin_include))]
+#[cfg_attr(coverage_nightly, coverage(off))]
 impl WiFi {
     /// Constructs a new `WiFi` transport layer instance for communication through the specified IP:port.
     ///
@@ -86,14 +86,14 @@ impl IoTransport for WiFi {
         Ok(())
     }
 
-    #[cfg(not(tarpaulin_include))]
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn write(&mut self, buf: &[u8]) -> Result<(), Error> {
         let mut lock = self.stream.lock();
         lock.as_mut().ok_or(NotInitialized)?.write_all(buf)?;
         Ok(())
     }
 
-    #[cfg(not(tarpaulin_include))]
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), Error> {
         let mut lock = self.stream.lock();
         lock.as_mut().ok_or(NotInitialized)?.read_exact(buf)?;

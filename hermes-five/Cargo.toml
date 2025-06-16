@@ -40,7 +40,7 @@ serial_test = "3.2.0"
 version-sync = "0.9.5"
 
 [lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin_include)'] }
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage_nightly)'] }
 
 # ########################################
 # ANIMATION examples

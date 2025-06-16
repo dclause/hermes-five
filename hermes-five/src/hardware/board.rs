@@ -261,14 +261,13 @@ impl Hardware for Board {
         self.protocol.clone()
     }
 
-    #[cfg(not(tarpaulin_include))]
     fn set_protocol(&mut self, protocol: Box<dyn IoProtocol>) {
         self.protocol = protocol;
     }
 }
 
 // Note: no need to test cover: those are simple pass through only.
-#[cfg(not(tarpaulin_include))]
+#[cfg_attr(coverage_nightly, coverage(off))]
 impl IO for Board {
     /// Easy access to hardware through the board.
     ///
@@ -306,12 +305,10 @@ impl IO for Board {
         self.protocol.analog_write(pin, level)
     }
 
-    #[cfg(not(tarpaulin_include))]
     fn digital_read(&mut self, _: u8) -> Result<bool, Error> {
         unimplemented!()
     }
 
-    #[cfg(not(tarpaulin_include))]
     fn analog_read(&mut self, _: u8) -> Result<u16, Error> {
         unimplemented!()
     }
