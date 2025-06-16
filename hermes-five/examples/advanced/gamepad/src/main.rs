@@ -32,10 +32,11 @@ const LED_DELAY_ACCELERATION: f32 = 100.0;                   // ms/s²
 
 #[hermes_five::runtime]
 async fn main() {
+
     // Initiate a board on auto-detected port.
     // Don't forget to flash it first with
     // https://github.com/firmata/arduino/blob/main/examples/StandardFirmataPlus/StandardFirmataPlus.ino
-    let board = Board::run();
+    let board = Board::start().unwrap();
     board.on(BoardEvent::OnReady, |board: Board| async move {
 
         // Init gamepad.

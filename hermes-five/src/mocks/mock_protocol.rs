@@ -104,11 +104,11 @@ impl IO for MockProtocol {
     }
 
     fn digital_read(&mut self, _: u8) -> Result<bool, Error> {
-        unimplemented!()
+        Err(Error::NotImplemented)
     }
 
     fn analog_read(&mut self, _: u8) -> Result<u16, Error> {
-        unimplemented!()
+        Err(Error::NotImplemented)
     }
 
     fn servo_config(&mut self, _: u8, _: Range<u16>) -> Result<(), Error> {

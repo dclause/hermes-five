@@ -26,7 +26,7 @@ use crate::utils::{Range, State};
 /// #[hermes_five::runtime]
 /// async fn main() {
 ///     // Defines a board (using serial port on COM4).
-///     let board = Board::new(RemoteIo::new("COM4")).open();
+///     let board = Board::new(RemoteIo::new("COM4")).connect().unwrap();
 ///     // Defines a servo attached to the board on PIN 9 (default servo position is 90°).
 ///     let servo = Servo::new(&board, 9, 90).unwrap();
 ///     // Creates a track for the servo.

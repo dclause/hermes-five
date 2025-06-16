@@ -1,21 +1,20 @@
-/// This example shows how to use the `RemoteIo` protocol with the `WiFi` transport layer.
-///
-/// /!\ Your board needs to use properly configured schema:
-///`https://github.com/firmata/arduino/blob/main/examples/StandardFirmataWiFi/StandardFirmataWiFi.ino`
+//! This example shows how to use the `RemoteIo` protocol with the `WiFi` transport layer.
+//!
+//! # Warning
+//! Your board must run the proper Firmata WiFi sketch:
+//! https://github.com/firmata/arduino/blob/main/examples/StandardFirmataWiFi/StandardFirmataWiFi.ino
 
 use hermes_five::devices::Led;
 use hermes_five::hardware::{Board, BoardEvent};
-use hermes_five::io::{RemoteIo, WiFi};
-
+use hermes_five::io::WiFi;
 
 #[hermes_five::runtime]
 async fn main() {
-
     // Initialize a TCP connection with the given IP board.
-    let _board = Board::from(WiFi::new("127.0.0.1:3030")).open();
+    let board = Board::from(WiFi::new("127.0.0.1:3030")).connect().unwrap();
 
-    // Equivalent with full syntax:
-    let board = Board::new(RemoteIo::from(WiFi::new("127.0.0.1:3030"))).open();
+    // Note: Equivalent with full syntax:
+    // let board = Board::new(RemoteIo::from(WiFi::new("127.0.0.1:3030"))).connect().unwrap();
 
     board.on(BoardEvent::OnReady, |board: Board| async move {
         let mut led = Led::new(&board, 2, false)?;

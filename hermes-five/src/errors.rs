@@ -9,6 +9,8 @@ use crate::io::{PinIdOrName, PinModeId};
 #[derive(Clone, Debug, PartialEq,  Snafu)]
 #[snafu(visibility(pub))]
 pub enum Error {
+    /// Not Implemented.
+    NotImplemented,
     /// Runtime error: {cause}.
     RuntimeError { cause: String },
     /// State error: incompatible type provided.

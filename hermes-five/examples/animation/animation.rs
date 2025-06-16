@@ -6,7 +6,7 @@ use hermes_five::pause;
 #[hermes_five::runtime]
 async fn main() {
     // Default board: uses SerialProtocol communication via the first available port.
-    let board = Board::run();
+    let board = Board::start().unwrap();
 
     board.on(BoardEvent::OnReady, |board: Board| async move {
         let servo = Servo::new(&board, 22, 0)?;

@@ -136,13 +136,13 @@ impl DigitalInput {
     ///
     /// # Example
     ///
-    /// ```
+    ///```
     /// use hermes_five::devices::{DigitalInput, InputEvent};
     /// use hermes_five::hardware::{Board, BoardEvent};
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
-    ///     let board = Board::run();
+    ///     let board = Board::start().unwrap();
     ///     board.on(BoardEvent::OnReady, |board: Board| async move {
     ///
     ///         // Register a sensor on pin 7.
@@ -159,7 +159,7 @@ impl DigitalInput {
     ///         // It means the program will run forever listening to the InputEvent,
     ///         // until we detach the device and close the board.
     ///         sensor.detach();
-    ///         board.close();
+    ///         board.disconnect().unwrap();
     ///
     ///         Ok(())
     ///     });
@@ -220,7 +220,7 @@ mod tests {
         assert!(sensor.get_state().as_bool());
 
         sensor.detach();
-        board.close();
+        board.disconnect().unwrap();
     }
 
     #[hermes_five_macros::test]
@@ -234,7 +234,7 @@ mod tests {
         );
 
         sensor.detach();
-        board.close();
+        board.disconnect().unwrap();
     }
 
     #[hermes_five_macros::test]
@@ -306,6 +306,6 @@ mod tests {
         assert!(low_flag.load(Ordering::SeqCst));
 
         button.detach();
-        board.close();
+        board.disconnect().unwrap();
     }
 }

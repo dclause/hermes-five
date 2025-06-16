@@ -32,7 +32,7 @@ impl WiFi {
     /// #[hermes_five::runtime]
     /// async fn main() {
     ///     let protocol = RemoteIo::from(WiFi::new("192.168.1.186:3030"));
-    ///     let board = Board::new(protocol).open();
+    ///     let board = Board::new(protocol).connect().unwrap();
     /// }
     /// ```
     pub fn new<P: Into<String>>(address: P) -> Self {
@@ -66,16 +66,16 @@ impl Display for WiFi {
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl IoTransport for WiFi {
     fn open(&mut self) -> Result<(), Error> {
-
         // Resolve to SocketAddr
-        let addr = self.address
+        let addr = self
+            .address
             .to_socket_addrs()?
             .next()
             .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::Other, "Invalid address"))?;
 
         let stream = TcpStream::connect_timeout(&addr, Duration::from_secs(10))?;
 
-        // Save the IO (required by handshake). 
+        // Save the IO (required by handshake).
         self.stream = Arc::new(Mutex::new(Some(stream)));
 
         Ok(())

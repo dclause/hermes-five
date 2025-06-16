@@ -6,7 +6,7 @@ use hermes_five::hardware::{Board, BoardEvent};
 
 #[hermes_five::runtime]
 async fn main() {
-    let board = Board::run();
+    let board = Board::start().unwrap();
 
     board.on(BoardEvent::OnReady, |board: Board| async move {
         let button_inverted = Button::new_inverted_pulldown(&board, 2)?;

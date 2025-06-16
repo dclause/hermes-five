@@ -1,24 +1,24 @@
-/// This example shows how to use the `RemoteIo` protocol with the `Serial` transport layer.
-///
-/// /!\ Your board needs to use properly configured schema:
-///`https://github.com/firmata/arduino/blob/main/examples/StandardFirmata/StandardFirmata.ino`
+//! This example shows how to use the `RemoteIo` protocol with the `Serial` transport layer.
+//!
+//! /!\ Your board needs to use properly configured schema:
+//!`https://github.com/firmata/arduino/blob/main/examples/StandardFirmata/StandardFirmata.ino`
 
 use hermes_five::devices::Led;
 use hermes_five::hardware::{Board, BoardEvent};
 use hermes_five::io::{RemoteIo, Serial};
 
-
 #[hermes_five::runtime]
 async fn main() {
-
     // Initialize a serial connection with auto-detected port.
-    let _board = Board::from(Serial::default()).open();
+    let _board = Board::from(Serial::default()).connect().unwrap();
 
     // Initialize a serial connection with custom port.
-    let _board = Board::from(Serial::new("/dev/ttyUSB0")).open();
+    let _board = Board::from(Serial::new("/dev/ttyUSB0")).connect().unwrap();
 
     // Equivalent with full syntax:
-    let board = Board::new(RemoteIo::from(Serial::new("/dev/ttyUSB0"))).open();
+    let board = Board::new(RemoteIo::from(Serial::new("/dev/ttyUSB0")))
+        .connect()
+        .unwrap();
 
     board.on(BoardEvent::OnReady, |board: Board| async move {
         let mut led = Led::new(&board, 13, false)?;

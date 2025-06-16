@@ -1,11 +1,11 @@
 mod remote;
 
-use std::any::type_name;
-use std::fmt::{Debug, Display};
-use dyn_clone::DynClone;
-pub use remote::RemoteIo;
 use crate::errors::Error;
 use crate::io::IO;
+use dyn_clone::DynClone;
+pub use remote::RemoteIo;
+use std::any::type_name;
+use std::fmt::{Debug, Display};
 
 // Makes a Box<dyn IoPlugin> clone (used for Board cloning).
 dyn_clone::clone_trait_object!(IoProtocol);

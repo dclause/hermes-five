@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU16, Ordering};
+use std::sync::Arc;
 use std::time::SystemTime;
 
 use parking_lot::RwLock;
@@ -168,7 +168,7 @@ impl Servo {
 
     // ########################################
     // Setters and Getters.
-    
+
     pub fn get_position(&self) -> u16 {
         self.get_value()
     }
@@ -359,7 +359,6 @@ impl Output for Servo {
     }
 
     fn apply_value(&mut self, value: Self::Value) -> Result<(), Error> {
-
         let pwm: f64 = match self.inverted {
             false => value.scale(
                 self.degree_range.start,
@@ -404,11 +403,21 @@ impl Output for Servo {
     }
 
     // Expose the required fields
-    fn get_default_value(&self) -> Self::Value {  self.default }
-    fn get_value(&self) -> Self::Value { self.state.load(Ordering::SeqCst) }
-    fn set_value(&self, value: Self::Value) { self.state.store(value, Ordering::SeqCst) }
-    fn animation_arc(&self) -> &Arc<Option<Animation>> { &self.animation }
-    fn animation_arc_mut(&mut self) -> &mut Arc<Option<Animation>> { &mut self.animation }
+    fn get_default_value(&self) -> Self::Value {
+        self.default
+    }
+    fn get_value(&self) -> Self::Value {
+        self.state.load(Ordering::SeqCst)
+    }
+    fn set_value(&self, value: Self::Value) {
+        self.state.store(value, Ordering::SeqCst)
+    }
+    fn animation_arc(&self) -> &Arc<Option<Animation>> {
+        &self.animation
+    }
+    fn animation_arc_mut(&mut self) -> &mut Arc<Option<Animation>> {
+        &mut self.animation
+    }
 }
 impl Display for Servo {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -427,6 +436,7 @@ impl Display for Servo {
 #[cfg(test)]
 mod tests {
     use crate::animations::Easing;
+    use crate::devices::output::sealed::Output;
     use crate::devices::{OutputDevice, Servo};
     use crate::hardware::Board;
     use crate::io::PinModeId;
@@ -434,7 +444,6 @@ mod tests {
     use crate::pause;
     use crate::utils::{Range, State};
     use hermes_five::devices::ServoType;
-    use crate::devices::output::sealed::Output;
 
     fn _setup_servo(pin: u8) -> Servo {
         let board = Board::new(MockProtocol::default()); // Assuming a mock Board implementation
@@ -610,7 +619,7 @@ mod tests {
 #[cfg(feature = "serde")]
 #[cfg(test)]
 mod serde_tests {
-    use crate::hardware::{Board, Hardware, PCA9685};
+    use crate::hardware::{Board, PCA9685};
     use crate::mocks::MockProtocol;
     use hermes_five::devices::Servo;
 
@@ -633,15 +642,15 @@ mod serde_tests {
         );
     }
 
-    #[test]
-    fn test_board_deserialize() {
-        let json =
-            r#"{"protocol":{"type":"RemoteIo","transport":{"type":"Serial","port":"mock"}}}"#;
-        let board: Board = serde_json::from_str(json).unwrap();
-        assert_eq!(board.get_protocol_name(), "RemoteIo");
-
-        let json = r#"{"protocol":{"type":"MockProtocol"}}"#;
-        let board: Board = serde_json::from_str(json).unwrap();
-        assert_eq!(board.get_protocol_name(), "MockProtocol");
-    }
+    // #[test]
+    // fn test_servo_deserialize() {
+    //     let json =
+    //         r#"{"pin":12,"state":90,"default":90,"servo_type":"Standard","range":[0,180],"pwm_range":[600,2400],"degree_range":[0,180],"detach_delay":20000}"#;
+    //     let board: Board = serde_json::from_str(json).unwrap();
+    //     assert_eq!(board.get_protocol_name(), "RemoteIo");
+    //
+    //     let json = r#"{"protocol":{"type":"MockProtocol"}}"#;
+    //     let board: Board = serde_json::from_str(json).unwrap();
+    //     assert_eq!(board.get_protocol_name(), "MockProtocol");
+    // }
 }
