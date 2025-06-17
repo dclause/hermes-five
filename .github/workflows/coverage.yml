@@ -31,6 +31,7 @@ jobs:
         with:
           toolchain: nightly
           components: llvm-tools-preview
+          default: true
 
       - name: Install cargo-llvm-cov
         run: cargo install cargo-llvm-cov
