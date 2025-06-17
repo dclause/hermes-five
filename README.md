@@ -8,37 +8,43 @@
 [![crates.io](https://img.shields.io/crates/v/hermes-five.svg)](https://crates.io/crates/hermes-five)
 [![Documentation](https://img.shields.io/badge/Documentation-available%20here-success)](https://dclause.github.io/hermes-five/)
 
-
 ### The Rust Robotics & IoT Framework
 
-**Drive and orchestrate Arduinos, ESPs, nodeMCU, RaspberryPis and all kind of [Firmata-compatible](https://github.com/firmata) hardware in pure async Rust.
+**Drive and orchestrate Arduinos, ESPs, nodeMCU, RaspberryPis and all kind
+of [Firmata-compatible](https://github.com/firmata) hardware in pure async Rust.
 Control LEDs, sensors, motors from your laptop with the safety and speed of Rust.**
 
-_Program robots and embedded devices with confidence. Hermes-Five gives you high-level APIs to remotely control boards (Arduino, ESP, nodeMCU, RaspberryPI, ..), extenders (PCA9685, PCF8575, ..) LEDs, sensors, servos and more, all from safe and asynchronous Rust code. Think _Johnny-Five_, but safer, faster, and fully async._
+_Program robots and embedded devices with confidence. Hermes-Five gives you high-level APIs to remotely control boards (
+Arduino, ESP, nodeMCU, RaspberryPI, ..), extenders (PCA9685, PCF8575, ..) LEDs, sensors, servos and more, all from safe
+and asynchronous Rust code. Think _Johnny-Five_, but safer, faster, and fully async._
 
 <img align="center" style="margin:20px 0;" alt="Schema sample of blinking led using Arduino UNO" src="/docs/public/schemas/overall.png?raw=true" />
-
 
 ## Documentation
 
 Hermes-Five offers three main documentation sources:
+
 - The [user documentation](https://dclause.github.io/hermes-five) for tutorials and concepts.
 - The [API documentation](https://docs.rs/hermes-five/latest) for developer reference.
 - The [examples](https://github.com/dclause/hermes-five/tree/develop/hermes-five/examples) directory to learn by doing.
 
 ## Key Features
 
-* **🧠 High-level abstractions:** Control LEDs, sensors, buttons, servos and all kind of devices. Write expressive, async Rust code to control them.
+* **🧠 High-level abstractions:** Control LEDs, sensors, buttons, servos and all kind of devices. Write expressive, async
+  Rust code to control them.
 * **🛜 Protocol-agnostic:** Serial, WiFi and Bluetooth supported (via Firmata).
 * **🧩 Modular design:** Plug-and-play support for boards and devices. Arduino, ESP32, nodeMCU, Raspberry Pi, etc.
 * **🕹️ Animation engine:** Interpolate servo movements, LED fades and more with ease.
 * **🧪 Test-friendly:** Includes mocks to run and test logic without hardware.
 
-_🖱️ Prefer a GUI over code? Try [Hermes-Studio](https://github.com/dclause/hermes-studio) - a visual programming interface powered by Hermes-Five._
+_🖱️ Prefer a GUI over code? Try [Hermes-Studio](https://github.com/dclause/hermes-studio) - a visual programming
+interface powered by Hermes-Five._
 
 ## Getting started
 
-- Flash the compatible [Firmata Protocol client](https://github.com/firmata/arduino/blob/main/examples/StandardFirmataPlus/StandardFirmataPlus.ino) via Arduino IDE on your board.
+- Flash the
+  compatible [Firmata Protocol client](https://github.com/firmata/arduino/blob/main/examples/StandardFirmataPlus/StandardFirmataPlus.ino)
+  via Arduino IDE on your board.
 - Create a new Rust project:
 
 ```shell
@@ -53,7 +59,8 @@ cd my_awesome_project
 hermes-five = "0.1.0"
 ```
 
--  Modify your `src/main.rs` as needed (see [examples](https://github.com/dclause/hermes-five/tree/develop/hermes-five/examples) for inspiration).
+- Modify your `src/main.rs` as needed (
+  see [examples](https://github.com/dclause/hermes-five/tree/develop/hermes-five/examples) for inspiration).
 - Start by exploring the [examples](https://github.com/dclause/hermes-five/tree/develop/hermes-five/examples) code,
   the [user documentation](https://dclause.github.io/hermes-five)
 - or the [API documentation](https://docs.rs/hermes-five/latest)
@@ -67,7 +74,9 @@ hermes-five = "0.1.0"
 
 ### Hello Hermes!
 
-The following example shows the simplest possible program: from your computer, command a serially connected Arduino to blink its built-in LED on pin 13.
+The following example shows the simplest possible program: from your computer, command a serially connected Arduino to
+blink its built-in LED on pin 13.
+
 ```rust
 use hermes_five::hardware::{Board, BoardEvent};
 use hermes_five::devices::Led;
@@ -75,9 +84,9 @@ use hermes_five::devices::Led;
 #[hermes_five::runtime]
 async fn main() {
 
-    // Register a new board.
+    // Register a new board 
     // (of type arduino + auto-detected serial port by default)
-    let board = Board::run();
+    let board = Board::start().unwrap();
 
     // When board communication is ready:
     board.on(BoardEvent::OnReady, |board: Board| async move {
