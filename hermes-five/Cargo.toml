@@ -20,7 +20,7 @@ serde = ["dep:serde", "dep:serde_json", "dep:typetag"]
 mocks = []
 
 [dependencies]
-hermes-five-macros = { path = "../hermes-five-macros", version="0.1.0" }
+hermes-five-macros = { path = "../hermes-five-macros", version = "0.1.0" }
 dyn-clone = "1.0.19"
 futures = "0.3.31"
 log = "0.4.26"
@@ -150,6 +150,13 @@ path = "examples/servo/animate.rs"
 [[example]]
 name = "servo_p9685"
 path = "examples/servo/pca9685.rs"
+
+# ########################################
+# EXPANDERS examples
+
+[[example]]
+name = "expanders_pcf8575"
+path = "examples/expanders/pcf8575.rs"
 
 # ########################################
 # IO examples

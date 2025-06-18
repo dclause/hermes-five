@@ -2,11 +2,13 @@
 
 mod board;
 mod pca9685;
+mod pcf8575;
 
 use crate::io::{IoProtocol, IO};
 pub use board::Board;
 pub use board::BoardEvent;
 pub use pca9685::PCA9685;
+pub use pcf8575::PCF8575;
 
 /// You most likely don't need this function (outside this crate).
 pub trait Hardware: IO {
