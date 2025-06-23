@@ -3,8 +3,6 @@ use std::sync::atomic::{AtomicU16, Ordering};
 use std::sync::Arc;
 use std::time::SystemTime;
 
-use parking_lot::RwLock;
-
 use crate::animations::{Animation, Keyframe, Segment, Track};
 use crate::devices::OutputDevice;
 use crate::errors::HardwareError::IncompatiblePin;
@@ -12,7 +10,9 @@ use crate::errors::{Error, StateError};
 use crate::hardware::Hardware;
 use crate::io::{IoProtocol, Pin, PinModeId};
 use crate::utils::{task, Range, Scalable, State};
-use crate::{generate_output_device_boilerplate, pause, pause_sync};
+use crate::{pause, pause_sync};
+use hermes_five_macros::output_device;
+use parking_lot::RwLock;
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
@@ -23,6 +23,7 @@ pub enum ServoType {
 }
 
 /// Represents a Servo controlled by a PWM pin.
+#[output_device(u16)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
 pub struct Servo {
@@ -33,8 +34,6 @@ pub struct Servo {
     /// The current Servo state.
     #[cfg_attr(feature = "serde", serde(with = "crate::utils::arc_atomic_serde"))]
     state: Arc<AtomicU16>,
-    /// The LED default value (default: ON).
-    default: u16,
 
     // ########################################
     // # Settings
@@ -72,9 +71,6 @@ pub struct Servo {
     // # Volatile utility data.
     #[cfg_attr(feature = "serde", serde(skip))]
     protocol: Box<dyn IoProtocol>,
-    /// Inner handler to the task running the animation.
-    #[cfg_attr(feature = "serde", serde(skip))]
-    animation: Arc<Option<Animation>>,
     #[cfg_attr(feature = "serde", serde(skip))]
     last_move: Arc<RwLock<Option<SystemTime>>>,
 }
@@ -332,13 +328,9 @@ impl Servo {
         self.detach_delay = detach_delay;
         self
     }
-}
 
-generate_output_device_boilerplate!(Servo);
-impl Output for Servo {
-    type Value = u16;
-
-    fn parse_state(&self, state: State) -> Result<Self::Value, Error> {
+    #[inline(always)]
+    fn parse_state(&self, state: State) -> Result<u16, Error> {
         let value = match state {
             State::Integer(value) => Ok(value as u16),
             State::Signed(value) => match value >= 0 {
@@ -358,7 +350,8 @@ impl Output for Servo {
         Ok(value)
     }
 
-    fn apply_value(&mut self, value: Self::Value) -> Result<(), Error> {
+    #[inline(always)]
+    fn apply_value(&mut self, value: u16) -> Result<(), Error> {
         let pwm = match self.inverted {
             false => value.scale(
                 self.degree_range.start,
@@ -402,21 +395,14 @@ impl Output for Servo {
         Ok(())
     }
 
-    // Expose the required fields
-    fn get_default_value(&self) -> Self::Value {
-        self.default
+    #[inline(always)]
+    fn get_value(&self) -> u16 {
+        self.state.load(Ordering::Relaxed)
     }
-    fn get_value(&self) -> Self::Value {
-        self.state.load(Ordering::SeqCst)
-    }
-    fn set_value(&self, value: Self::Value) {
+
+    #[inline(always)]
+    fn set_value(&self, value: u16) {
         self.state.store(value, Ordering::SeqCst)
-    }
-    fn animation_arc(&self) -> &Arc<Option<Animation>> {
-        &self.animation
-    }
-    fn animation_arc_mut(&mut self) -> &mut Arc<Option<Animation>> {
-        &mut self.animation
     }
 }
 impl Display for Servo {
@@ -436,7 +422,6 @@ impl Display for Servo {
 #[cfg(test)]
 mod tests {
     use crate::animations::Easing;
-    use crate::devices::output::sealed::Output;
     use crate::devices::{OutputDevice, Servo};
     use crate::hardware::Board;
     use crate::io::PinModeId;

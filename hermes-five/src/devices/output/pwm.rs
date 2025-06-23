@@ -1,19 +1,17 @@
-use std::fmt::{Display, Formatter};
-use std::sync::Arc;
-use std::sync::atomic::{AtomicU16, Ordering};
-
-use crate::animations::Animation;
-use crate::devices::output::sealed;
 use crate::devices::OutputDevice;
 use crate::errors::HardwareError::IncompatiblePin;
 use crate::errors::{Error, StateError};
 use crate::hardware::Hardware;
 use crate::io::{IoProtocol, Pin, PinIdOrName, PinModeId};
-use crate::generate_output_device_boilerplate;
 use crate::utils::State;
+use hermes_five_macros::output_device;
+use std::fmt::{Display, Formatter};
+use std::sync::atomic::{AtomicU16, Ordering};
+use std::sync::Arc;
 
 /// Represents an analog actuator of unspecified type: an [`OutputDevice`] that write analog values from a PWM compatible pin.
 /// <https://docs.arduino.cc/language-reference/en/functions/analog-io/analogWrite/>
+#[output_device(u16)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
 pub struct PwmOutput {
@@ -24,8 +22,6 @@ pub struct PwmOutput {
     /// The current output state.
     #[cfg_attr(feature = "serde", serde(with = "crate::utils::arc_atomic_serde"))]
     state: Arc<AtomicU16>,
-    /// The output default value (default: 0).
-    default: u16,
 
     // ########################################
     // # Volatile utility data.
@@ -35,9 +31,6 @@ pub struct PwmOutput {
     /// The protocol used by the board to communicate with the device.
     #[cfg_attr(feature = "serde", serde(skip))]
     protocol: Box<dyn IoProtocol>,
-    /// Inner handler to the task running the animation.
-    #[cfg_attr(feature = "serde", serde(skip))]
-    animation: Arc<Option<Animation>>,
 }
 
 impl PwmOutput {
@@ -117,14 +110,10 @@ impl PwmOutput {
         let value = self.get_pwm();
         ((value as f32 * 100.0) / self.max_value as f32).round() as u8
     }
-}
 
-generate_output_device_boilerplate!(PwmOutput);
-impl sealed::Output for PwmOutput {
-    type Value = u16;
-
-    fn parse_state(&self, state: State) -> Result<Self::Value, Error> {
-       match state {
+    #[inline(always)]
+    fn parse_state(&self, state: State) -> Result<u16, Error> {
+        match state {
             State::Integer(value) => Ok(value as u16),
             State::Signed(value) => match value >= 0 {
                 true => Ok(value as u16),
@@ -138,7 +127,8 @@ impl sealed::Output for PwmOutput {
         }
     }
 
-    fn apply_value(&mut self, value: Self::Value) -> Result<(), Error> {
+    #[inline(always)]
+    fn apply_value(&mut self, value: u16) -> Result<(), Error> {
         match self.get_pin_info()?.mode.id {
             PinModeId::PWM => self.protocol.analog_write(self.pin, value),
             id => Err(Error::from(IncompatiblePin {
@@ -148,12 +138,13 @@ impl sealed::Output for PwmOutput {
             })),
         }
     }
-
-    fn get_default_value(&self) -> Self::Value {  self.default }
-    fn get_value(&self) -> Self::Value { self.state.load(Ordering::SeqCst) }
-    fn set_value(&self, value: Self::Value) { self.state.store(value, Ordering::SeqCst) }
-    fn animation_arc(&self) -> &Arc<Option<Animation>> { &self.animation }
-    fn animation_arc_mut(&mut self) -> &mut Arc<Option<Animation>> { &mut self.animation }
+    #[inline(always)]
+    fn get_value(&self) -> u16 {
+        self.state.load(Ordering::Relaxed)
+    }
+    fn set_value(&self, value: u16) {
+        self.state.store(value, Ordering::Relaxed)
+    }
 }
 
 impl Display for PwmOutput {

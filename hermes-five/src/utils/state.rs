@@ -107,7 +107,7 @@ impl From<serde_json::Value> for State {
 
 #[cfg(feature = "serde")]
 impl State {
-    pub fn into_state<T: serde::Serialize>(value: T) -> State {
+    pub fn from<T: serde::Serialize>(value: T) -> State {
         serde_json::to_value(value).unwrap().into()
     }
 }
@@ -757,9 +757,9 @@ mod tests {
         }
 
         #[test]
-        fn test_into_state() {
+        fn test_from() {
             let input = "hello world";
-            let state = State::into_state(input);
+            let state = State::from(input);
             assert_eq!(state.as_string(), String::from("hello world"));
         }
     }

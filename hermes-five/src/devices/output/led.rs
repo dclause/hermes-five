@@ -1,15 +1,14 @@
-use std::fmt::{Display, Formatter};
-use std::sync::Arc;
-use std::sync::atomic::{AtomicU16, Ordering};
-
 use crate::animations::{Animation, Keyframe, Segment, Track};
 use crate::devices::OutputDevice;
 use crate::errors::HardwareError::IncompatiblePin;
 use crate::errors::{Error, StateError};
 use crate::hardware::Hardware;
 use crate::io::{IoProtocol, Pin, PinMode, PinModeId};
-use crate::generate_output_device_boilerplate;
 use crate::utils::{Scalable, State};
+use hermes_five_macros::output_device;
+use std::fmt::{Display, Formatter};
+use std::sync::atomic::{AtomicU16, Ordering};
+use std::sync::Arc;
 
 /// Represents a LED connected to a digital or PWM-capable pin.
 ///
@@ -35,6 +34,7 @@ use crate::utils::{Scalable, State};
 /// - (Optional) Serde serialization if `serde` feature is enabled.
 ///
 /// Use `Led::new` or `Led::new_sink` for setup depending on circuit configuration.
+#[output_device(u16)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
 pub struct Led {
@@ -45,8 +45,6 @@ pub struct Led {
     /// The current LED state.
     #[cfg_attr(feature = "serde", serde(with = "crate::utils::arc_atomic_serde"))]
     state: Arc<AtomicU16>,
-    /// The LED default value (default: 0 - OFF).
-    default: u16,
     /// Activate led sink mode (ie cathode is plugged to the board)
     is_sink: bool,
 
@@ -62,13 +60,9 @@ pub struct Led {
     pwm_mode: Option<PinMode>,
     #[cfg_attr(feature = "serde", serde(skip))]
     protocol: Box<dyn IoProtocol>,
-    /// Inner handler to the task running the animation.
-    #[cfg_attr(feature = "serde", serde(skip))]
-    animation: Arc<Option<Animation>>,
 }
 
 impl Led {
-
     /// Creates a LED instance attached to the specified pin on the board using source mode.
     ///
     /// In source mode, the board pin is configured as an output that provides current (+5V) to the LED.
@@ -259,11 +253,6 @@ impl Led {
     pub fn is_off(&self) -> bool {
         self.get_value().eq(&0)
     }
-}
-
-generate_output_device_boilerplate!(Led);
-impl Output for Led {
-    type Value = u16;
 
     /// Converts the input `State` into a brightness value (u16).
     /// For sink mode, the brightness is inverted by mapping [0..255] to [255..0]
@@ -271,7 +260,8 @@ impl Output for Led {
     ///
     /// # Errors
     /// Returns `StateError` if the state variant is unsupported.
-    fn parse_state(&self, state: State) -> Result<Self::Value, Error> {
+    #[inline(always)]
+    fn parse_state(&self, state: State) -> Result<u16, Error> {
         let value = match state {
             State::Boolean(value) => match value {
                 true => Ok(self.brightness),
@@ -282,11 +272,13 @@ impl Output for Led {
             State::Signed(value) => Ok(value.max(0) as u16),
             _ => Err(StateError),
         }?;
-        
+
         // Reverse the value if sink mode.
         let value = if self.is_sink {
             value.scale(0, 0xFF, 0xFF, 0)
-        } else { value };
+        } else {
+            value
+        };
 
         Ok(value)
     }
@@ -305,7 +297,8 @@ impl Output for Led {
     ///
     /// # Errors
     /// Returns `IncompatiblePin` if the pin mode does not support digital or PWM output.
-    fn apply_value(&mut self, value: Self::Value) -> Result<(), Error> {
+    #[inline(always)]
+    fn apply_value(&mut self, value: u16) -> Result<(), Error> {
         match self.get_pin_info()?.mode.id {
             // on/off digital operation.
             PinModeId::OUTPUT => self.protocol.digital_write(self.pin, value > 0),
@@ -319,13 +312,14 @@ impl Output for Led {
         }
     }
 
-    // Expose the required fields
-
-    fn get_default_value(&self) -> Self::Value {  self.default }
-    fn get_value(&self) -> Self::Value { self.state.load(Ordering::SeqCst) }
-    fn set_value(&self, value: Self::Value) { self.state.store(value, Ordering::SeqCst) }
-    fn animation_arc(&self) -> &Arc<Option<Animation>> { &self.animation }
-    fn animation_arc_mut(&mut self) -> &mut Arc<Option<Animation>> { &mut self.animation }
+    #[inline(always)]
+    fn get_value(&self) -> u16 {
+        self.state.load(Ordering::Relaxed)
+    }
+    #[inline(always)]
+    fn set_value(&self, value: u16) {
+        self.state.store(value, Ordering::SeqCst)
+    }
 }
 
 impl Display for Led {
@@ -334,7 +328,8 @@ impl Display for Led {
             f,
             "LED (pin={}) [mode={}, state={}, default={}, brightness={}, animating={}]",
             self.pin,
-            self.get_pin_info().map_or("unknown".to_string(), |p| format!("{:?}", p.mode.id)),
+            self.get_pin_info()
+                .map_or("unknown".to_string(), |p| format!("{:?}", p.mode.id)),
             self.get_value(),
             self.default,
             self.brightness,
@@ -441,7 +436,7 @@ mod tests {
         assert!(led
             .set_state(State::String(String::from("incorrect format")))
             .is_err()); // Should return an error due to incompatible state
-        // Force an incompatible pin mode
+                        // Force an incompatible pin mode
 
         // Incorrect pin type.
         let _ = led.protocol.set_pin_mode(led.pin, PinModeId::UNSUPPORTED);
@@ -574,11 +569,17 @@ mod tests {
     fn test_display_impl() {
         let mut led = _setup_led(13);
         let display_str = format!("{}", led);
-        assert_eq!(display_str, "LED (pin=13) [mode=OUTPUT, state=0, default=0, brightness=255, animating=false]");
+        assert_eq!(
+            display_str,
+            "LED (pin=13) [mode=OUTPUT, state=0, default=0, brightness=255, animating=false]"
+        );
 
         led.blink(200);
         let display_str = format!("{}", led);
-        assert_eq!(display_str, "LED (pin=13) [mode=OUTPUT, state=0, default=0, brightness=255, animating=true]");
+        assert_eq!(
+            display_str,
+            "LED (pin=13) [mode=OUTPUT, state=0, default=0, brightness=255, animating=true]"
+        );
 
         led.stop();
     }

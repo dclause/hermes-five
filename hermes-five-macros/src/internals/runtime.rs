@@ -56,9 +56,8 @@ pub fn runtime_macro(item: TokenStream, tokio: TokioMode) -> TokenStream {
 
 #[cfg(test)]
 mod tests {
+    use crate::internals::runtime::{runtime_macro, TokioMode};
     use quote::quote;
-
-    use crate::internals::{runtime_macro, TokioMode};
 
     #[test]
     fn test_runtime_macro_result() {
