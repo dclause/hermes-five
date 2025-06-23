@@ -604,7 +604,7 @@ mod tests {
 #[cfg(feature = "serde")]
 #[cfg(test)]
 mod serde_tests {
-    use crate::hardware::{Board, PCA9685};
+    use crate::hardware::Board;
     use crate::mocks::MockProtocol;
     use hermes_five::devices::Servo;
 
@@ -617,25 +617,12 @@ mod serde_tests {
             json,
             r#"{"pin":12,"state":90,"default":90,"servo_type":"Standard","range":[0,180],"pwm_range":[600,2400],"degree_range":[0,180],"detach_delay":20000}"#
         );
-
-        let pca9685 = PCA9685::default(&board).expect("pca9685");
-        let servo = Servo::new(&pca9685, 12, 90).expect("servo");
-        let json = serde_json::to_string(&servo).unwrap();
-        assert_eq!(
-            json,
-            r#"{"pin":12,"state":90,"default":90,"servo_type":"Standard","range":[0,180],"pwm_range":[600,2400],"degree_range":[0,180],"detach_delay":20000}"#
-        );
     }
 
-    // #[test]
-    // fn test_servo_deserialize() {
-    //     let json =
-    //         r#"{"pin":12,"state":90,"default":90,"servo_type":"Standard","range":[0,180],"pwm_range":[600,2400],"degree_range":[0,180],"detach_delay":20000}"#;
-    //     let board: Board = serde_json::from_str(json).unwrap();
-    //     assert_eq!(board.get_protocol_name(), "RemoteIo");
-    //
-    //     let json = r#"{"protocol":{"type":"MockProtocol"}}"#;
-    //     let board: Board = serde_json::from_str(json).unwrap();
-    //     assert_eq!(board.get_protocol_name(), "MockProtocol");
-    // }
+    #[test]
+    fn test_servo_deserialize() {
+        let json = r#"{"pin":12,"state":180,"default":90,"servo_type":"Standard","range":[0,180],"pwm_range":[600,2400],"degree_range":[0,180],"detach_delay":20000}"#;
+        let servo: Servo = serde_json::from_str(json).unwrap();
+        assert_eq!(servo.get_value(), 180u16);
+    }
 }

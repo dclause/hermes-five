@@ -26,82 +26,88 @@ pub fn test(_: TokenStream, item: TokenStream) -> TokenStream {
     runtime_macro(item.into(), TokioMode::Test).into()
 }
 
-/// Creates the implementation of an `OutputDevice` for the annotation structure.
+/// Implements the `OutputDevice` trait for the annotated structure.
 ///
-/// # Warning
+/// This macro injects the necessary fields and default trait implementations based on the specified state type.
+/// You can use it in two modes, depending on whether you define the `state` field yourself.
 ///
-/// 1. When provided with a `Type`, the state generated into a parking_lot RwLock and you *MUST*
-/// provide the
-/// ```no_run
+/// # Usage
 ///
-/// // Use
-/// #[output_device_macro(Type)]
-/// struct CustomDevice;
+/// ## 1. Automatic State Injection
 ///
-/// // The generated structure will be:
-/// struct CustomDevice {
-///     state: std::sync::Arc<parking_lot::RwLock<Type>>,
-///     default: Type,
-///     animation: std::sync::Arc<Option<hermes_five::animations::Animation>>,
-/// }
+/// If the struct does **not** define a `state` field, the macro will inject:
 ///
-/// // You MUST provide at least the following methods:
-/// impl CustomDevice {
-///     /// Parses the generic `State` enum into the device's specific `Value`.
-///     fn parse_state(&self, state: hermes_five::utils::State) -> Result<Type, hermes_five::errors::Error> {
-///         todo!()
-///     }
-///
-///     /// Applies the specific value to the hardware.
-///     fn apply_value(&mut self, value: Type) -> Result<(), hermes_five::errors::Error> {
-///         todo!()
-///     }
-/// }
-/// ```
-///
-/// 2. You _can_ choose to store the state into a different type then the provided one.
-///    In that case, you must provide some more functions:
-/// ```no_run
-/// // Use
-/// use std::sync::atomic::AtomicU16;
-/// use hermes_five_macros::output_device;
-///
-/// // Assuming any type here:
-/// type CustomType = AtomicU16;
+/// ```ignore
 /// type Type = u16;
 ///
 /// #[output_device(Type)]
-/// struct CustomDevice {
-///     state: std::sync::Arc<CustomType>
-/// }
+/// struct CustomDevice {}
 ///
-/// // The generated structure will be:
-/// struct CustomDevice {
-///     state: std::sync::Arc<CustomType>,
-///     default: Type,
-///     animation: std::sync::Arc<Option<hermes_five::animations::Animation>>,
-/// }
+/// // Expanded to:
+/// // struct CustomDevice {
+/// //     state: std::sync::Arc<parking_lot::RwLock<Type>>,
+/// //     default: Type,
+/// //     animation: std::sync::Arc<Option<hermes_five::animations::Animation>>,
+/// // }
 ///
-/// // You MUST provide at least the following methods:
 /// impl CustomDevice {
-///
-///     // Returns the value of `self.state` as `Type`.
-///     fn get_value(&self) -> Type { todo!() }
-///
-///     // Sets the value of `self.state` from a given `Type`.
-///     fn set_value(&self, value: Type) { todo!() }
-///
-///     // Parses the generic `State` enum into the device's specific `Value`.
 ///     fn parse_state(&self, state: hermes_five::utils::State) -> Result<Type, hermes_five::errors::Error> {
 ///         todo!()
 ///     }
 ///
-///     // Applies the specific value to the hardware.
 ///     fn apply_value(&mut self, value: Type) -> Result<(), hermes_five::errors::Error> {
 ///         todo!()
 ///     }
 /// }
 /// ```
+///
+/// In this case, the `get_value` and `set_value` methods are generated automatically using the RwLock.
+///
+/// ## 2. Custom State Field
+///
+/// If the struct defines its own `state` field (e.g., using `AtomicU16`, `Mutex`, etc.),
+/// you must provide additional methods to allow the macro to interact with it:
+///
+/// ```ignore
+/// type Type = u16;
+/// type CustomType = AtomicU16;
+///
+/// #[output_device(Type)]
+/// struct CustomDevice {
+///     state: std::sync::Arc<CustomType>,
+/// }
+///
+/// // Expanded to:
+/// // struct CustomDevice {
+/// //     state: std::sync::Arc<CustomType>,
+/// //     default: Type,
+/// //     animation: std::sync::Arc<Option<hermes_five::animations::Animation>>,
+/// // }
+///
+/// impl CustomDevice {
+///     fn get_value(&self) -> Type {
+///         todo!()
+///     }
+///
+///     fn set_value(&self, value: Type) {
+///         todo!()
+///     }
+///
+///     fn parse_state(&self, state: hermes_five::utils::State) -> Result<Type, hermes_five::errors::Error> {
+///         todo!()
+///     }
+///
+///     fn apply_value(&mut self, value: Type) -> Result<(), hermes_five::errors::Error> {
+///         todo!()
+///     }
+/// }
+/// ```
+///
+/// # Notes
+///
+/// - The `Type` parameter must match the final value type used internally by the device (e.g. `u8`, `bool`, etc.).
+/// - The `animation` field is included but can be a no-op if unused.
+/// - This macro integrates with `hermes_five::devices::OutputDevice` and `Device`.
 #[proc_macro_attribute]
 pub fn output_device(attr: TokenStream, item: TokenStream) -> TokenStream {
     output_device_macro(attr.into(), item.into()).into()

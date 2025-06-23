@@ -37,13 +37,13 @@ pub mod arc_rwlock_serde {
             let serialized = serde_json::to_string(&test);
             assert!(serialized.is_ok());
 
-            let expected_json = r#"{"state":20,"locked_state":42}"#;
+            let expected_json = r#"{"state":20,"default":0,"locked_state":42}"#;
             assert_eq!(serialized.unwrap(), expected_json);
         }
 
         #[test]
         fn test_deserialize() {
-            let json_data = r#"{"state":20,"locked_state":42}"#;
+            let json_data = r#"{"state":20,"default":0,"locked_state":42}"#;
             let deserialized = serde_json::from_str::<MockOutputDevice>(json_data);
 
             assert!(deserialized.is_ok());

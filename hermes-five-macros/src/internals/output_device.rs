@@ -86,10 +86,15 @@ pub fn output_device_macro(args: TokenStream, input: TokenStream) -> TokenStream
             quote!()
         }
         None => {
-            fields.push(syn::parse_quote! {
-                /// Shared, mutable device state.
-                state: std::sync::Arc<parking_lot::RwLock<#state_type>>
-            });
+            // Inject default right after the `pin` field
+            insert_field_after(
+                &mut fields,
+                "pin",
+                syn::parse_quote! {
+                    /// Shared, mutable device state.
+                    state: std::sync::Arc<parking_lot::RwLock<#state_type>>
+                },
+            );
 
             quote! {
                 impl #impl_generics #struct_name #ty_generics #where_clause {
@@ -107,12 +112,17 @@ pub fn output_device_macro(args: TokenStream, input: TokenStream) -> TokenStream
         }
     };
 
-    // Inject default and animation fields
-    fields.push(syn::parse_quote! {
-        /// The device's default state.
-        default: #state_type
-    });
+    // Inject default right after the `state` field
+    insert_field_after(
+        &mut fields,
+        "state",
+        syn::parse_quote! {
+            /// The device's default state.
+            default: #state_type
+        },
+    );
 
+    // Inject animation field at the end
     fields.push(syn::parse_quote! {
         /// Animation task handler.
         #[cfg_attr(feature = "serde", serde(skip))]
@@ -198,4 +208,20 @@ pub fn output_device_macro(args: TokenStream, input: TokenStream) -> TokenStream
     };
 
     expanded
+}
+
+// Injects a field after another one.
+fn insert_field_after(
+    fields: &mut syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
+    target: &str,
+    new_field: syn::Field,
+) {
+    if let Some(pos) = fields
+        .iter()
+        .position(|f| f.ident.as_ref().map(|id| id == target).unwrap_or(false))
+    {
+        fields.insert(pos + 1, new_field);
+    } else {
+        fields.push(new_field);
+    }
 }
