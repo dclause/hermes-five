@@ -205,12 +205,12 @@ impl State {
     pub fn scale_to(&self, target: State, progress: f32) -> State {
         match target {
             State::Integer(value) => {
-                State::Integer(progress.scale(0, 1, self.as_integer(), value))
+                State::Integer(progress.scale(0f32, 1f32, self.as_integer(), value))
             }
             State::Signed(value) => {
-                State::Signed(progress.scale(0, 1, self.as_signed_integer(), value))
+                State::Signed(progress.scale(0f32, 1f32, self.as_signed_integer(), value))
             }
-            State::Float(value) => State::Float(progress.scale(0, 1, self.as_float(), value)),
+            State::Float(value) => State::Float(progress.scale(0f32, 1f32, self.as_float(), value)),
             _ => match progress {
                 0.0 => self.clone(),
                 _ => target,

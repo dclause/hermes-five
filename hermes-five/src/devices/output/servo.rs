@@ -359,7 +359,7 @@ impl Output for Servo {
     }
 
     fn apply_value(&mut self, value: Self::Value) -> Result<(), Error> {
-        let pwm: f64 = match self.inverted {
+        let pwm = match self.inverted {
             false => value.scale(
                 self.degree_range.start,
                 self.degree_range.end,
@@ -376,10 +376,10 @@ impl Output for Servo {
 
         // Attach the pinMode if we are auto-detach mode.
         match self.auto_detach {
-            false => self.protocol.analog_write(self.pin, pwm as u16)?,
+            false => self.protocol.analog_write(self.pin, pwm)?,
             true => {
                 self.protocol.set_pin_mode(self.pin, PinModeId::SERVO)?;
-                self.protocol.analog_write(self.pin, pwm as u16)?;
+                self.protocol.analog_write(self.pin, pwm)?;
                 *self.last_move.write() = Some(SystemTime::now());
 
                 let mut self_clone = self.clone();
