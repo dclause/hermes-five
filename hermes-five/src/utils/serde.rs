@@ -37,13 +37,13 @@ pub mod arc_rwlock_serde {
             let serialized = serde_json::to_string(&test);
             assert!(serialized.is_ok());
 
-            let expected_json = r#"{"state":20,"locked_state":42}"#;
+            let expected_json = r#"{"state":20,"default":0,"locked_state":42}"#;
             assert_eq!(serialized.unwrap(), expected_json);
         }
 
         #[test]
         fn test_deserialize() {
-            let json_data = r#"{"state":20,"locked_state":42}"#;
+            let json_data = r#"{"state":20,"default":0,"locked_state":42}"#;
             let deserialized = serde_json::from_str::<MockOutputDevice>(json_data);
 
             assert!(deserialized.is_ok());
@@ -53,12 +53,12 @@ pub mod arc_rwlock_serde {
 }
 
 pub mod arc_atomic_serde {
-    use std::sync::Arc;
-    use std::sync::atomic::*;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    use std::sync::atomic::*;
+    use std::sync::Arc;
 
     // Trait that abstracts atomic load/store with a primitive type
-    trait AtomicPrimitive: Sized {
+    pub trait AtomicPrimitive: Sized {
         type Primitive: Copy + Serialize + for<'de> Deserialize<'de>;
 
         fn load(&self, order: Ordering) -> Self::Primitive;
@@ -112,10 +112,10 @@ pub mod arc_atomic_serde {
 
     #[cfg(test)]
     mod serde_tests {
-        use std::sync::Arc;
-        use std::sync::atomic::*;
-        use serde::{Serialize, Deserialize};
+        use serde::{Deserialize, Serialize};
         use serde_json;
+        use std::sync::atomic::*;
+        use std::sync::Arc;
 
         #[derive(Serialize, Deserialize, Debug)]
         struct TestStruct {

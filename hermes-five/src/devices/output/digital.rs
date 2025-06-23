@@ -1,18 +1,17 @@
-use std::fmt::{Display, Formatter};
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-
-use crate::animations::Animation;
 use crate::devices::OutputDevice;
 use crate::errors::{Error, HardwareError, StateError};
 use crate::hardware::Hardware;
 use crate::io::{IoProtocol, Pin, PinIdOrName, PinModeId};
-use crate::generate_output_device_boilerplate;
 use crate::utils::State;
+use hermes_five_macros::output_device;
+use std::fmt::{Display, Formatter};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 /// Represents a digital actuator of unspecified type: an [`OutputDevice`] that write digital values
 /// from an OUTPUT compatible pin.
 /// <https://docs.arduino.cc/language-reference/en/functions/digital-io/digitalwrite/>
+#[output_device(bool)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
 pub struct DigitalOutput {
@@ -23,16 +22,11 @@ pub struct DigitalOutput {
     /// The current output state.
     #[cfg_attr(feature = "serde", serde(with = "crate::utils::arc_atomic_serde"))]
     state: Arc<AtomicBool>,
-    /// The output default value (default: 0).
-    default: bool,
 
     // ########################################
     // # Volatile utility data.
     #[cfg_attr(feature = "serde", serde(skip))]
     protocol: Box<dyn IoProtocol>,
-    /// Inner handler to the task running the animation.
-    #[cfg_attr(feature = "serde", serde(skip))]
-    animation: Arc<Option<Animation>>,
 }
 
 impl DigitalOutput {
@@ -110,13 +104,9 @@ impl DigitalOutput {
     pub fn is_low(&self) -> bool {
         !self.get_value()
     }
-}
 
-generate_output_device_boilerplate!(DigitalOutput);
-impl Output for DigitalOutput {
-    type Value = bool;
-
-    fn parse_state(&self, state: State) -> Result<Self::Value, Error> {
+    #[inline(always)]
+    fn parse_state(&self, state: State) -> Result<bool, Error> {
         match state {
             State::Boolean(value) => Ok(value),
             State::Integer(value) => match value {
@@ -128,7 +118,8 @@ impl Output for DigitalOutput {
         }
     }
 
-    fn apply_value(&mut self, value: Self::Value) -> Result<(), Error> {
+    #[inline(always)]
+    fn apply_value(&mut self, value: bool) -> Result<(), Error> {
         match self.get_pin_info()?.mode.id {
             // on/off digital operation.
             PinModeId::OUTPUT => self.protocol.digital_write(self.pin, value),
@@ -139,13 +130,14 @@ impl Output for DigitalOutput {
             })),
         }
     }
-
-    // Expose the required fields
-    fn get_default_value(&self) -> Self::Value {  self.default }
-    fn get_value(&self) -> Self::Value { self.state.load(Ordering::SeqCst) }
-    fn set_value(&self, value: Self::Value) { self.state.store(value, Ordering::SeqCst) }
-    fn animation_arc(&self) -> &Arc<Option<Animation>> { &self.animation }
-    fn animation_arc_mut(&mut self) -> &mut Arc<Option<Animation>> { &mut self.animation }
+    #[inline(always)]
+    fn get_value(&self) -> bool {
+        self.state.load(Ordering::Relaxed)
+    }
+    #[inline(always)]
+    fn set_value(&self, value: bool) {
+        self.state.store(value, Ordering::SeqCst)
+    }
 }
 
 impl Display for DigitalOutput {
@@ -164,7 +156,6 @@ impl Display for DigitalOutput {
 mod tests {
     use crate::animations::Easing;
     use crate::devices::output::digital::DigitalOutput;
-    use crate::devices::output::sealed::Output;
     use crate::devices::OutputDevice;
     use crate::hardware::Board;
     use crate::io::PinModeId;
@@ -214,8 +205,7 @@ mod tests {
 
     #[test]
     fn test_set_low() {
-        let mut output =
-            DigitalOutput::new(&Board::new(MockProtocol::default()), 5, true).unwrap();
+        let mut output = DigitalOutput::new(&Board::new(MockProtocol::default()), 5, true).unwrap();
         assert!(output.turn_off().is_ok());
         assert!(!output.get_value());
     }
@@ -251,7 +241,8 @@ mod tests {
                         // Force an incompatible pin mode
         let _ = output
             .protocol
-            .set_pin_mode(output.pin, PinModeId::UNSUPPORTED).is_ok();
+            .set_pin_mode(output.pin, PinModeId::UNSUPPORTED)
+            .is_ok();
         assert!(output.set_state(State::Boolean(true)).is_err()); // Should return an error due to incompatible pin mode.
     }
 
