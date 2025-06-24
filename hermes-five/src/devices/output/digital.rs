@@ -20,13 +20,16 @@ pub struct DigitalOutput {
     /// The pin (id) of the [`Board`] used to control the output value.
     pin: u8,
     /// The current output state.
-    #[cfg_attr(feature = "serde", serde(with = "crate::utils::arc_atomic_serde"))]
+    #[cfg_attr(feature = "serde", serde(with = "crate::utils::serde_arc_atomic"))]
     state: Arc<AtomicBool>,
 
     // ########################################
     // # Volatile utility data.
-    #[cfg_attr(feature = "serde", serde(skip))]
-    protocol: Box<dyn IoProtocol>,
+    #[cfg_attr(
+        feature = "serde",
+        serde(with = "crate::utils::serde_arc_protocol", skip_serializing)
+    )]
+    protocol: Arc<dyn IoProtocol>,
 }
 
 impl DigitalOutput {

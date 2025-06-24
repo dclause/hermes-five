@@ -1,8 +1,8 @@
+use parking_lot::RwLock;
 use std::fmt::{Display, Formatter};
 use std::future::Future;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use parking_lot::RwLock;
+use std::sync::Arc;
 
 use crate::devices::{Device, Input, InputEvent};
 use crate::errors::Error;
@@ -25,7 +25,7 @@ pub struct Button {
     /// The pin (id) of the [`Board`] used to read the button value.
     pin: u8,
     /// The current Button state.
-    #[cfg_attr(feature = "serde", serde(with = "crate::utils::arc_atomic_serde"))]
+    #[cfg_attr(feature = "serde", serde(with = "crate::utils::serde_arc_atomic"))]
     state: Arc<AtomicBool>,
     /// Defines a PULL-UP/PULL_DOWN mode button (true=pull-up, false=pull-down).
     pullup: bool,
@@ -34,8 +34,11 @@ pub struct Button {
 
     // ########################################
     // # Volatile utility data.
-    #[cfg_attr(feature = "serde", serde(skip))]
-    protocol: Box<dyn IoProtocol>,
+    #[cfg_attr(
+        feature = "serde",
+        serde(with = "crate::utils::serde_arc_protocol", skip_serializing)
+    )]
+    protocol: Arc<dyn IoProtocol>,
     /// Inner handler to the task running the button value check.
     #[cfg_attr(feature = "serde", serde(skip))]
     handler: Arc<RwLock<Option<TaskHandler>>>,
@@ -45,7 +48,6 @@ pub struct Button {
 }
 
 impl Button {
-
     /// Creates an instance of a button attached to a given board.
     /// <https://docs.arduino.cc/built-in-examples/digital/Button/>
     ///
@@ -80,7 +82,7 @@ impl Button {
             handler: Arc::new(RwLock::new(None)),
             events: EventManager::default(),
         }
-            .start_with(board, pin)
+        .start_with(board, pin)
     }
 
     /// Creates an instance of a PULL-DOWN button attached to a given board:
@@ -106,7 +108,10 @@ impl Button {
     /// # Errors
     /// * `UnknownPin`: this function will bail an error if the Button pin does not exist for this board.
     /// * `IncompatiblePin`: this function will bail an error if the Button pin does not support INPUT mode.
-    pub fn new_inverted_pulldown<T: Into<PinIdOrName>>(board: &dyn Hardware, pin: T) -> Result<Self, Error> {
+    pub fn new_inverted_pulldown<T: Into<PinIdOrName>>(
+        board: &dyn Hardware,
+        pin: T,
+    ) -> Result<Self, Error> {
         Self::new(board, pin, true, false)
     }
 
@@ -221,12 +226,16 @@ impl Button {
 
                             match self_clone.pullup {
                                 true => match pin_value {
-                                    true => self_clone.events.emit(InputEvent::OnRelease, pin_value),
+                                    true => {
+                                        self_clone.events.emit(InputEvent::OnRelease, pin_value)
+                                    }
                                     false => self_clone.events.emit(InputEvent::OnPress, pin_value),
                                 },
                                 false => match pin_value {
                                     true => self_clone.events.emit(InputEvent::OnPress, pin_value),
-                                    false => self_clone.events.emit(InputEvent::OnRelease, pin_value),
+                                    false => {
+                                        self_clone.events.emit(InputEvent::OnRelease, pin_value)
+                                    }
                                 },
                             };
                         }
@@ -297,7 +306,7 @@ impl Button {
     where
         F: Fn(bool) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = R> + Send + 'static,
-        R: Into<GenericResult>
+        R: Into<GenericResult>,
     {
         self.events.on(event, handler);
     }

@@ -43,7 +43,7 @@ pub struct Led {
     /// The pin (id) of the [`Board`] used to control the LED.
     pin: u8,
     /// The current LED state.
-    #[cfg_attr(feature = "serde", serde(with = "crate::utils::arc_atomic_serde"))]
+    #[cfg_attr(feature = "serde", serde(with = "crate::utils::serde_arc_atomic"))]
     state: Arc<AtomicU16>,
     /// Activate led sink mode (ie cathode is plugged to the board)
     is_sink: bool,
@@ -58,8 +58,11 @@ pub struct Led {
     /// If the pin can do PWM, we store that mode here (memoization use only).
     #[cfg_attr(feature = "serde", serde(skip))]
     pwm_mode: Option<PinMode>,
-    #[cfg_attr(feature = "serde", serde(skip))]
-    protocol: Box<dyn IoProtocol>,
+    #[cfg_attr(
+        feature = "serde",
+        serde(with = "crate::utils::serde_arc_protocol", skip_serializing)
+    )]
+    protocol: Arc<dyn IoProtocol>,
 }
 
 impl Led {
@@ -75,7 +78,7 @@ impl Led {
     /// - `UnknownPin`: returned if the specified pin does not exist on the board.
     /// - `IncompatibleMode`: returned if the pin does not support OUTPUT or PWM mode.
     pub fn new(board: &dyn Hardware, pin: u8, default: bool) -> Result<Self, Error> {
-        let mut protocol = board.get_protocol();
+        let protocol = board.get_protocol();
 
         // Get the hardware corresponding pin.
         let hardware_pin = {

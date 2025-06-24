@@ -65,7 +65,7 @@ impl Display for WiFi {
 
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl IoTransport for WiFi {
-    fn open(&mut self) -> Result<(), Error> {
+    fn open(&self) -> Result<(), Error> {
         // Resolve to SocketAddr
         let addr = self
             .address
@@ -76,25 +76,25 @@ impl IoTransport for WiFi {
         let stream = TcpStream::connect_timeout(&addr, Duration::from_secs(10))?;
 
         // Save the IO (required by handshake).
-        self.stream = Arc::new(Mutex::new(Some(stream)));
+        *self.stream.lock() = Some(stream);
 
         Ok(())
     }
 
-    fn close(&mut self) -> Result<(), Error> {
+    fn close(&self) -> Result<(), Error> {
         *self.stream.lock() = None;
         Ok(())
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
-    fn write(&mut self, buf: &[u8]) -> Result<(), Error> {
+    fn write(&self, buf: &[u8]) -> Result<(), Error> {
         let mut lock = self.stream.lock();
         lock.as_mut().ok_or(NotInitialized)?.write_all(buf)?;
         Ok(())
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
-    fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), Error> {
+    fn read_exact(&self, buf: &mut [u8]) -> Result<(), Error> {
         let mut lock = self.stream.lock();
         lock.as_mut().ok_or(NotInitialized)?.read_exact(buf)?;
         Ok(())
@@ -119,14 +119,14 @@ mod tests {
         // let result = protocol.open();
         // assert!(result.is_ok());
 
-        let mut protocol = WiFi::new("666.666.666.666:666");
+        let protocol = WiFi::new("666.666.666.666:666");
         let result = protocol.open();
         assert!(result.is_err());
     }
 
     #[test]
     fn test_close_wifi_protocol() {
-        let mut protocol = WiFi::new("666.666.666.666:666");
+        let protocol = WiFi::new("666.666.666.666:666");
         let result = protocol.close();
         assert!(result.is_ok());
         assert!(protocol.stream.lock().is_none());

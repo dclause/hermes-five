@@ -8,7 +8,7 @@ use hermes_five::io::IO;
 async fn main() {
     let board = Board::start().unwrap();
 
-    board.on(BoardEvent::OnReady, |mut board: Board| async move {
+    board.on(BoardEvent::OnReady, |board: Board| async move {
         println!("Protocol {:#?}", board.get_protocol().get_name());
         println!(
             "Firmware {:#?} version={}",

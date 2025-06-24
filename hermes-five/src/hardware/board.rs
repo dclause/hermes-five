@@ -26,7 +26,8 @@ pub struct Board {
     #[cfg_attr(feature = "serde", serde(skip))]
     events: EventManager<BoardEvent, Board>,
     /// The inner protocol used by this Board.
-    protocol: Box<dyn IoProtocol>,
+    #[cfg_attr(feature = "serde", serde(with = "crate::utils::serde_arc_protocol"))]
+    protocol: Arc<dyn IoProtocol>,
 }
 
 impl Default for Board {
@@ -74,7 +75,7 @@ impl<T: IoTransport + 'static> From<T> for Board {
     fn from(transport: T) -> Self {
         Self {
             events: EventManager::default(),
-            protocol: Box::new(RemoteIo::from(transport)),
+            protocol: Arc::new(RemoteIo::from(transport)),
         }
     }
 }
@@ -117,7 +118,7 @@ impl Board {
     pub fn new<P: IoProtocol + 'static>(protocol: P) -> Self {
         Self {
             events: EventManager::default(),
-            protocol: Box::new(protocol),
+            protocol: Arc::new(protocol),
         }
     }
 
@@ -196,14 +197,14 @@ impl Board {
     }
 
     /// Blocking version of [`Self::connect()`] method.
-    pub fn blocking_open(mut self) -> Result<Self, Error> {
+    pub fn blocking_open(self) -> Result<Self, Error> {
         self.protocol.open()?;
         // trace!"Board is ready: {:#?}", self.get_io());
         Ok(self)
     }
 
     /// Blocking version of [`Self::disconnect()`] method.
-    pub fn blocking_close(mut self) -> Result<Self, Error> {
+    pub fn blocking_close(self) -> Result<Self, Error> {
         // Detach all pins.
         let pins: Vec<u8> = self.get_io().read().pins.keys().copied().collect();
         for id in pins {
@@ -246,14 +247,14 @@ impl Board {
 }
 
 impl Hardware for Board {
-    fn get_protocol(&self) -> Box<dyn IoProtocol> {
+    fn get_protocol(&self) -> Arc<dyn IoProtocol> {
         self.protocol.clone()
     }
 
     /// @todo remove this when hermes_studio finds a way around.
     #[cfg_attr(coverage_nightly, coverage(off))]
-    fn set_protocol(&mut self, protocol: Box<dyn IoProtocol>) {
-        self.protocol = protocol;
+    fn set_protocol(&mut self, protocol: Arc<dyn IoProtocol>) {
+        self.protocol = protocol
     }
 }
 
@@ -284,39 +285,39 @@ impl IO for Board {
         self.protocol.is_connected()
     }
 
-    fn set_pin_mode(&mut self, pin: u8, mode: PinModeId) -> Result<(), Error> {
+    fn set_pin_mode(&self, pin: u8, mode: PinModeId) -> Result<(), Error> {
         self.protocol.set_pin_mode(pin, mode)
     }
 
-    fn digital_write(&mut self, pin: u8, level: bool) -> Result<(), Error> {
+    fn digital_write(&self, pin: u8, level: bool) -> Result<(), Error> {
         self.protocol.digital_write(pin, level)
     }
 
-    fn analog_write(&mut self, pin: u8, level: u16) -> Result<(), Error> {
+    fn analog_write(&self, pin: u8, level: u16) -> Result<(), Error> {
         self.protocol.analog_write(pin, level)
     }
 
-    fn digital_read(&mut self, _: u8) -> Result<bool, Error> {
+    fn digital_read(&self, _: u8) -> Result<bool, Error> {
         Err(Error::NotImplemented)
     }
 
-    fn analog_read(&mut self, _: u8) -> Result<u16, Error> {
+    fn analog_read(&self, _: u8) -> Result<u16, Error> {
         Err(Error::NotImplemented)
     }
 
-    fn servo_config(&mut self, pin: u8, pwm_range: Range<u16>) -> Result<(), Error> {
+    fn servo_config(&self, pin: u8, pwm_range: Range<u16>) -> Result<(), Error> {
         self.protocol.servo_config(pin, pwm_range)
     }
 
-    fn i2c_config(&mut self, delay: u16) -> Result<(), Error> {
+    fn i2c_config(&self, delay: u16) -> Result<(), Error> {
         self.protocol.i2c_config(delay)
     }
 
-    fn i2c_read(&mut self, address: u8, size: u16) -> Result<(), Error> {
+    fn i2c_read(&self, address: u8, size: u16) -> Result<(), Error> {
         self.protocol.i2c_read(address, size)
     }
 
-    fn i2c_write(&mut self, address: u8, data: &[u16]) -> Result<(), Error> {
+    fn i2c_write(&self, address: u8, data: &[u16]) -> Result<(), Error> {
         self.protocol.i2c_write(address, data)
     }
 }
@@ -369,18 +370,19 @@ mod tests {
 
     #[hermes_five_macros::test]
     async fn test_board_open() {
-        let mut transport = MockTransport {
-            read_index: 10,
-            ..Default::default()
-        };
-        // Result for query firmware
-        transport.read_buf[10..15].copy_from_slice(&[0xF0, 0x79, 0x01, 0x0C, 0xF7]);
-        // Result for report capabilities
-        transport.read_buf[15..26].copy_from_slice(&[
-            0xF0, 0x6C, 0x00, 0x08, 0x7F, 0x00, 0x08, 0x01, 0x08, 0x7F, 0xF7,
-        ]);
-        // Result for analog mapping
-        transport.read_buf[26..32].copy_from_slice(&[0xF0, 0x6A, 0x7F, 0x7F, 0x7F, 0xF7]);
+        let transport = MockTransport::default();
+        // let mut transport = MockTransport {
+        //     read_index: 10,
+        //     ..Default::default()
+        // };
+        // // Result for query firmware
+        // transport.read_buf[10..15].copy_from_slice(&[0xF0, 0x79, 0x01, 0x0C, 0xF7]);
+        // // Result for report capabilities
+        // transport.read_buf[15..26].copy_from_slice(&[
+        //     0xF0, 0x6C, 0x00, 0x08, 0x7F, 0x00, 0x08, 0x01, 0x08, 0x7F, 0xF7,
+        // ]);
+        // // Result for analog mapping
+        // transport.read_buf[26..32].copy_from_slice(&[0xF0, 0x6A, 0x7F, 0x7F, 0x7F, 0xF7]);
 
         let flag = Arc::new(AtomicBool::new(false));
         let moved_flag = flag.clone();
@@ -398,18 +400,19 @@ mod tests {
 
     #[test]
     fn test_board_blocking_open() {
-        let mut transport = MockTransport {
-            read_index: 10,
-            ..Default::default()
-        };
-        // Result for query firmware
-        transport.read_buf[10..15].copy_from_slice(&[0xF0, 0x79, 0x01, 0x0C, 0xF7]);
-        // Result for report capabilities
-        transport.read_buf[15..26].copy_from_slice(&[
-            0xF0, 0x6C, 0x00, 0x08, 0x7F, 0x00, 0x08, 0x01, 0x08, 0x7F, 0xF7,
-        ]);
-        // Result for analog mapping
-        transport.read_buf[26..32].copy_from_slice(&[0xF0, 0x6A, 0x7F, 0x7F, 0x7F, 0xF7]);
+        let transport = MockTransport::default();
+        // let mut transport = MockTransport {
+        //     read_index: 10,
+        //     ..Default::default()
+        // };
+        // // Result for query firmware
+        // transport.read_buf[10..15].copy_from_slice(&[0xF0, 0x79, 0x01, 0x0C, 0xF7]);
+        // // Result for report capabilities
+        // transport.read_buf[15..26].copy_from_slice(&[
+        //     0xF0, 0x6C, 0x00, 0x08, 0x7F, 0x00, 0x08, 0x01, 0x08, 0x7F, 0xF7,
+        // ]);
+        // // Result for analog mapping
+        // transport.read_buf[26..32].copy_from_slice(&[0xF0, 0x6A, 0x7F, 0x7F, 0x7F, 0xF7]);
 
         let protocol = RemoteIo::from(transport);
         let board = Board::new(protocol).blocking_open().unwrap();

@@ -1,6 +1,6 @@
 /// Allows the serialization and deserialization of `Arc<RwLock<T>>` types.
 /// It is only available if the `serde` feature is enabled.
-pub mod arc_rwlock_serde {
+pub mod serde_arc_rwlock {
     use std::sync::Arc;
 
     use parking_lot::RwLock;
@@ -52,7 +52,9 @@ pub mod arc_rwlock_serde {
     }
 }
 
-pub mod arc_atomic_serde {
+/// Allows the serialization and deserialization of `Arc<AtomicPrimitive>` types.
+/// It is only available if the `serde` feature is enabled.
+pub mod serde_arc_atomic {
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
     use std::sync::atomic::*;
     use std::sync::Arc;
@@ -119,25 +121,25 @@ pub mod arc_atomic_serde {
 
         #[derive(Serialize, Deserialize, Debug)]
         struct TestStruct {
-            #[serde(with = "crate::utils::arc_atomic_serde")]
+            #[serde(with = "crate::utils::serde_arc_atomic")]
             a_bool: Arc<AtomicBool>,
 
-            #[serde(with = "crate::utils::arc_atomic_serde")]
+            #[serde(with = "crate::utils::serde_arc_atomic")]
             a_u8: Arc<AtomicU8>,
 
-            #[serde(with = "crate::utils::arc_atomic_serde")]
+            #[serde(with = "crate::utils::serde_arc_atomic")]
             a_u16: Arc<AtomicU16>,
 
-            #[serde(with = "crate::utils::arc_atomic_serde")]
+            #[serde(with = "crate::utils::serde_arc_atomic")]
             a_u32: Arc<AtomicU32>,
 
-            #[serde(with = "crate::utils::arc_atomic_serde")]
+            #[serde(with = "crate::utils::serde_arc_atomic")]
             a_u64: Arc<AtomicU64>,
 
-            #[serde(with = "crate::utils::arc_atomic_serde")]
+            #[serde(with = "crate::utils::serde_arc_atomic")]
             a_isize: Arc<AtomicIsize>,
 
-            #[serde(with = "crate::utils::arc_atomic_serde")]
+            #[serde(with = "crate::utils::serde_arc_atomic")]
             a_usize: Arc<AtomicUsize>,
         }
 
@@ -168,6 +170,150 @@ pub mod arc_atomic_serde {
             assert_eq!(deserialized.a_u64.load(Ordering::SeqCst), 64_000_000);
             assert_eq!(deserialized.a_isize.load(Ordering::SeqCst), -42);
             assert_eq!(deserialized.a_usize.load(Ordering::SeqCst), 42);
+        }
+    }
+}
+
+/// Enables serialization and deserialization of `Arc<dyn IoProtocol>` values.
+/// Only available when the `serde` feature is enabled.
+///
+/// # Warning
+///
+/// `Board` instances are the single source of truth for the protocol instance.
+/// Other components (like devices such as `Led`) must share this protocol.
+///
+/// Therefore, after deserializing a device, you must manually assign the correct protocol:
+///
+/// ```ignore
+/// let board: Board = serde_json::from_str(json_board_data)?;
+/// let mut led: Led = serde_json::from_str(json_led_data)?;
+/// led.set_protocol(board.get_protocol());
+/// ```
+pub mod serde_arc_protocol {
+    use crate::errors::Error;
+    use crate::io::{IoData, IoProtocol, PinModeId, IO};
+    use crate::utils::Range;
+    use parking_lot::RwLock;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    use std::fmt::{Display, Formatter};
+    use std::sync::Arc;
+    use typetag;
+
+    pub fn serialize<S>(protocol: &Arc<dyn IoProtocol>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        // Delegate to serde (works because the trait has #[typetag::serde])
+        protocol.serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Arc<dyn IoProtocol>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        // Leverage the typetag-generated Deserialize for Box<dyn IoProtocol>
+        let boxed: Box<dyn IoProtocol> = Deserialize::deserialize(deserializer)?;
+        Ok(Arc::from(boxed))
+    }
+
+    pub fn get_default() -> Arc<dyn IoProtocol> {
+        Arc::new(DummySerdeProtocol)
+    }
+
+    /// Dummy protocol used during `serde` deserialization of a device.
+    ///
+    /// Items (e.g. `Led`) depend on the protocol provided by the board. Since only the `Board`
+    /// holds the actual, usable protocol instance, deserialized devices must have their protocol
+    /// set manually after deserialization.
+    ///
+    /// ```ignore
+    /// let board: Board = serde_json::from_str(json_board_data)?;
+    /// let mut led: Led = serde_json::from_str(json_led_data)?;
+    /// led.set_protocol(board.get_protocol());
+    /// ```
+    #[derive(Clone, Debug, Serialize, Deserialize)]
+    pub struct DummySerdeProtocol;
+
+    impl DummySerdeProtocol {
+        fn throw_error<T>(&self) -> Result<T, Error> {
+            Err(Error::InternalError {
+                info: "No protocol assigned after deserialization".to_string(),
+            })
+        }
+    }
+
+    impl IO for DummySerdeProtocol {
+        fn get_io(&self) -> &Arc<RwLock<IoData>> {
+            unimplemented!();
+        }
+
+        fn is_connected(&self) -> bool {
+            false
+        }
+
+        fn set_pin_mode(&self, _: u8, _: PinModeId) -> Result<(), Error> {
+            self.throw_error()
+        }
+
+        fn digital_write(&self, _: u8, _: bool) -> Result<(), Error> {
+            self.throw_error()
+        }
+
+        fn analog_write(&self, _: u8, _: u16) -> Result<(), Error> {
+            self.throw_error()
+        }
+
+        fn digital_read(&self, _: u8) -> Result<bool, Error> {
+            self.throw_error()
+        }
+
+        fn analog_read(&self, _: u8) -> Result<u16, Error> {
+            self.throw_error()
+        }
+
+        fn servo_config(&self, _: u8, _: Range<u16>) -> Result<(), Error> {
+            self.throw_error()
+        }
+
+        fn i2c_config(&self, _: u16) -> Result<(), Error> {
+            self.throw_error()
+        }
+
+        fn i2c_read(&self, _: u8, _: u16) -> Result<(), Error> {
+            self.throw_error()
+        }
+
+        fn i2c_write(&self, _: u8, _: &[u16]) -> Result<(), Error> {
+            self.throw_error()
+        }
+    }
+
+    #[typetag::serde]
+    impl IoProtocol for DummySerdeProtocol {
+        fn open(&self) -> Result<(), Error> {
+            self.throw_error()
+        }
+
+        fn close(&self) -> Result<(), Error> {
+            self.throw_error()
+        }
+
+        fn report_analog(&self, _: u8, _: bool) -> Result<(), Error> {
+            self.throw_error()
+        }
+
+        fn report_digital(&self, _: u8, _: bool) -> Result<(), Error> {
+            self.throw_error()
+        }
+
+        fn sampling_interval(&self, _: u16) -> Result<(), Error> {
+            self.throw_error()
+        }
+    }
+
+    impl Display for DummySerdeProtocol {
+        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}", self.get_name())
         }
     }
 }

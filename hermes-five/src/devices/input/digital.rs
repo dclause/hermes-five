@@ -1,8 +1,8 @@
+use parking_lot::RwLock;
 use std::fmt::{Display, Formatter};
 use std::future::Future;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use parking_lot::RwLock;
+use std::sync::Arc;
 
 use crate::devices::input::{Input, InputEvent};
 use crate::devices::Device;
@@ -23,13 +23,16 @@ pub struct DigitalInput {
     /// The pin (id) of the [`Board`] used to read the digital value.
     pin: u8,
     /// The current digital state.
-    #[cfg_attr(feature = "serde", serde(with = "crate::utils::arc_atomic_serde"))]
+    #[cfg_attr(feature = "serde", serde(with = "crate::utils::serde_arc_atomic"))]
     state: Arc<AtomicBool>,
 
     // ########################################
     // # Volatile utility data.
-    #[cfg_attr(feature = "serde", serde(skip))]
-    protocol: Box<dyn IoProtocol>,
+    #[cfg_attr(
+        feature = "serde",
+        serde(with = "crate::utils::serde_arc_protocol", skip_serializing)
+    )]
+    protocol: Arc<dyn IoProtocol>,
     /// Inner handler to the task running the button value check.
     #[cfg_attr(feature = "serde", serde(skip))]
     handler: Arc<RwLock<Option<TaskHandler>>>,
@@ -47,7 +50,7 @@ impl DigitalInput {
     pub fn new<T: Into<PinIdOrName>>(board: &dyn Hardware, pin: T) -> Result<Self, Error> {
         let pin = board.get_io().read().get_pin(pin)?.clone();
 
-        let mut sensor = Self {
+        let sensor = Self {
             pin: pin.id,
             state: Arc::new(AtomicBool::new(pin.value != 0)),
             protocol: board.get_protocol(),
@@ -169,7 +172,7 @@ impl DigitalInput {
     where
         F: Fn(bool) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = R> + Send + 'static,
-        R: Into<GenericResult>
+        R: Into<GenericResult>,
     {
         self.events.on(event, handler);
     }

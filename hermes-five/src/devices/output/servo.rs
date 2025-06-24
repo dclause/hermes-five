@@ -32,7 +32,7 @@ pub struct Servo {
     /// The pin (id) of the [`Board`] used to control the Servo.
     pin: u8,
     /// The current Servo state.
-    #[cfg_attr(feature = "serde", serde(with = "crate::utils::arc_atomic_serde"))]
+    #[cfg_attr(feature = "serde", serde(with = "crate::utils::serde_arc_atomic"))]
     state: Arc<AtomicU16>,
 
     // ########################################
@@ -69,8 +69,15 @@ pub struct Servo {
 
     // ########################################
     // # Volatile utility data.
-    #[cfg_attr(feature = "serde", serde(skip))]
-    protocol: Box<dyn IoProtocol>,
+    #[cfg_attr(
+        feature = "serde",
+        serde(
+            with = "crate::utils::serde_arc_protocol",
+            skip_serializing,
+            default = "crate::utils::serde_arc_protocol::get_default"
+        )
+    )]
+    protocol: Arc<dyn IoProtocol>,
     #[cfg_attr(feature = "serde", serde(skip))]
     last_move: Arc<RwLock<Option<SystemTime>>>,
 }
@@ -375,7 +382,7 @@ impl Servo {
                 self.protocol.analog_write(self.pin, pwm)?;
                 *self.last_move.write() = Some(SystemTime::now());
 
-                let mut self_clone = self.clone();
+                let self_clone = self.clone();
                 task::run(async move {
                     pause!(self_clone.detach_delay);
                     if let Some(last_move) = self_clone.last_move.read().as_ref() {

@@ -17,7 +17,7 @@ use std::sync::Arc;
 
 /// `RemoteIo` is the protocol used to control boards and devices remotely using various compatible `IoProtocol`.
 /// Have a look at the [examples/io folder](https://github.com/dclause/hermes-five/tree/develop/hermes-five/examples/io) for examples.
-/// 
+///
 /// Internally, implements the [Firmata protocol](https://github.com/firmata/protocol) within an [`IoProtocol`].
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone)]
@@ -66,7 +66,7 @@ impl<T: IoTransport + 'static> From<T> for RemoteIo {
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl IoProtocol for RemoteIo {
     #[cfg_attr(coverage_nightly, coverage(off))]
-    fn open(&mut self) -> Result<(), Error> {
+    fn open(&self) -> Result<(), Error> {
         self.data.write().connected = false;
         self.transport.open()?;
 
@@ -77,15 +77,15 @@ impl IoProtocol for RemoteIo {
         Ok(())
     }
 
-    fn close(&mut self) -> Result<(), Error> {
+    fn close(&self) -> Result<(), Error> {
         self.stop_polling();
         self.data.write().connected = false;
         self.transport.close()?;
         Ok(())
     }
 
-    fn report_analog(&mut self, channel: u8, state: bool) -> Result<(), Error> {
-        // trace!"Report analog: {}", state);
+    fn report_analog(&self, channel: u8, state: bool) -> Result<(), Error> {
+        // trace!("Report analog: {}", state);
         self.transport
             .write(&[REPORT_ANALOG | channel, u8::from(state)])?;
         match state {
@@ -110,10 +110,10 @@ impl IoProtocol for RemoteIo {
         Ok(())
     }
 
-    fn report_digital(&mut self, pin: u8, state: bool) -> Result<(), Error> {
+    fn report_digital(&self, pin: u8, state: bool) -> Result<(), Error> {
         let port = pin / 8;
         let payload = &[REPORT_DIGITAL | port, u8::from(state)];
-        // trace!"Report digital: {:02X?}", payload);
+        // trace!("Report digital: {:02X?}", payload);
         self.transport.write(payload)?;
         match state {
             true => {
@@ -133,7 +133,7 @@ impl IoProtocol for RemoteIo {
         Ok(())
     }
 
-    fn sampling_interval(&mut self, interval: u16) -> Result<(), Error> {
+    fn sampling_interval(&self, interval: u16) -> Result<(), Error> {
         self.transport.write(&[
             START_SYSEX,
             SAMPLING_INTERVAL,
@@ -153,7 +153,7 @@ impl IO for RemoteIo {
         self.data.read().connected
     }
 
-    fn set_pin_mode(&mut self, pin: u8, mode: PinModeId) -> Result<(), Error> {
+    fn set_pin_mode(&self, pin: u8, mode: PinModeId) -> Result<(), Error> {
         {
             let mut lock = self.data.write();
             let pin_instance = lock.get_pin_mut(pin)?;
@@ -170,7 +170,7 @@ impl IO for RemoteIo {
         self.transport.write(&[SET_PIN_MODE, pin, mode as u8])
     }
 
-    fn digital_write(&mut self, pin: u8, level: bool) -> Result<(), Error> {
+    fn digital_write(&self, pin: u8, level: bool) -> Result<(), Error> {
         let port = pin / 8;
         let mut value: u16 = 0;
         let mut i = 0;
@@ -202,11 +202,11 @@ impl IO for RemoteIo {
             value as u8 & SYSEX_REALTIME,
             (value >> 7) as u8 & SYSEX_REALTIME,
         ];
-        // trace!"Digital write: {:02X?}", payload);
+        // trace!("Digital write: {:02X?}", payload);
         self.transport.write(payload)
     }
 
-    fn analog_write(&mut self, pin: u8, level: u16) -> Result<(), Error> {
+    fn analog_write(&self, pin: u8, level: u16) -> Result<(), Error> {
         // Set the pin value.
         self.data.write().get_pin_mut(pin)?.value = level;
 
@@ -233,22 +233,22 @@ impl IO for RemoteIo {
             ]
         };
 
-        // trace!"Analog write: {:02X?}", payload);
+        // trace!("Analog write: {:02X?}", payload);
         self.transport.write(&payload)?;
         Ok(())
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
-    fn digital_read(&mut self, _: u8) -> Result<bool, Error> {
+    fn digital_read(&self, _: u8) -> Result<bool, Error> {
         Err(Error::NotImplemented)
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
-    fn analog_read(&mut self, _: u8) -> Result<u16, Error> {
+    fn analog_read(&self, _: u8) -> Result<u16, Error> {
         Err(Error::NotImplemented)
     }
 
-    fn servo_config(&mut self, pin: u8, pwm_range: Range<u16>) -> Result<(), Error> {
+    fn servo_config(&self, pin: u8, pwm_range: Range<u16>) -> Result<(), Error> {
         self.transport.write(&[
             START_SYSEX,
             SERVO_CONFIG,
@@ -261,7 +261,7 @@ impl IO for RemoteIo {
         ])
     }
 
-    fn i2c_config(&mut self, delay: u16) -> Result<(), Error> {
+    fn i2c_config(&self, delay: u16) -> Result<(), Error> {
         self.transport.write(&[
             START_SYSEX,
             I2C_CONFIG,
@@ -271,7 +271,7 @@ impl IO for RemoteIo {
         ])
     }
 
-    fn i2c_read(&mut self, address: u8, size: u16) -> Result<(), Error> {
+    fn i2c_read(&self, address: u8, size: u16) -> Result<(), Error> {
         self.transport.write(&[
             START_SYSEX,
             I2C_REQUEST,
@@ -285,12 +285,12 @@ impl IO for RemoteIo {
         Ok(())
     }
 
-    fn i2c_write(&mut self, address: u8, data: &[u16]) -> Result<(), Error> {
+    fn i2c_write(&self, address: u8, data: &[u16]) -> Result<(), Error> {
         let mut buf = vec![START_SYSEX, I2C_REQUEST, address, I2C_WRITE << 3];
 
         for &i in data.iter() {
-            buf.push(i as u8 & SYSEX_REALTIME);           // bits 0-6
-            buf.push((i >> 7) as u8 & SYSEX_REALTIME);    // bits 7-13
+            buf.push(i as u8 & SYSEX_REALTIME); // bits 0-6
+            buf.push((i >> 7) as u8 & SYSEX_REALTIME); // bits 7-13
         }
 
         buf.push(END_SYSEX);
@@ -302,14 +302,14 @@ impl IO for RemoteIo {
 impl RemoteIo {
     /// Sends a software reset request.
     /// <https://github.com/firmata/protocol/blob/master/protocol.md>
-    fn software_reset(&mut self) -> Result<(), Error> {
+    fn software_reset(&self) -> Result<(), Error> {
         let payload = &[SYSTEM_RESET];
-        // trace!"Software reset: {:02X?}", payload);
+        // trace!("Software reset: {:02X?}", payload);
         self.transport.write(payload)
     }
 
     /// Starts a conversation with the board: validate the firmware version and...
-    fn handshake(&mut self) -> Result<(), Error> {
+    fn handshake(&self) -> Result<(), Error> {
         // self.set_connected(false);
 
         // Forces a software reset: some board do not restart automatically when the connection is opened.
@@ -335,16 +335,16 @@ impl RemoteIo {
     }
 
     /// Query the board for current firmware and protocol information.
-    fn query_firmware(&mut self) -> Result<(), Error> {
+    fn query_firmware(&self) -> Result<(), Error> {
         let payload = &[START_SYSEX, REPORT_FIRMWARE, END_SYSEX];
-        // trace!"Query firmware: {:02X?}", payload);
+        // trace!("Query firmware: {:02X?}", payload);
         self.transport.write(payload)
     }
 
     /// Query the board for all available capabilities.
-    fn query_capabilities(&mut self) -> Result<(), Error> {
+    fn query_capabilities(&self) -> Result<(), Error> {
         let payload = &[START_SYSEX, CAPABILITY_QUERY, END_SYSEX];
-        // trace!"Query capabilities: {:02X?}", payload);
+        // trace!("Query capabilities: {:02X?}", payload);
         self.transport.write(payload)
     }
 
@@ -352,9 +352,9 @@ impl RemoteIo {
     // Read/Write on pins
 
     /// Query the board for available analog pins.
-    fn query_analog_mapping(&mut self) -> Result<(), Error> {
+    fn query_analog_mapping(&self) -> Result<(), Error> {
         let payload = &[START_SYSEX, ANALOG_MAPPING_QUERY, END_SYSEX];
-        // trace!"Query analog mapping: {:02X?}", payload);
+        // trace!("Query analog mapping: {:02X?}", payload);
         self.transport.write(payload)
     }
 
@@ -364,7 +364,7 @@ impl RemoteIo {
     /// Read from the protocol, parse and return its type.
     /// The following method should use Firmata protocol such as defined here:
     /// <https://github.com/firmata/protocol/blob/master/protocol.md>
-    fn read_and_decode(&mut self) -> Result<Message, Error> {
+    fn read_and_decode(&self) -> Result<Message, Error> {
         let mut buf = vec![0; 3];
         self.transport.read_exact(&mut buf)?;
 
@@ -374,7 +374,7 @@ impl RemoteIo {
             DIGITAL_MESSAGE..=DIGITAL_MESSAGE_BOUND => self.handle_digital_message(&buf),
             START_SYSEX => self.handle_sysex_message(&mut buf),
             _ => {
-                // trace!"IoPlugin: unexpected data: {:02X?}", buf.as_slice());
+                // trace!("IoPlugin: unexpected data: {:02X?}", buf.as_slice());
                 Ok(Message::EmptyResponse)
             }
         }
@@ -382,29 +382,29 @@ impl RemoteIo {
 
     /// Handle a REPORT_VERSION_RESPONSE message (0xF9 - return the firmware version).
     /// <https://github.com/firmata/protocol/blob/master/protocol.md#message-types>
-    fn handle_protocol_version(&mut self, buf: &[u8]) -> Result<Message, Error> {
+    fn handle_protocol_version(&self, buf: &[u8]) -> Result<Message, Error> {
         let mut lock = self.get_io().write();
         lock.protocol_version = format!("{}.{}", buf[1], buf[2]);
-        // trace!"Received protocol version: {}", lock.protocol_version);
+        // trace!("Received protocol version: {}", lock.protocol_version);
         Ok(Message::ReportProtocolVersion)
     }
 
     /// Handle an ANALOG_MESSAGE message (0xE0 - report state of an analog pin)
     /// <https://github.com/firmata/protocol/blob/master/protocol.md#data-message-expansion>
-    fn handle_analog_message(&mut self, buf: &[u8]) -> Result<Message, Error> {
+    fn handle_analog_message(&self, buf: &[u8]) -> Result<Message, Error> {
         let pin = (buf[0] & 0x0F) + 14;
         let value = (buf[1] as u16) | ((buf[2] as u16) << 7);
-        // trace!"Received analog message: pin({})={}", pin, value);
+        // trace!("Received analog message: pin({})={}", pin, value);
         self.get_io().write().get_pin_mut(pin)?.value = value;
         Ok(Message::Analog)
     }
 
     /// Handle a DIGITAL_MESSAGE message (0x90 - report state of a digital pin/port)
     /// <https://github.com/firmata/protocol/blob/master/protocol.md#data-message-expansion>
-    fn handle_digital_message(&mut self, buf: &[u8]) -> Result<Message, Error> {
+    fn handle_digital_message(&self, buf: &[u8]) -> Result<Message, Error> {
         let port = buf[0] & 0x0F;
         let value = (buf[1] as u16) | ((buf[2] as u16) << 7);
-        // trace!"Received digital message: pin({})={}", port, value);
+        // trace!("Received digital message: pin({})={}", port, value);
 
         for i in 0..8 {
             let pin = (8 * port) + i;
@@ -418,7 +418,7 @@ impl RemoteIo {
 
     /// Handle a START_SYSEX message: dispatch to various message/command/response using the sysex format.
     /// <https://github.com/firmata/protocol/blob/master/protocol.md#sysex-message-format>
-    fn handle_sysex_message(&mut self, buf: &mut Vec<u8>) -> Result<Message, Error> {
+    fn handle_sysex_message(&self, buf: &mut Vec<u8>) -> Result<Message, Error> {
         if buf[1] == END_SYSEX || buf[2] == END_SYSEX {
             return Ok(Message::EmptyResponse);
         }
@@ -439,7 +439,7 @@ impl RemoteIo {
             I2C_REPLY => self.handle_i2c_reply(buf),
             PIN_STATE_RESPONSE => self.handle_pin_state_response(buf),
             _ => {
-                // trace!"Sysex: unexpected data: {:02X?}", buf.as_slice());
+                // trace!("Sysex: unexpected data: {:02X?}", buf.as_slice());
                 Ok(Message::EmptyResponse)
             }
         }
@@ -447,7 +447,7 @@ impl RemoteIo {
 
     /// Handle an ANALOG_MAPPING_RESPONSE message (0x6A - reply with analog pins mapping info).
     /// <https://github.com/firmata/protocol/blob/master/protocol.md#analog-mapping-query>
-    fn handle_analog_mapping_response(&mut self, buf: &[u8]) -> Result<Message, Error> {
+    fn handle_analog_mapping_response(&self, buf: &[u8]) -> Result<Message, Error> {
         let mut lock = self.get_io().write();
         let mut i = 2;
         while buf[i] != END_SYSEX {
@@ -470,7 +470,7 @@ impl RemoteIo {
 
     /// Handle a CAPABILITY_RESPONSE message (0x6C - reply with supported modes and resolution)
     /// <https://github.com/firmata/protocol/blob/master/protocol.md#capability-query>
-    fn handle_capability_response(&mut self, buf: &[u8]) -> Result<Message, Error> {
+    fn handle_capability_response(&self, buf: &[u8]) -> Result<Message, Error> {
         let mut id = 0;
         let mut i = 2;
         let mut lock = self.get_io().write();
@@ -508,13 +508,13 @@ impl RemoteIo {
             id += 1;
         }
 
-        // trace!"Received capability response: @see hardware.pins");
+        // trace!("Received capability response: @see hardware.pins");
         Ok(Message::CapabilityResponse)
     }
 
     /// Handle a REPORT_FIRMWARE message (0x79 - report name and version of the firmware).
     /// <https://github.com/firmata/protocol/blob/master/protocol.md#query-firmware-name-and-version>
-    fn handle_firmware_report(&mut self, buf: &[u8]) -> Result<Message, Error> {
+    fn handle_firmware_report(&self, buf: &[u8]) -> Result<Message, Error> {
         if buf.len() < 5 {
             return Err(Error::from(ProtocolError::MessageTooShort {
                 operation: "handle_firmware_report",
@@ -526,20 +526,20 @@ impl RemoteIo {
         let minor = buf[3];
         let mut lock = self.get_io().write();
         lock.firmware_version = format!("{}.{}", major, minor);
-        // trace!"Received firmware version: {}", lock.firmware_version);
+        // trace!("Received firmware version: {}", lock.firmware_version);
         if buf.len() > 5 {
             lock.firmware_name = std::str::from_utf8(&buf[4..buf.len() - 1])?
                 .to_string()
                 .replace('\0', "");
-            // trace!"Received firmware name: {}", lock.firmware_name);
+            // trace!("Received firmware name: {}", lock.firmware_name);
         }
         Ok(Message::ReportFirmwareVersion)
     }
 
     /// Handle an I2C_REPLY message (0x6E - read and decode an i2c message)
     /// <https://github.com/firmata/protocol/blob/master/i2c.md>
-    fn handle_i2c_reply(&mut self, buf: &[u8]) -> Result<Message, Error> {
-        // trace!"I2C REPLY: {}", format_as_hex(buf));
+    fn handle_i2c_reply(&self, buf: &[u8]) -> Result<Message, Error> {
+        // trace!("I2C REPLY: {}", format_as_hex(buf));
 
         if buf.len() < 8 {
             return Err(Error::from(ProtocolError::MessageTooShort {
@@ -564,7 +564,7 @@ impl RemoteIo {
 
     /// Handle a PIN_STATE_RESPONSE message (0x6E - report pin current mode and state)
     /// <https://github.com/firmata/protocol/blob/master/protocol.md#pin-state-query>
-    fn handle_pin_state_response(&mut self, buf: &[u8]) -> Result<Message, Error> {
+    fn handle_pin_state_response(&self, buf: &[u8]) -> Result<Message, Error> {
         let pin = buf[2];
         if buf.len() < 4 || buf[3] == END_SYSEX {
             return Err(Error::from(ProtocolError::MessageTooShort {
@@ -589,7 +589,7 @@ impl RemoteIo {
             i += 1;
         }
         pin.value = value as u16;
-        // trace!"Received pin state: {:?}", pin);
+        // trace!("Received pin state: {:?}", pin);
         Ok(Message::PinStateResponse)
     }
 
@@ -598,7 +598,7 @@ impl RemoteIo {
     /// and want it to start being reactive to events again.
     pub fn start_polling(&self) {
         if self.handler.read().is_none() {
-            let mut self_clone = self.clone();
+            let self_clone = self.clone();
             *self.handler.write() = Some(
                 task::run(async move {
                     // Infinite loop to listen for inputs from the board.
@@ -648,20 +648,18 @@ mod tests {
     use crate::mocks::create_test_plugin_io_data;
     use crate::mocks::MockTransport;
     use crate::utils::{format_as_hex, Range};
-    use parking_lot::lock_api::RwLock;
     use std::sync::Arc;
 
     fn _create_mock_protocol() -> RemoteIo {
-        let mut protocol = RemoteIo::from(MockTransport::default());
-        protocol.data = Arc::new(RwLock::new(create_test_plugin_io_data()));
+        let protocol = RemoteIo::from(MockTransport::default());
+        *protocol.data.write() = create_test_plugin_io_data();
         protocol
     }
 
     fn _create_mock_protocol_with_data(data: &[u8]) -> RemoteIo {
-        let mut transport = MockTransport::default();
-        transport.read_buf[..data.len()].copy_from_slice(data);
-        let mut protocol = RemoteIo::from(transport);
-        protocol.data = Arc::new(RwLock::new(create_test_plugin_io_data()));
+        let transport = MockTransport::new(data.to_vec());
+        let protocol = RemoteIo::from(transport);
+        *protocol.data.write() = create_test_plugin_io_data();
         protocol
     }
 
@@ -691,22 +689,22 @@ mod tests {
 
     #[test]
     fn test_software_reset() {
-        let mut protocol = _create_mock_protocol();
+        let protocol = _create_mock_protocol();
 
         let result = protocol.software_reset();
         assert!(result.is_ok(), "{:?}", result);
 
         let transport = _get_mock_transport(&protocol);
         assert!(
-            transport.write_buf.starts_with(&[0xFF]),
+            transport.write_buf.read().starts_with(&[0xFF]),
             "Buffer data has been sent [{:?}]",
-            format_as_hex(&transport.write_buf[..1])
+            format_as_hex(&transport.write_buf.read()[..1])
         );
     }
 
     #[test]
     fn test_handshake() {
-        let mut transport = _create_mock_protocol_with_data(&[
+        let transport = _create_mock_protocol_with_data(&[
             0xF0, 0x79, 0x01, 0x0C, 0xF7, // Result for query firmware
             0xF0, 0x6C, 0x00, 0x08, 0x7F, 0x00, 0x08, 0x01, 0x08, 0x7F,
             0xF7, // Result for report capabilities
@@ -716,7 +714,7 @@ mod tests {
         assert!(result.is_ok(), "{:?}", result);
         let transport = _get_mock_transport(&transport);
         assert!(
-            transport.write_buf.starts_with(&[
+            transport.write_buf.read().starts_with(&[
                 0xFF, // software reset
                 0xF0, 0x79, 0xF7, // query firmware
                 0xF0, 0x6B, 0xF7, // query capacities
@@ -728,7 +726,7 @@ mod tests {
 
     #[test]
     fn test_open() {
-        let mut transport = _create_mock_protocol_with_data(&[
+        let transport = _create_mock_protocol_with_data(&[
             0xF0, 0x79, 0x01, 0x0C, 0xF7, // Result for query firmware
             0xF0, 0x6C, 0x00, 0x08, 0x7F, 0x00, 0x08, 0x01, 0x08, 0x7F,
             0xF7, // Result for report capabilities
@@ -741,15 +739,15 @@ mod tests {
 
     #[test]
     fn test_simple_analog_write() {
-        let mut protocol = _create_mock_protocol();
+        let protocol = _create_mock_protocol();
         let result = protocol.analog_write(0, 170);
         assert!(result.is_ok(), "{:?}", result);
 
         let transport = _get_mock_transport(&protocol);
         assert!(
-            transport.write_buf.starts_with(&[0xE0, 0x2A, 0x01]),
+            transport.write_buf.read().starts_with(&[0xE0, 0x2A, 0x01]),
             "Buffer data has been sent [{:?}]",
-            format_as_hex(&transport.write_buf[..3])
+            format_as_hex(&transport.write_buf.read()[..3])
         );
         {
             let lock = protocol.get_io().read();
@@ -767,7 +765,7 @@ mod tests {
 
     #[test]
     fn test_extended_analog_write() {
-        let mut protocol = _create_mock_protocol();
+        let protocol = _create_mock_protocol();
         // Note1: the pin to use is over 15, so we use extended protocol.
         // Note2: the value sent is over 16384 (0x00004000) so we use multibyte sending.
         let result = protocol.analog_write(22, 17000);
@@ -777,9 +775,10 @@ mod tests {
         assert!(
             transport
                 .write_buf
+                .read()
                 .starts_with(&[0xF0, 0x6F, 0x16, 0x68, 0x04, 0x01, 0xF7]),
             "Buffer data has been sent [{:?}]",
-            format_as_hex(&transport.write_buf[..7])
+            format_as_hex(&transport.write_buf.read()[..7])
         );
         {
             let lock = protocol.get_io().read();
@@ -797,7 +796,7 @@ mod tests {
 
     #[test]
     fn test_digital_write() {
-        let mut protocol = _create_mock_protocol();
+        let protocol = _create_mock_protocol();
 
         // TEST
         let result = protocol.digital_write(13, true);
@@ -805,9 +804,9 @@ mod tests {
 
         let transport = _get_mock_transport(&protocol);
         assert!(
-            transport.write_buf.starts_with(&[0x91, 0x7F, 0x01]),
+            transport.write_buf.read().starts_with(&[0x91, 0x7F, 0x01]),
             "Buffer data has been sent [{:?}]",
-            format_as_hex(&transport.write_buf[..3])
+            format_as_hex(&transport.write_buf.read()[..3])
         );
 
         {
@@ -828,7 +827,7 @@ mod tests {
 
     #[test]
     fn test_set_pin_mode() {
-        let mut protocol = _create_mock_protocol();
+        let protocol = _create_mock_protocol();
 
         {
             let lock = protocol.get_io().read();
@@ -841,9 +840,9 @@ mod tests {
 
         let transport = _get_mock_transport(&protocol);
         assert!(
-            transport.write_buf.starts_with(&[0xF4, 0x08, 0x01]),
+            transport.write_buf.read().starts_with(&[0xF4, 0x08, 0x01]),
             "Buffer data has been sent [{:?}]",
-            format_as_hex(&transport.write_buf[..3])
+            format_as_hex(&transport.write_buf.read()[..3])
         );
 
         {
@@ -862,7 +861,7 @@ mod tests {
 
     #[test]
     fn test_servo_config() {
-        let mut protocol = _create_mock_protocol();
+        let protocol = _create_mock_protocol();
 
         let result = protocol.servo_config(8, Range::from([500, 2500]));
         assert!(
@@ -875,30 +874,31 @@ mod tests {
         assert!(
             transport
                 .write_buf
+                .read()
                 .starts_with(&[0xF0, 0x70, 0x08, 0x74, 0x03, 0x44, 0x13, 0xF7]),
             "Buffer data has been sent [{:?}]",
-            format_as_hex(&transport.write_buf[..8])
+            format_as_hex(&transport.write_buf.read()[..8])
         );
     }
 
     #[test]
     fn test_query_firmware() {
-        let mut protocol = _create_mock_protocol();
+        let protocol = _create_mock_protocol();
 
         let result = protocol.query_firmware();
         assert!(result.is_ok(), "{:?}", result);
 
         let transport = _get_mock_transport(&protocol);
         assert!(
-            transport.write_buf.starts_with(&[0xF0, 0x79, 0xF7]),
+            transport.write_buf.read().starts_with(&[0xF0, 0x79, 0xF7]),
             "Buffer data has been sent [{:?}]",
-            format_as_hex(&transport.write_buf[..3])
+            format_as_hex(&transport.write_buf.read()[..3])
         );
     }
 
     #[test]
     fn test_query_capabilities() {
-        let mut protocol = _create_mock_protocol();
+        let protocol = _create_mock_protocol();
 
         let result = protocol.query_capabilities();
         assert!(
@@ -909,15 +909,15 @@ mod tests {
 
         let transport = _get_mock_transport(&protocol);
         assert!(
-            transport.write_buf.starts_with(&[0xF0, 0x6B, 0xF7]),
+            transport.write_buf.read().starts_with(&[0xF0, 0x6B, 0xF7]),
             "Buffer data has been sent [{:?}]",
-            format_as_hex(&transport.write_buf[..3])
+            format_as_hex(&transport.write_buf.read()[..3])
         );
     }
 
     #[test]
     fn test_query_analog_mapping() {
-        let mut protocol = _create_mock_protocol();
+        let protocol = _create_mock_protocol();
 
         let result = protocol.query_analog_mapping();
         assert!(
@@ -928,15 +928,15 @@ mod tests {
 
         let transport = _get_mock_transport(&protocol);
         assert!(
-            transport.write_buf.starts_with(&[0xF0, 0x69, 0xF7]),
+            transport.write_buf.read().starts_with(&[0xF0, 0x69, 0xF7]),
             "Buffer data has been sent [{:?}]",
-            format_as_hex(&transport.write_buf[..3])
+            format_as_hex(&transport.write_buf.read()[..3])
         );
     }
 
     #[test]
     fn test_sampling_interval() {
-        let mut protocol = _create_mock_protocol();
+        let protocol = _create_mock_protocol();
 
         let result = protocol.sampling_interval(100);
         assert!(result.is_ok(), "{:?}", result);
@@ -945,15 +945,16 @@ mod tests {
         assert!(
             transport
                 .write_buf
+                .read()
                 .starts_with(&[0xF0, 0x7A, 0x64, 0x00, 0xF7]),
             "Buffer data has been sent [{:?}]",
-            format_as_hex(&transport.write_buf[..5])
+            format_as_hex(&transport.write_buf.read()[..5])
         );
     }
 
     #[hermes_five_macros::test]
     fn test_report_analog() {
-        let mut protocol = _create_mock_protocol();
+        let protocol = _create_mock_protocol();
         assert!(protocol.data.read().analog_reported_channels.is_empty());
 
         // Check data sent when enable reporting
@@ -962,9 +963,12 @@ mod tests {
         let _ = protocol.report_analog(3, true);
         let transport = _get_mock_transport(&protocol);
         assert!(
-            transport.write_buf.starts_with(&[0xC2, 0x01, 0xC3, 0x01]),
+            transport
+                .write_buf
+                .read()
+                .starts_with(&[0xC2, 0x01, 0xC3, 0x01]),
             "Buffer data has been sent [{:?}]",
-            format_as_hex(&transport.write_buf[..4])
+            format_as_hex(&transport.write_buf.read()[..4])
         );
 
         // Reporting enables a watch task.
@@ -988,7 +992,7 @@ mod tests {
 
     #[hermes_five_macros::test]
     fn test_report_digital() {
-        let mut protocol = _create_mock_protocol();
+        let protocol = _create_mock_protocol();
         assert!(protocol.data.read().digital_reported_pins.is_empty());
 
         // Check data sent when enable reporting
@@ -998,9 +1002,12 @@ mod tests {
         assert!(result.is_ok(), "{:?}", result);
         let transport = _get_mock_transport(&protocol);
         assert!(
-            transport.write_buf.starts_with(&[0xD0, 0x01, 0xD1, 0x01]), // 0xD0 for port 0 (pin 1-7); 0xD1 for port 1 (pin 8-15)
+            transport
+                .write_buf
+                .read()
+                .starts_with(&[0xD0, 0x01, 0xD1, 0x01]), // 0xD0 for port 0 (pin 1-7); 0xD1 for port 1 (pin 8-15)
             "Buffer data has been sent [{:?}]",
-            format_as_hex(&transport.write_buf[..4])
+            format_as_hex(&transport.write_buf.read()[..4])
         );
 
         // Reporting enables a watch task.
@@ -1024,7 +1031,7 @@ mod tests {
 
     #[test]
     fn test_handle_protocol_version() {
-        let mut protocol = _create_mock_protocol_with_data(&[0xF9, 0x01, 0x19]);
+        let protocol = _create_mock_protocol_with_data(&[0xF9, 0x01, 0x19]);
 
         let result = protocol.read_and_decode();
         assert!(
@@ -1042,7 +1049,7 @@ mod tests {
 
     #[test]
     fn test_handle_analog_message() {
-        let mut transport = _create_mock_protocol_with_data(&[0xE1, 0xDE, 0x00]);
+        let transport = _create_mock_protocol_with_data(&[0xE1, 0xDE, 0x00]);
 
         let result = transport.read_and_decode();
         assert!(
@@ -1059,7 +1066,7 @@ mod tests {
 
     #[test]
     fn test_handle_digital_message() {
-        let mut protocol = _create_mock_protocol_with_data(&[0x91, 0x00, 0x00]);
+        let protocol = _create_mock_protocol_with_data(&[0x91, 0x00, 0x00]);
         {
             let lock = protocol.get_io().read();
             assert_eq!(lock.to_owned().get_pin(10).unwrap().value, 10);
@@ -1083,7 +1090,7 @@ mod tests {
     #[test]
     fn test_handle_empty_sysex() {
         // Unexpected data when the first byte received in not a valid command.
-        let mut protocol = _create_mock_protocol_with_data(&[0x11]);
+        let protocol = _create_mock_protocol_with_data(&[0x11]);
         let result = protocol.read_and_decode();
         assert!(
             result.is_ok(),
@@ -1094,7 +1101,7 @@ mod tests {
 
         // Unexpected data when the first byte is a sysex, the size is plausible,
         // but the second is not a valid sysex command.
-        let mut protocol = _create_mock_protocol_with_data(&[0xF0, 0x11, 0x11, 0xF7]);
+        let protocol = _create_mock_protocol_with_data(&[0xF0, 0x11, 0x11, 0xF7]);
         let result = protocol.read_and_decode();
         assert!(
             result.is_ok(),
@@ -1104,7 +1111,7 @@ mod tests {
         assert_eq!(result.unwrap(), Message::EmptyResponse);
 
         // Empty command error when a sysex is received and closed immediately.
-        let mut protocol = _create_mock_protocol_with_data(&[0xF0, 0xF7]);
+        let protocol = _create_mock_protocol_with_data(&[0xF0, 0xF7]);
         let result = protocol.read_and_decode();
         assert!(
             result.is_ok(),
@@ -1116,7 +1123,7 @@ mod tests {
 
     #[test]
     fn test_handle_analog_mapping_response() {
-        let mut protocol = _create_mock_protocol_with_data(&[0xF0, 0x6A, 0x01, 0x7F, 0x7F, 0xF7]);
+        let protocol = _create_mock_protocol_with_data(&[0xF0, 0x6A, 0x01, 0x7F, 0x7F, 0xF7]);
         {
             let lock = protocol.get_io().read();
             assert_eq!(lock.to_owned().get_pin(0).unwrap().channel, None);
@@ -1134,7 +1141,7 @@ mod tests {
         }
 
         // Unsupported possible data
-        let mut protocol = _create_mock_protocol_with_data(&[0xF0, 0x6A, 0x01, 0x01, 0x01, 0xF7]);
+        let protocol = _create_mock_protocol_with_data(&[0xF0, 0x6A, 0x01, 0x01, 0x01, 0xF7]);
         let result = protocol.read_and_decode();
         assert!(result.is_err(), "{:?}", result);
         assert_eq!(
@@ -1145,7 +1152,7 @@ mod tests {
 
     #[test]
     fn test_handle_capability_response() {
-        let mut protocol = _create_mock_protocol_with_data(&[
+        let protocol = _create_mock_protocol_with_data(&[
             0xF0, 0x6C, 0x00, 0x08, 0x7F, 0x00, 0x08, 0x01, 0x08, 0x7F, 0xF7,
         ]);
         let result = protocol.read_and_decode();
@@ -1168,7 +1175,7 @@ mod tests {
     #[test]
     fn test_handle_firmware_report() {
         // No firmware name.
-        let mut protocol = _create_mock_protocol_with_data(&[0xF0, 0x79, 0x01, 0x0C, 0xF7]);
+        let protocol = _create_mock_protocol_with_data(&[0xF0, 0x79, 0x01, 0x0C, 0xF7]);
         let result = protocol.read_and_decode();
         assert!(
             result.is_ok(),
@@ -1183,7 +1190,7 @@ mod tests {
         }
 
         // With a custom firmware name.
-        let mut protocol = _create_mock_protocol_with_data(&[
+        let protocol = _create_mock_protocol_with_data(&[
             0xF0, 0x79, 0x02, 0x40, 0x66, 0x6F, 0x6F, 0x62, 0x61, 0x72, 0xF7,
         ]);
         let result = protocol.read_and_decode();
@@ -1196,7 +1203,7 @@ mod tests {
         }
 
         // Not enough data.
-        let mut protocol = _create_mock_protocol_with_data(&[0xF0, 0x79, 0x02, 0xF7]);
+        let protocol = _create_mock_protocol_with_data(&[0xF0, 0x79, 0x02, 0xF7]);
         let result = protocol.read_and_decode();
         assert!(result.is_err(), "{:?}", result);
         assert_eq!(result.err().unwrap().to_string(), "Protocol error: Not enough bytes received - 'handle_firmware_report' expected 5 bytes, 4 received.");
@@ -1207,7 +1214,7 @@ mod tests {
     /// properly.
     #[test]
     fn test_handle_pin_state_response() {
-        let mut protocol = _create_mock_protocol_with_data(&[
+        let protocol = _create_mock_protocol_with_data(&[
             0xF0, 0x6E, 0x03, 0x00, 0x1E, 0xF7, 0xF0, 0x6E, 0x00, 0xF7,
         ]);
         // By default, the value of pin 3 is 3 and mode is OUTPUT:
@@ -1242,7 +1249,7 @@ mod tests {
 
     #[test]
     fn test_i2c_config() {
-        let mut protocol = _create_mock_protocol();
+        let protocol = _create_mock_protocol();
 
         let result = protocol.i2c_config(100);
         assert!(result.is_ok(), "{:?}", result);
@@ -1251,15 +1258,16 @@ mod tests {
         assert!(
             transport
                 .write_buf
+                .read()
                 .starts_with(&[0xF0, 0x78, 0x64, 0x00, 0xF7]),
             "Buffer data has been sent [{:?}]",
-            format_as_hex(&transport.write_buf[..5])
+            format_as_hex(&transport.write_buf.read()[..5])
         );
     }
 
     #[test]
     fn test_i2c_read() {
-        let mut protocol = _create_mock_protocol_with_data(&[
+        let protocol = _create_mock_protocol_with_data(&[
             0xF0, 0x77, 0x40, 0x00, 0x42, 0x42, 0x42, 0x42, 0xF7, // mock 4 bytes i2c answer.
         ]);
 
@@ -1270,15 +1278,16 @@ mod tests {
         assert!(
             transport
                 .write_buf
+                .read()
                 .starts_with(&[0xF0, 0x76, 0x40, 0x08, 0x04, 0x00, 0xF7]),
             "Buffer data has been sent [{:?}]",
-            format_as_hex(&transport.write_buf[..7])
+            format_as_hex(&transport.write_buf.read()[..7])
         );
     }
 
     #[test]
     fn test_i2c_write() {
-        let mut protocol = _create_mock_protocol();
+        let protocol = _create_mock_protocol();
 
         let result = protocol.i2c_write(0x40, &[0x01, 0x02, 0x03]);
         assert!(result.is_ok(), "{:?}", result);
@@ -1287,23 +1296,24 @@ mod tests {
         assert!(
             transport
                 .write_buf
+                .read()
                 .starts_with(&[0xF0, 0x76, 0x40, 0x00, 0x01, 0x00, 0x02, 0x00, 0x03, 0x00, 0xF7]),
             "Buffer data has been sent [{:?}]",
-            format_as_hex(&transport.write_buf[..11])
+            format_as_hex(&transport.write_buf.read()[..11])
         );
     }
 
     #[test]
     fn test_handle_i2c_reply() {
         // Not enough data.
-        let mut protocol = _create_mock_protocol_with_data(&[0xF0, 0x77, 0x02, 0x02, 0xF7]);
+        let protocol = _create_mock_protocol_with_data(&[0xF0, 0x77, 0x02, 0x02, 0xF7]);
 
         let result = protocol.read_and_decode();
         assert!(result.is_err(), "{:?}", result);
         assert_eq!(result.err().unwrap().to_string(), "Protocol error: Not enough bytes received - 'handle_i2c_reply' expected 9 bytes, 5 received.");
 
         // Receive an I2C response from i2C address 0x40, register 8, data "coverage".
-        let mut protocol = _create_mock_protocol_with_data(&[
+        let protocol = _create_mock_protocol_with_data(&[
             0xF0, 0x77, 0x40, 0x00, 0x08, 0x00, 0x63, 0x00, 0x6F, 0x00, 0x76, 0x00, 0x65, 0x00,
             0x72, 0x00, 0x61, 0x00, 0x67, 0x00, 0x65, 0x00, 0xF7,
         ]);
@@ -1323,10 +1333,10 @@ mod tests {
     #[test]
     fn test_debug_and_display() {
         let protocol = _create_mock_protocol();
-        let boxed_protocol: Box<dyn IoProtocol> = Box::new(protocol);
+        let arc_protocol: Arc<dyn IoProtocol> = Arc::new(protocol);
         // assert_eq!(protocol.get_protocol_name(), "MockProtocol");
         assert_eq!(
-            format!("{}", boxed_protocol),
+            format!("{}", arc_protocol),
             "RemoteIo [firmware=Fake protocol, version=fake.2.3, protocol=fake.1.0, transport=MockTransport]"
         )
     }

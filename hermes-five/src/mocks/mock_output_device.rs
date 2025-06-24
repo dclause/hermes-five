@@ -11,9 +11,9 @@ use std::sync::Arc;
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
 pub struct MockOutputDevice {
-    #[cfg_attr(feature = "serde", serde(with = "crate::utils::arc_atomic_serde"))]
+    #[cfg_attr(feature = "serde", serde(with = "crate::utils::serde_arc_atomic"))]
     state: Arc<AtomicU16>,
-    #[cfg_attr(feature = "serde", serde(with = "crate::utils::arc_rwlock_serde"))]
+    #[cfg_attr(feature = "serde", serde(with = "crate::utils::serde_arc_rwlock"))]
     locked_state: Arc<RwLock<u16>>, // Used for serde testing
 }
 

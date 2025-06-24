@@ -1,8 +1,8 @@
+use parking_lot::RwLock;
 use std::fmt::{Display, Formatter};
 use std::future::Future;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU16, Ordering};
-use parking_lot::RwLock;
+use std::sync::Arc;
 
 use crate::devices::input::{Input, InputEvent};
 use crate::devices::Device;
@@ -24,13 +24,16 @@ pub struct AnalogInput {
     /// The pin (id) of the [`Board`] used to read the analog value.
     pin: u8,
     /// The current AnalogInput state.
-    #[cfg_attr(feature = "serde", serde(with = "crate::utils::arc_atomic_serde"))]
+    #[cfg_attr(feature = "serde", serde(with = "crate::utils::serde_arc_atomic"))]
     state: Arc<AtomicU16>,
 
     // ########################################
     // # Volatile utility data.
-    #[cfg_attr(feature = "serde", serde(skip))]
-    protocol: Box<dyn IoProtocol>,
+    #[cfg_attr(
+        feature = "serde",
+        serde(with = "crate::utils::serde_arc_protocol", skip_serializing)
+    )]
+    protocol: Arc<dyn IoProtocol>,
     /// Inner handler to the task running the button value check.
     #[cfg_attr(feature = "serde", serde(skip))]
     handler: Arc<RwLock<Option<TaskHandler>>>,
@@ -49,7 +52,7 @@ impl AnalogInput {
     pub fn new<T: Into<PinIdOrName>>(board: &dyn Hardware, analog_pin: T) -> Result<Self, Error> {
         let pin = board.get_io().read().get_pin(analog_pin)?.clone();
 
-        let mut sensor = Self {
+        let sensor = Self {
             pin: pin.id,
             state: Arc::new(AtomicU16::new(pin.value)),
             protocol: board.get_protocol(),
@@ -123,7 +126,7 @@ impl AnalogInput {
     /// Registers a callback to be executed on a given event.
     ///
     /// Available events for an analog input are:
-    /// - **`InputEvent::OnChange` | `change`**: Triggered when the AnalogInput value changes.    
+    /// - **`InputEvent::OnChange` | `change`**: Triggered when the AnalogInput value changes.
     ///   _The callback must receive the following parameter: `|value: u16| { ... }`_
     ///
     /// # Example
@@ -161,7 +164,7 @@ impl AnalogInput {
     where
         F: Fn(u16) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = R> + Send + 'static,
-        R: Into<GenericResult>
+        R: Into<GenericResult>,
     {
         self.events.on(event, handler);
     }

@@ -7,6 +7,7 @@ use crate::io::{IoProtocol, IO};
 pub use board::Board;
 pub use board::BoardEvent;
 pub use pca9685::PCA9685;
+use std::sync::Arc;
 
 /// You most likely don't need this function (outside this crate).
 pub trait Hardware: IO {
@@ -16,11 +17,11 @@ pub trait Hardware: IO {
     }
 
     /// Returns the protocol used.
-    fn get_protocol(&self) -> Box<dyn IoProtocol>;
+    fn get_protocol(&self) -> Arc<dyn IoProtocol>;
 
     /// Sets the protocol.
     /// @todo remove this when hermes_studio finds a way around.
-    fn set_protocol(&mut self, protocol: Box<dyn IoProtocol>);
+    fn set_protocol(&mut self, protocol: Arc<dyn IoProtocol>);
 }
 
 pub trait Expander: Hardware + IoProtocol {}
