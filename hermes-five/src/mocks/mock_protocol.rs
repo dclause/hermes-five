@@ -1,10 +1,11 @@
 use crate::errors::Error;
-use crate::errors::HardwareError::IncompatiblePin;
-use crate::io::{IoData, IoProtocol, PinModeId, IO};
-use crate::mocks::create_test_plugin_io_data;
+use crate::hardware::{I2CReply, LowLevelApi, LowLevelApiExt, Pin, PinModeId};
+use crate::mocks::create_test_pins;
 use crate::pause_sync;
+use crate::protocols::IoProtocol;
 use crate::utils::Range;
 use parking_lot::RwLock;
+use std::collections::HashMap;
 use std::fmt::Display;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -17,28 +18,27 @@ pub struct MockProtocol {
     #[cfg_attr(feature = "serde", serde(skip))]
     pub connected: Arc<AtomicBool>,
     #[cfg_attr(feature = "serde", serde(skip))]
-    pub data: Arc<RwLock<IoData>>,
+    pins: HashMap<u8, Arc<Pin>>,
 }
 
 impl Default for MockProtocol {
     fn default() -> Self {
         Self {
             connected: Arc::new(AtomicBool::new(false)),
-            data: Arc::new(RwLock::new(create_test_plugin_io_data())),
+            pins: create_test_pins(),
         }
     }
 }
 
 impl Display for MockProtocol {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let data = self.data.read();
         write!(
             f,
-            "{} [firmware={}, version={}, protocol={}]",
-            self.get_name(),
-            data.firmware_name,
-            data.firmware_version,
-            data.protocol_version,
+            "MockProtocol [protocol={} (version={}), firmware={} (version {})]",
+            self.get_protocol_name(),
+            self.get_protocol_version(),
+            self.get_firmware_name(),
+            self.get_firmware_version(),
         )
     }
 }
@@ -70,37 +70,42 @@ impl IoProtocol for MockProtocol {
     }
 }
 
-impl IO for MockProtocol {
-    fn get_io(&self) -> &Arc<RwLock<IoData>> {
-        &self.data
+impl LowLevelApi for MockProtocol {
+    fn get_protocol_name(&self) -> &str {
+        "MockProtocol"
     }
 
-    fn is_connected(&self) -> bool {
-        self.connected.load(Ordering::Relaxed)
+    fn get_protocol_version(&self) -> &str {
+        "fake.2.3"
+    }
+
+    fn get_firmware_name(&self) -> &str {
+        "fake_firmware"
+    }
+
+    fn get_firmware_version(&self) -> &str {
+        "fake.1.0"
+    }
+
+    fn get_pins(&self) -> &HashMap<u8, Arc<Pin>> {
+        &self.pins
     }
 
     fn set_pin_mode(&self, pin: u8, mode: PinModeId) -> Result<(), Error> {
-        let mut lock = self.data.write();
-        let pin_instance = lock.get_pin_mut(pin)?;
-        let _mode = pin_instance.supports_mode(mode).ok_or(IncompatiblePin {
-            pin,
-            mode,
-            context: "try to set pin mode",
-        })?;
-        pin_instance.mode = _mode;
+        self.get_pin(pin)?.set_pin_mode(mode)?;
         Ok(())
     }
 
     fn digital_write(&self, pin: u8, level: bool) -> Result<(), Error> {
-        let mut lock = self.data.write();
-        let pin_instance = lock.get_pin_mut(pin)?;
-        pin_instance.validate_current_mode(PinModeId::OUTPUT)?;
-        pin_instance.value = u16::from(level);
+        let pin_instance = self.get_pin(pin)?;
+        pin_instance.ensure_mode_is(PinModeId::OUTPUT)?;
+        pin_instance.set_value(if level { u16::MAX } else { u16::MIN });
         Ok(())
     }
 
     fn analog_write(&self, pin: u8, level: u16) -> Result<(), Error> {
-        self.data.write().get_pin_mut(pin)?.value = level;
+        let pin_instance = self.get_pin(pin)?;
+        pin_instance.set_value(level);
         Ok(())
     }
 
@@ -126,5 +131,9 @@ impl IO for MockProtocol {
 
     fn i2c_write(&self, _: u8, _: &[u16]) -> Result<(), Error> {
         Ok(())
+    }
+
+    fn get_i2c_data(&self, _: u8) -> Arc<RwLock<Vec<I2CReply>>> {
+        todo!()
     }
 }

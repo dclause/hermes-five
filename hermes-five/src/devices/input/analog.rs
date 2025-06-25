@@ -7,9 +7,9 @@ use std::sync::Arc;
 use crate::devices::input::{Input, InputEvent};
 use crate::devices::Device;
 use crate::errors::Error;
-use crate::hardware::Hardware;
-use crate::io::{IoProtocol, PinIdOrName, PinModeId};
+use crate::hardware::{Hardware, LowLevelApiExt, Pin, PinIdOrName, PinModeId};
 use crate::pause;
+use crate::protocols::IoProtocol;
 use crate::utils::{task, EventManager, GenericResult};
 use crate::utils::{State, TaskHandler};
 
@@ -22,13 +22,16 @@ pub struct AnalogInput {
     // ########################################
     // # Basics
     /// The pin (id) of the [`Board`] used to read the analog value.
-    pin: u8,
+    id: u8,
     /// The current AnalogInput state.
     #[cfg_attr(feature = "serde", serde(with = "crate::utils::serde_arc_atomic"))]
     state: Arc<AtomicU16>,
 
     // ########################################
     // # Volatile utility data.
+    /// The pin on the [`Board`] used to control the device.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pin: Arc<Pin>,
     #[cfg_attr(
         feature = "serde",
         serde(with = "crate::utils::serde_arc_protocol", skip_serializing)
@@ -50,23 +53,24 @@ impl AnalogInput {
     /// * `UnknownPin`: this function will bail an error if the AnalogInput pin does not exist for this board.
     /// * `IncompatiblePin`: this function will bail an error if the AnalogInput pin does not support ANALOG mode.
     pub fn new<T: Into<PinIdOrName>>(board: &dyn Hardware, analog_pin: T) -> Result<Self, Error> {
-        let pin = board.get_io().read().get_pin(analog_pin)?.clone();
+        let pin = board.get_pin(analog_pin)?;
 
         let sensor = Self {
-            pin: pin.id,
-            state: Arc::new(AtomicU16::new(pin.value)),
+            id: pin.id,
+            pin: pin.clone(),
+            state: pin.value.clone(),
             protocol: board.get_protocol(),
             handler: Arc::new(RwLock::new(None)),
             events: Default::default(),
         };
 
         // Set pin mode to ANALOG.
-        sensor
-            .protocol
-            .set_pin_mode(sensor.pin, PinModeId::ANALOG)?;
+        sensor.protocol.set_pin_mode(pin.id, PinModeId::ANALOG)?;
 
         // Start reporting.
-        sensor.protocol.report_analog(pin.channel.unwrap(), true)?;
+        sensor
+            .protocol
+            .report_analog(pin.get_channel().unwrap(), true)?;
 
         // Attaches the event handler.
         sensor.attach();
@@ -75,8 +79,13 @@ impl AnalogInput {
     }
 
     /// Returns the pin (id) used by the device.
-    pub fn get_pin(&self) -> u8 {
-        self.pin
+    pub fn get_id(&self) -> u8 {
+        self.pin.id
+    }
+
+    /// Returns the pin used by the device.
+    pub fn get_pin(&self) -> Arc<Pin> {
+        self.pin.clone()
     }
 
     // ########################################
@@ -90,21 +99,16 @@ impl AnalogInput {
             let self_clone = self.clone();
             *self.handler.write() = Some(
                 task::run(async move {
+                    let mut last_pin_value = self_clone.pin.get_value();
                     loop {
-                        let pin_value = self_clone
-                            .protocol
-                            .get_io()
-                            .read()
-                            .get_pin(self_clone.pin)?
-                            .value;
-                        let state_value = self_clone.state.load(Ordering::SeqCst);
-                        if pin_value != state_value {
-                            self_clone.state.store(pin_value, Ordering::SeqCst);
+                        let pin_value = self_clone.pin.get_value();
+                        if pin_value != last_pin_value {
+                            last_pin_value = pin_value;
                             self_clone.events.emit(InputEvent::OnChange, pin_value);
                         }
 
                         // Change can only be done 10x a sec. to avoid bouncing.
-                        pause!(100);
+                        pause!(50);
                     }
                     #[allow(unreachable_code)]
                     Ok(())
@@ -175,7 +179,7 @@ impl Display for AnalogInput {
         write!(
             f,
             "AnalogInput (pin={}) [state={}]",
-            self.pin,
+            self.pin.id,
             self.state.load(Ordering::SeqCst),
         )
     }
@@ -196,7 +200,7 @@ mod tests {
     use crate::devices::input::analog::AnalogInput;
     use crate::devices::input::Input;
     use crate::devices::input::InputEvent;
-    use crate::hardware::Board;
+    use crate::hardware::{Board, LowLevelApiExt};
     use crate::mocks::MockProtocol;
     use crate::pause;
     use std::sync::atomic::{AtomicU16, Ordering};
@@ -208,12 +212,18 @@ mod tests {
         let sensor = AnalogInput::new(&board, 14);
         assert!(sensor.is_ok());
         let sensor = sensor.unwrap();
-        assert_eq!(sensor.get_pin(), 14);
+        assert_eq!(sensor.get_id(), 14);
         assert_eq!(sensor.get_state().as_integer(), 100);
         sensor.detach();
 
+        board
+            .get_pin(22)
+            .unwrap()
+            .name
+            .set(String::from("A22"))
+            .unwrap();
         let sensor = AnalogInput::new(&board, "A22").unwrap();
-        assert_eq!(sensor.get_pin(), 22);
+        assert_eq!(sensor.get_id(), 22);
         assert_eq!(sensor.get_state().as_integer(), 222);
 
         sensor.detach();
@@ -223,6 +233,12 @@ mod tests {
     #[hermes_five_macros::test]
     fn test_analog_display() {
         let board = Board::new(MockProtocol::default());
+        board
+            .get_pin(15)
+            .unwrap()
+            .name
+            .set(String::from("A15"))
+            .unwrap();
         let sensor = AnalogInput::new(&board, "A15").unwrap();
         assert_eq!(sensor.get_state().as_integer(), 200);
         assert_eq!(
@@ -236,10 +252,16 @@ mod tests {
 
     #[hermes_five_macros::test]
     fn test_analog_events() {
-        let pin = "A14";
         let board = Board::new(MockProtocol::default());
-        let sensor = AnalogInput::new(&board, pin).unwrap();
+        board
+            .get_pin(14)
+            .unwrap()
+            .name
+            .set(String::from("A14"))
+            .unwrap();
+        let sensor = AnalogInput::new(&board, "A14").unwrap();
         assert_eq!(sensor.get_state().as_integer(), 100);
+        assert_eq!(sensor.get_pin().get_value(), 100);
 
         // CHANGE
         let change_flag = Arc::new(AtomicU16::new(100));
@@ -254,15 +276,10 @@ mod tests {
         assert_eq!(change_flag.load(Ordering::SeqCst), 100);
 
         // Simulate pin state change in the protocol => take value 0xFF
-        sensor
-            .protocol
-            .get_io()
-            .write()
-            .get_pin_mut(pin)
-            .unwrap()
-            .value = 0xFF;
+        pause!(100);
+        sensor.get_pin().set_value(0xFF);
+        pause!(100);
 
-        pause!(500);
         assert_eq!(change_flag.load(Ordering::SeqCst), 0xFF);
 
         sensor.detach();

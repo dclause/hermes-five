@@ -1,6 +1,6 @@
 use crate::errors::Error;
 use crate::errors::ProtocolError::NotInitialized;
-use crate::io::IoTransport;
+use crate::transports::IoTransport;
 use parking_lot::Mutex;
 use serialport::{DataBits, FlowControl, Parity, SerialPort, StopBits};
 use std::fmt::{Display, Formatter};
@@ -27,7 +27,7 @@ impl Serial {
     /// # Example
     /// ```
     /// use hermes_five::hardware::Board;
-    /// use hermes_five::io::RemoteIo;
+    /// use hermes_five::protocols::RemoteIo;
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {

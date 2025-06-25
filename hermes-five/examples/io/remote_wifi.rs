@@ -6,7 +6,7 @@
 
 use hermes_five::devices::Led;
 use hermes_five::hardware::{Board, BoardEvent};
-use hermes_five::io::WiFi;
+use hermes_five::transports::WiFi;
 
 #[hermes_five::runtime]
 async fn main() {

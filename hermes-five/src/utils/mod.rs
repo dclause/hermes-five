@@ -4,7 +4,7 @@ use crate::errors::Error;
 pub use log;
 #[cfg(test)]
 pub use serial_test;
-use std::fmt::Write;
+use std::fmt::{Debug, Write};
 pub use tokio;
 
 mod events;
@@ -23,6 +23,9 @@ pub use crate::utils::task::*;
 mod serde;
 #[cfg(feature = "serde")]
 pub use crate::utils::serde::*;
+
+mod arc_oncelock;
+pub use arc_oncelock::*;
 
 /// Represents the result of an event callback or a task.
 ///
@@ -67,8 +70,8 @@ pub(crate) fn format_as_hex<T: std::fmt::UpperHex>(slice: &[T]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use crate::errors::{Error, StateError};
     use super::{format_as_hex, GenericResult};
+    use crate::errors::{Error, StateError};
 
     #[test]
     fn test_format_as_hex_empty_slice() {
@@ -124,29 +127,33 @@ mod tests {
     }
 }
 
-#[cfg(feature = "serde")]
-// Helper for serialize skip method.
-pub(crate) fn is_default<T: Default + PartialEq>(t: &T) -> bool {
-    t == &T::default()
-}
+/// Only used for tests to downcast dyn T.
+pub(crate) mod private {
+    use std::any::Any;
 
-#[cfg(feature = "serde")]
-#[cfg(test)]
-mod serde_tests {
-    use crate::utils::is_default;
+    pub trait TraitToAny: 'static {
+        fn as_any(&self) -> &dyn Any;
+    }
 
-    #[test]
-    fn test_is_default() {
-        // Bool
-        assert_eq!(is_default(&true), false);
-        assert_eq!(is_default(&false), true);
-        // String
-        assert_eq!(is_default(&String::new()), true);
-        assert_eq!(is_default(&String::from("test")), false);
-        // usize
-        assert_eq!(is_default(&0), true);
-        assert_eq!(is_default(&69), false);
+    impl<T: 'static> TraitToAny for T {
+        fn as_any(&self) -> &dyn Any {
+            self
+        }
+    }
 
-        // ....
+    #[cfg(test)]
+    mod tests {
+        use crate::protocols::RemoteIo;
+        use crate::transports::{Serial, WiFi};
+
+        #[test]
+        fn test_trait_to_any() {
+            let protocol = RemoteIo::default();
+            let transport = protocol.get_transport();
+            let serial_transport = (*transport).as_any().downcast_ref::<Serial>();
+            assert!(serial_transport.is_some());
+            let wifi_transport = (*transport).as_any().downcast_ref::<WiFi>();
+            assert!(wifi_transport.is_none());
+        }
     }
 }

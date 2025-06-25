@@ -26,13 +26,27 @@ pub mod serde_arc_rwlock {
 
     #[cfg(test)]
     mod serde_tests {
+        use parking_lot::RwLock;
+        use serde::{Deserialize, Serialize};
         use serde_json;
+        use std::sync::Arc;
 
-        use crate::mocks::MockOutputDevice;
+        #[derive(Serialize, Deserialize)]
+        struct MyStruct {
+            #[serde(with = "crate::utils::serde_arc_rwlock")]
+            test: Arc<RwLock<u8>>,
+        }
+        impl MyStruct {
+            pub fn new(test: u8) -> Self {
+                Self {
+                    test: Arc::new(RwLock::new(test)),
+                }
+            }
+        }
 
         #[test]
         fn test_serialize() {
-            let test = MockOutputDevice::new(20);
+            let test = MyStruct::new(20);
 
             let serialized = serde_json::to_string(&test);
             assert!(serialized.is_ok());
@@ -44,10 +58,10 @@ pub mod serde_arc_rwlock {
         #[test]
         fn test_deserialize() {
             let json_data = r#"{"state":20,"default":0,"locked_state":42}"#;
-            let deserialized = serde_json::from_str::<MockOutputDevice>(json_data);
+            let deserialized = serde_json::from_str::<MyStruct>(json_data);
 
             assert!(deserialized.is_ok());
-            assert_eq!(deserialized.unwrap().get_locked_value(), 42);
+            assert_eq!(*deserialized.unwrap().test.read(), 42);
         }
     }
 }
@@ -174,6 +188,30 @@ pub mod serde_arc_atomic {
     }
 }
 
+/// Allows the serialization and deserialization of `Arc<AtomicPrimitive>` types as if `PinMode`.
+/// It is only available if the `serde` feature is enabled.
+pub mod serde_mode {
+    use crate::hardware::PinModeId;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    use std::sync::atomic::*;
+    use std::sync::Arc;
+
+    pub fn serialize<S>(mode: &Arc<AtomicU8>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        PinModeId::from(mode).serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Arc<AtomicU8>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let mode = PinModeId::deserialize(deserializer)?;
+        Ok(Arc::new(AtomicU8::new(mode as u8)))
+    }
+}
+
 /// Enables serialization and deserialization of `Arc<dyn IoProtocol>` values.
 /// Only available when the `serde` feature is enabled.
 ///
@@ -191,10 +229,11 @@ pub mod serde_arc_atomic {
 /// ```
 pub mod serde_arc_protocol {
     use crate::errors::Error;
-    use crate::io::{IoData, IoProtocol, PinModeId, IO};
+    use crate::hardware::{LowLevelApi, Pin, PinModeId};
+    use crate::protocols::IoProtocol;
     use crate::utils::Range;
-    use parking_lot::RwLock;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    use std::collections::HashMap;
     use std::fmt::{Display, Formatter};
     use std::sync::Arc;
     use typetag;
@@ -211,7 +250,6 @@ pub mod serde_arc_protocol {
     where
         D: Deserializer<'de>,
     {
-        // Leverage the typetag-generated Deserialize for Box<dyn IoProtocol>
         let boxed: Box<dyn IoProtocol> = Deserialize::deserialize(deserializer)?;
         Ok(Arc::from(boxed))
     }
@@ -242,13 +280,25 @@ pub mod serde_arc_protocol {
         }
     }
 
-    impl IO for DummySerdeProtocol {
-        fn get_io(&self) -> &Arc<RwLock<IoData>> {
-            unimplemented!();
+    impl LowLevelApi for DummySerdeProtocol {
+        fn get_protocol_name(&self) -> &str {
+            "DummySerdeProtocol"
         }
 
-        fn is_connected(&self) -> bool {
-            false
+        fn get_protocol_version(&self) -> &str {
+            "N/A"
+        }
+
+        fn get_firmware_name(&self) -> &str {
+            "DummySerdeFirmware"
+        }
+
+        fn get_firmware_version(&self) -> &str {
+            "N/A"
+        }
+
+        fn get_pins(&self) -> &HashMap<u8, Arc<Pin>> {
+            unimplemented!("No protocol assigned after deserialization")
         }
 
         fn set_pin_mode(&self, _: u8, _: PinModeId) -> Result<(), Error> {
@@ -313,7 +363,54 @@ pub mod serde_arc_protocol {
 
     impl Display for DummySerdeProtocol {
         fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-            write!(f, "{}", self.get_name())
+            write!(f, "{}", self.get_protocol_name())
         }
+    }
+}
+
+pub mod serde_arc_transport {
+    use crate::transports::IoTransport;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    use std::sync::Arc;
+
+    pub fn serialize<S>(protocol: &Arc<dyn IoTransport>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        // Delegate to serde (works because the trait has #[typetag::serde])
+        protocol.serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Arc<dyn IoTransport>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let boxed: Box<dyn IoTransport> = Deserialize::deserialize(deserializer)?;
+        Ok(Arc::from(boxed))
+    }
+}
+
+// Helper for serialize skip method.
+pub(crate) fn is_default<T: Default + PartialEq>(t: &T) -> bool {
+    t == &T::default()
+}
+
+#[cfg(test)]
+mod serde_tests {
+    use crate::utils::is_default;
+
+    #[test]
+    fn test_is_default() {
+        // Bool
+        assert_eq!(is_default(&true), false);
+        assert_eq!(is_default(&false), true);
+        // String
+        assert_eq!(is_default(&String::new()), true);
+        assert_eq!(is_default(&String::from("test")), false);
+        // usize
+        assert_eq!(is_default(&0), true);
+        assert_eq!(is_default(&69), false);
+
+        // ....
     }
 }

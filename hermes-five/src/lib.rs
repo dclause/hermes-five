@@ -86,13 +86,15 @@
 extern crate self as hermes_five;
 pub extern crate tokio;
 
+#[cfg(any(test, feature = "mocks"))]
+pub mod mocks;
+
 pub mod animations;
 pub mod devices;
 pub mod errors;
 pub mod hardware;
-pub mod io;
-#[cfg(any(test, feature = "mocks"))]
-pub mod mocks;
+pub mod protocols;
+pub mod transports;
 pub mod utils;
 
 pub use hermes_five_macros::runtime;

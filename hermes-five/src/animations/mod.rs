@@ -7,6 +7,7 @@
 //! - A [`Track`] contains as many [`Keyframe`] as required: they are states that the device must have at a given time.
 //!   The path (succession of intermediate state) taken by the device in between the keyframes is automatically interpolated following an [`Easing`] transition.
 
+// mod animation;
 mod animation;
 mod easing;
 mod keyframe;

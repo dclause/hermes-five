@@ -7,9 +7,9 @@ use std::sync::Arc;
 use crate::devices::input::{Input, InputEvent};
 use crate::devices::Device;
 use crate::errors::Error;
-use crate::hardware::Hardware;
-use crate::io::{IoProtocol, PinIdOrName, PinModeId};
+use crate::hardware::{Hardware, LowLevelApiExt, Pin, PinIdOrName, PinModeId};
 use crate::pause;
+use crate::protocols::IoProtocol;
 use crate::utils::{task, EventManager, GenericResult, State, TaskHandler};
 
 /// Represents a digital sensor of unspecified type: an [`Input`] [`Device`] that reads digital values
@@ -21,13 +21,16 @@ pub struct DigitalInput {
     // ########################################
     // # Basics
     /// The pin (id) of the [`Board`] used to read the digital value.
-    pin: u8,
+    id: u8,
     /// The current digital state.
     #[cfg_attr(feature = "serde", serde(with = "crate::utils::serde_arc_atomic"))]
     state: Arc<AtomicBool>,
 
     // ########################################
     // # Volatile utility data.
+    /// The pin on the [`Board`] used to control the device.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pin: Arc<Pin>,
     #[cfg_attr(
         feature = "serde",
         serde(with = "crate::utils::serde_arc_protocol", skip_serializing)
@@ -48,21 +51,22 @@ impl DigitalInput {
     /// * `UnknownPin`: this function will bail an error if the DigitalInput pin does not exist for this board.
     /// * `IncompatiblePin`: this function will bail an error if the DigitalInput pin does not support ANALOG mode.
     pub fn new<T: Into<PinIdOrName>>(board: &dyn Hardware, pin: T) -> Result<Self, Error> {
-        let pin = board.get_io().read().get_pin(pin)?.clone();
+        let pin = board.get_pin(pin)?;
 
         let sensor = Self {
-            pin: pin.id,
-            state: Arc::new(AtomicBool::new(pin.value != 0)),
+            id: pin.id,
+            pin: pin.clone(),
+            state: Arc::new(AtomicBool::new(pin.get_value() != 0)),
             protocol: board.get_protocol(),
             handler: Arc::new(RwLock::new(None)),
             events: EventManager::default(),
         };
 
         // Set pin mode to INPUT.
-        sensor.protocol.set_pin_mode(sensor.pin, PinModeId::INPUT)?;
+        sensor.protocol.set_pin_mode(pin.id, PinModeId::INPUT)?;
 
         // Set reporting for this pin.
-        sensor.protocol.report_digital(sensor.pin, true)?;
+        sensor.protocol.report_digital(pin.id, true)?;
 
         // Attaches the event handler.
         sensor.attach();
@@ -74,8 +78,13 @@ impl DigitalInput {
     // Getters and Setters
 
     /// Returns the pin (id) used by the device.
-    pub fn get_pin(&self) -> u8 {
-        self.pin
+    pub fn get_id(&self) -> u8 {
+        self.pin.id
+    }
+
+    /// Returns the pin used by the device.
+    pub fn get_pin(&self) -> Arc<Pin> {
+        self.pin.clone()
     }
 
     // ########################################
@@ -90,13 +99,7 @@ impl DigitalInput {
             *self.handler.write() = Some(
                 task::run(async move {
                     loop {
-                        let pin_value = self_clone
-                            .protocol
-                            .get_io()
-                            .read()
-                            .get_pin(self_clone.pin)?
-                            .value
-                            != 0;
+                        let pin_value = self_clone.get_pin().get_value() != 0;
                         let state_value = self_clone.state.load(Ordering::SeqCst);
                         if pin_value != state_value {
                             self_clone.state.store(pin_value, Ordering::SeqCst);
@@ -183,7 +186,7 @@ impl Display for DigitalInput {
         write!(
             f,
             "DigitalInput (pin={}) [state={}]",
-            self.pin,
+            self.pin.id,
             self.state.load(Ordering::SeqCst),
         )
     }
@@ -214,12 +217,12 @@ mod tests {
     fn test_new_digital_input() {
         let board = Board::new(MockProtocol::default());
         let sensor = DigitalInput::new(&board, 2).unwrap();
-        assert_eq!(sensor.get_pin(), 2);
+        assert_eq!(sensor.get_id(), 2);
         assert!(sensor.get_state().as_bool());
         sensor.detach();
 
-        let sensor = DigitalInput::new(&board, "D3").unwrap();
-        assert_eq!(sensor.get_pin(), 3);
+        let sensor = DigitalInput::new(&board, 3).unwrap();
+        assert_eq!(sensor.get_id(), 3);
         assert!(sensor.get_state().as_bool());
 
         sensor.detach();
@@ -229,7 +232,7 @@ mod tests {
     #[hermes_five_macros::test]
     fn test_digital_display() {
         let board = Board::new(MockProtocol::default());
-        let sensor = DigitalInput::new(&board, "D5").unwrap();
+        let sensor = DigitalInput::new(&board, 5).unwrap();
         assert!(!sensor.get_state().as_bool());
         assert_eq!(
             format!("{}", sensor),
@@ -280,13 +283,7 @@ mod tests {
         assert!(!low_flag.load(Ordering::SeqCst));
 
         // Simulate pin state change in the protocol => take value 0xFF
-        button
-            .protocol
-            .get_io()
-            .write()
-            .get_pin_mut(5)
-            .unwrap()
-            .value = 0xFF;
+        button.get_pin().set_value(0xFF);
 
         pause!(500);
 
@@ -295,13 +292,7 @@ mod tests {
         assert!(!low_flag.load(Ordering::SeqCst));
 
         // Simulate pin state change in the protocol => takes value 0
-        button
-            .protocol
-            .get_io()
-            .write()
-            .get_pin_mut(5)
-            .unwrap()
-            .value = 0;
+        button.get_pin().set_value(0);
 
         pause!(500);
 

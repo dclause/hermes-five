@@ -1,6 +1,6 @@
 use crate::errors::Error;
 use crate::errors::ProtocolError::NotInitialized;
-use crate::io::IoTransport;
+use crate::transports::IoTransport;
 use parking_lot::Mutex;
 use std::fmt::{Debug, Display, Formatter};
 use std::io::{Read, Write};
@@ -26,8 +26,8 @@ impl WiFi {
     /// # Example
     /// ```
     /// use hermes_five::hardware::Board;
-    /// use hermes_five::io::RemoteIo;
-    /// use hermes_five::io::WiFi;
+    /// use hermes_five::protocols::RemoteIo;
+    /// use hermes_five::transports::WiFi;
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {

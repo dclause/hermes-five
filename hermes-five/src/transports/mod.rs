@@ -1,28 +1,13 @@
 use crate::errors::Error;
-use crate::io::private::TraitToAny;
 use dyn_clone::DynClone;
 use std::fmt::{Debug, Display};
 
 mod serial;
 mod wifi;
 
+use crate::utils::private::TraitToAny;
 pub use serial::Serial;
 pub use wifi::WiFi;
-
-/// Only used for tests to downcast the transport layer.
-pub(crate) mod private {
-    use std::any::Any;
-
-    pub trait TraitToAny: 'static {
-        fn as_any(&self) -> &dyn Any;
-    }
-
-    impl<T: 'static> TraitToAny for T {
-        fn as_any(&self) -> &dyn Any {
-            self
-        }
-    }
-}
 
 dyn_clone::clone_trait_object!(IoTransport);
 
