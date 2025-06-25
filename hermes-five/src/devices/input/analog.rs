@@ -181,7 +181,7 @@ impl Display for AnalogInput {
             f,
             "AnalogInput (pin={}) [state={}]",
             self.pin.id,
-            self.state.load(Ordering::SeqCst),
+            self.state.load(Ordering::Relaxed),
         )
     }
 }
@@ -192,7 +192,7 @@ impl Device for AnalogInput {}
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl Input for AnalogInput {
     fn get_state(&self) -> State {
-        State::from(self.state.load(Ordering::SeqCst))
+        State::from(self.state.load(Ordering::Relaxed))
     }
 }
 
@@ -270,18 +270,18 @@ mod tests {
         sensor.on(InputEvent::OnChange, move |new_state: u16| {
             let captured_flag = moved_change_flag.clone();
             async move {
-                captured_flag.store(new_state, Ordering::SeqCst);
+                captured_flag.store(new_state, Ordering::Relaxed);
             }
         });
 
-        assert_eq!(change_flag.load(Ordering::SeqCst), 100);
+        assert_eq!(change_flag.load(Ordering::Relaxed), 100);
 
         // Simulate pin state change in the protocol => take value 0xFF
         pause!(100);
         sensor.get_pin().set_value(0xFF);
         pause!(100);
 
-        assert_eq!(change_flag.load(Ordering::SeqCst), 0xFF);
+        assert_eq!(change_flag.load(Ordering::Relaxed), 0xFF);
 
         sensor.detach();
     }

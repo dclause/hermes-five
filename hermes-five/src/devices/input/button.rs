@@ -206,9 +206,9 @@ impl Button {
                 task::run(async move {
                     loop {
                         let pin_value = self_clone.get_pin().get_value() != 0;
-                        let state_value = self_clone.state.load(Ordering::SeqCst);
+                        let state_value = self_clone.state.load(Ordering::Relaxed);
                         if pin_value != state_value {
-                            self_clone.state.store(pin_value, Ordering::SeqCst);
+                            self_clone.state.store(pin_value, Ordering::Relaxed);
 
                             // Depending on logical inversion mode, pin_value is inverted.
                             match self_clone.invert {
@@ -311,8 +311,8 @@ impl Device for Button {}
 impl Input for Button {
     fn get_state(&self) -> State {
         match self.invert {
-            false => State::from(self.state.load(Ordering::SeqCst)),
-            true => State::from(!self.state.load(Ordering::SeqCst)),
+            false => State::from(self.state.load(Ordering::Relaxed)),
+            true => State::from(!self.state.load(Ordering::Relaxed)),
         }
     }
 }
@@ -323,7 +323,7 @@ impl Display for Button {
             f,
             "Button (pin={}) [state={}, pullup={}, inverted={}]",
             self.pin.id,
-            self.state.load(Ordering::SeqCst),
+            self.state.load(Ordering::Relaxed),
             self.pullup,
             self.invert
         )
@@ -409,7 +409,7 @@ mod tests {
         let button = Button::new_inverted_pulldown(&board, 5).unwrap();
         assert_eq!(button.get_state().as_bool(), true);
 
-        button.state.store(true, Ordering::SeqCst); // Simulate a pressed button
+        button.state.store(true, Ordering::Relaxed); // Simulate a pressed button
         assert_eq!(button.get_state().as_bool(), false);
 
         button.detach();
@@ -427,7 +427,7 @@ mod tests {
         button.on(InputEvent::OnChange, move |new_state: bool| {
             let captured_flag = moved_change_flag.clone();
             async move {
-                captured_flag.store(new_state, Ordering::SeqCst);
+                captured_flag.store(new_state, Ordering::Relaxed);
             }
         });
 
@@ -437,7 +437,7 @@ mod tests {
         button.on(InputEvent::OnPress, move |_: bool| {
             let captured_flag = moved_pressed_flag.clone();
             async move {
-                captured_flag.store(true, Ordering::SeqCst);
+                captured_flag.store(true, Ordering::Relaxed);
             }
         });
 
@@ -447,30 +447,30 @@ mod tests {
         button.on(InputEvent::OnRelease, move |_: bool| {
             let captured_flag = moved_released_flag.clone();
             async move {
-                captured_flag.store(true, Ordering::SeqCst);
+                captured_flag.store(true, Ordering::Relaxed);
             }
         });
 
-        assert!(!change_flag.load(Ordering::SeqCst));
-        assert!(!pressed_flag.load(Ordering::SeqCst));
-        assert!(!released_flag.load(Ordering::SeqCst));
+        assert!(!change_flag.load(Ordering::Relaxed));
+        assert!(!pressed_flag.load(Ordering::Relaxed));
+        assert!(!released_flag.load(Ordering::Relaxed));
 
         // Simulate pin state change in the protocol => take value 0xFF
         button.get_pin().set_value(0xFF);
 
         pause!(500);
 
-        assert!(change_flag.load(Ordering::SeqCst));
-        assert!(pressed_flag.load(Ordering::SeqCst));
-        assert!(!released_flag.load(Ordering::SeqCst));
+        assert!(change_flag.load(Ordering::Relaxed));
+        assert!(pressed_flag.load(Ordering::Relaxed));
+        assert!(!released_flag.load(Ordering::Relaxed));
 
         // Simulate pin state change in the protocol => takes value 0
         button.get_pin().set_value(0);
 
         pause!(500);
 
-        assert!(!change_flag.load(Ordering::SeqCst)); // change switched back to 0
-        assert!(released_flag.load(Ordering::SeqCst));
+        assert!(!change_flag.load(Ordering::Relaxed)); // change switched back to 0
+        assert!(released_flag.load(Ordering::Relaxed));
 
         button.detach();
         board.disconnect().unwrap();
@@ -487,7 +487,7 @@ mod tests {
         button.on(InputEvent::OnChange, move |new_state: bool| {
             let captured_flag = moved_change_flag.clone();
             async move {
-                captured_flag.store(new_state, Ordering::SeqCst);
+                captured_flag.store(new_state, Ordering::Relaxed);
             }
         });
 
@@ -497,7 +497,7 @@ mod tests {
         button.on(InputEvent::OnPress, move |_: bool| {
             let captured_flag = moved_pressed_flag.clone();
             async move {
-                captured_flag.store(true, Ordering::SeqCst);
+                captured_flag.store(true, Ordering::Relaxed);
                 Ok(())
             }
         });
@@ -508,31 +508,31 @@ mod tests {
         button.on(InputEvent::OnRelease, move |_: bool| {
             let captured_flag = moved_released_flag.clone();
             async move {
-                captured_flag.store(true, Ordering::SeqCst);
+                captured_flag.store(true, Ordering::Relaxed);
                 Ok(())
             }
         });
 
-        assert!(change_flag.load(Ordering::SeqCst)); // true by default
-        assert!(!pressed_flag.load(Ordering::SeqCst));
-        assert!(!released_flag.load(Ordering::SeqCst));
+        assert!(change_flag.load(Ordering::Relaxed)); // true by default
+        assert!(!pressed_flag.load(Ordering::Relaxed));
+        assert!(!released_flag.load(Ordering::Relaxed));
 
         // Simulate pin state change in the protocol => take value 0xFF
         button.get_pin().set_value(0xFF);
 
         pause!(500);
 
-        assert!(!change_flag.load(Ordering::SeqCst)); // changed to false
-        assert!(pressed_flag.load(Ordering::SeqCst));
-        assert!(!released_flag.load(Ordering::SeqCst));
+        assert!(!change_flag.load(Ordering::Relaxed)); // changed to false
+        assert!(pressed_flag.load(Ordering::Relaxed));
+        assert!(!released_flag.load(Ordering::Relaxed));
 
         // Simulate pin state change in the protocol => takes value 0
         button.get_pin().set_value(0);
 
         pause!(500);
 
-        assert!(change_flag.load(Ordering::SeqCst)); // change switched back to true
-        assert!(released_flag.load(Ordering::SeqCst));
+        assert!(change_flag.load(Ordering::Relaxed)); // change switched back to true
+        assert!(released_flag.load(Ordering::Relaxed));
 
         button.detach();
         board.disconnect().unwrap();

@@ -417,7 +417,7 @@ impl Servo {
 
     #[inline(always)]
     fn set_value(&self, value: u16) {
-        self.state.store(value, Ordering::SeqCst)
+        self.state.store(value, Ordering::Relaxed)
     }
 }
 impl Display for Servo {

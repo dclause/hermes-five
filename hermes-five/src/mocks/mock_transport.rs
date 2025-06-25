@@ -78,13 +78,13 @@ impl Display for MockTransport {
 impl IoTransport for MockTransport {
     fn open(&self) -> Result<(), Error> {
         pause_sync!(100);
-        self.connected.store(true, Ordering::SeqCst);
+        self.connected.store(true, Ordering::Relaxed);
         Ok(())
     }
 
     fn close(&self) -> Result<(), Error> {
         pause_sync!(100);
-        self.connected.store(false, Ordering::SeqCst);
+        self.connected.store(false, Ordering::Relaxed);
         Ok(())
     }
 

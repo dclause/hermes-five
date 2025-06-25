@@ -41,10 +41,10 @@ impl MockOutputDevice {
     }
 
     fn get_value(&self) -> u16 {
-        self.state.load(Ordering::SeqCst)
+        self.state.load(Ordering::Relaxed)
     }
     fn set_value(&self, value: u16) {
-        self.state.store(value, Ordering::SeqCst)
+        self.state.store(value, Ordering::Relaxed)
     }
 }
 
@@ -53,7 +53,7 @@ impl Display for MockOutputDevice {
         write!(
             f,
             "MockActuator [state={}]",
-            self.state.load(Ordering::SeqCst)
+            self.state.load(Ordering::Relaxed)
         )
     }
 }

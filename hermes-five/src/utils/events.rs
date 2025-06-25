@@ -207,14 +207,14 @@ mod tests {
         let payload = Arc::new(AtomicBool::new(false));
 
         events.on("register", |flag: Arc<AtomicBool>| async move {
-            flag.store(true, Ordering::SeqCst);
+            flag.store(true, Ordering::Relaxed);
         });
 
         events.emit("register", payload.clone());
 
         pause!(100);
         assert!(
-            payload.load(Ordering::SeqCst),
+            payload.load(Ordering::Relaxed),
             "The flag have been set by the triggered event."
         );
     }
@@ -225,7 +225,7 @@ mod tests {
         let flag = Arc::new(AtomicBool::new(false));
 
         let handler = events.on("unregister", |flag: Arc<AtomicBool>| async move {
-            flag.store(true, Ordering::SeqCst);
+            flag.store(true, Ordering::Relaxed);
         });
 
         events.unregister(handler);
@@ -233,7 +233,7 @@ mod tests {
 
         pause!(100);
         assert!(
-            !flag.load(Ordering::SeqCst),
+            !flag.load(Ordering::Relaxed),
             "The event was unregistered: the flag have not been set."
         );
     }
@@ -244,8 +244,8 @@ mod tests {
         let flag = Arc::new(AtomicUsize::new(0));
 
         let callback = |flag: Arc<AtomicUsize>| async move {
-            let value = flag.load(Ordering::SeqCst);
-            flag.store(value + 1, Ordering::SeqCst);
+            let value = flag.load(Ordering::Relaxed);
+            flag.store(value + 1, Ordering::Relaxed);
         };
 
         events.on("multiple", callback);
@@ -255,7 +255,7 @@ mod tests {
 
         pause!(500);
         assert_eq!(
-            flag.load(Ordering::SeqCst),
+            flag.load(Ordering::Relaxed),
             2,
             "The flag have been increased by 2."
         );
@@ -269,14 +269,14 @@ mod tests {
         events.on(
             "payload",
             |(number1, number2, container): (u8, u8, Arc<AtomicU8>)| async move {
-                container.store(number1 + number2, Ordering::SeqCst);
+                container.store(number1 + number2, Ordering::Relaxed);
             },
         );
         events.emit("payload", (42u8, 69u8, flag.clone()));
 
         pause!(100);
         assert_eq!(
-            flag.load(Ordering::SeqCst),
+            flag.load(Ordering::Relaxed),
             111,
             "The complex flag has been properly received."
         );
@@ -292,12 +292,12 @@ mod tests {
     #[test]
     fn test_event_manager_debug() {
         let events: EventManager<&str, ()> = Default::default();
-        events.on("test", |_: ()| async move { });
+        events.on("test", |_: ()| async move {});
         assert_eq!(
             format!("{:?}", events),
             "EventManager: 1 registered callback"
         );
-        events.on("test2", |_: ()| async move { });
+        events.on("test2", |_: ()| async move {});
         assert_eq!(
             format!("{:?}", events),
             "EventManager: 2 registered callbacks"

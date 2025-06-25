@@ -140,7 +140,7 @@ impl DigitalOutput {
     }
     #[inline(always)]
     fn set_value(&self, value: bool) {
-        self.state.store(value, Ordering::SeqCst)
+        self.state.store(value, Ordering::Relaxed)
     }
 }
 

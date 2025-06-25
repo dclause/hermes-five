@@ -389,11 +389,11 @@ mod tests {
         board.on(BoardEvent::OnReady, move |_| {
             let captured_flag = moved_flag.clone();
             async move {
-                captured_flag.store(true, Ordering::SeqCst);
+                captured_flag.store(true, Ordering::Relaxed);
             }
         });
         pause!(500);
-        assert!(flag.load(Ordering::SeqCst));
+        assert!(flag.load(Ordering::Relaxed));
     }
 
     #[test]
@@ -414,12 +414,12 @@ mod tests {
         board.on(BoardEvent::OnClose, move |_| {
             let captured_flag = moved_flag.clone();
             async move {
-                captured_flag.store(true, Ordering::SeqCst);
+                captured_flag.store(true, Ordering::Relaxed);
             }
         });
 
         pause!(1000);
-        assert!(flag.load(Ordering::SeqCst));
+        assert!(flag.load(Ordering::Relaxed));
     }
 
     #[hermes_five_macros::test]

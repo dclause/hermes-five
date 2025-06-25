@@ -26,7 +26,7 @@ impl Display for MockInputDevice {
         write!(
             f,
             "MockActuator [state={}]",
-            self.state.load(Ordering::SeqCst)
+            self.state.load(Ordering::Relaxed)
         )
     }
 }
@@ -37,6 +37,6 @@ impl Device for MockInputDevice {}
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl Input for MockInputDevice {
     fn get_state(&self) -> State {
-        self.state.load(Ordering::SeqCst).into()
+        self.state.load(Ordering::Relaxed).into()
     }
 }

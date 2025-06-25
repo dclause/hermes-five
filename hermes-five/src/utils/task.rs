@@ -72,13 +72,16 @@ impl TaskRegistration {
         // Check for a panic.
         match res {
             Err(panic) => {
-                queue.results.send(RuntimeError {
-                    cause: "Task panicked".to_string(),
-                }).unwrap();
+                queue
+                    .results
+                    .send(RuntimeError {
+                        cause: "Task panicked".to_string(),
+                    })
+                    .unwrap();
                 // Continue the panic.
                 std::panic::resume_unwind(panic);
             }
-            Ok(res) => { 
+            Ok(res) => {
                 // Check for an error.
                 match res.into() {
                     GenericResult::Ok => Ok(()),
@@ -237,14 +240,14 @@ mod tests {
         // Increment the flag after 100ms
         task::run(async move {
             pause!(100);
-            flag_clone.fetch_add(1, Ordering::SeqCst);
+            flag_clone.fetch_add(1, Ordering::Relaxed);
         })
         .expect("Should not panic");
 
         // The flag should not have been incremented before the 100ms elapsed.
         pause!(50);
         assert_eq!(
-            flag.load(Ordering::SeqCst),
+            flag.load(Ordering::Relaxed),
             0,
             "Flag should not be updated by the task before 100ms",
         );
@@ -252,7 +255,7 @@ mod tests {
         // The flag should have been incremented after the 100ms elapsed.
         pause!(100);
         assert_eq!(
-            flag.load(Ordering::SeqCst),
+            flag.load(Ordering::Relaxed),
             1,
             "Flag should be updated by the task after 100ms",
         );
@@ -264,14 +267,14 @@ mod tests {
         // Increment the flag after 100ms
         let handler = task::run(async move {
             pause!(100);
-            flag_clone.fetch_add(1, Ordering::SeqCst);
+            flag_clone.fetch_add(1, Ordering::Relaxed);
         })
         .expect("Should not panic");
 
         // The flag should not have been incremented before the 100ms elapsed.
         pause!(50);
         assert_eq!(
-            flag.load(Ordering::SeqCst),
+            flag.load(Ordering::Relaxed),
             1,
             "Flag should not be updated by the task before 100ms",
         );
@@ -282,7 +285,7 @@ mod tests {
         // The flag should not have been incremented after the 100ms elapsed.
         pause!(100);
         assert_eq!(
-            flag.load(Ordering::SeqCst),
+            flag.load(Ordering::Relaxed),
             1,
             "Flag should be updated by the task after 100ms",
         );
@@ -309,8 +312,15 @@ mod tests {
         });
         assert!(task.is_ok(), "A task in error do not panic the runtime");
         let task_error_result = task.unwrap().await.unwrap();
-        assert!(task_error_result.is_err(),  "The runtime should catches the error");
-        assert_eq!(task_error_result.unwrap_err().to_string(),  "Internal error: wow error!.", "The runtime should catches the error");
+        assert!(
+            task_error_result.is_err(),
+            "The runtime should catches the error"
+        );
+        assert_eq!(
+            task_error_result.unwrap_err().to_string(),
+            "Internal error: wow error!.",
+            "The runtime should catches the error"
+        );
 
         // Panicking task.
         let task = task::run(async move {

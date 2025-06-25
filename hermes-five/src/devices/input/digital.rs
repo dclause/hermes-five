@@ -101,9 +101,9 @@ impl DigitalInput {
                 task::run(async move {
                     loop {
                         let pin_value = self_clone.get_pin().get_value() != 0;
-                        let state_value = self_clone.state.load(Ordering::SeqCst);
+                        let state_value = self_clone.state.load(Ordering::Relaxed);
                         if pin_value != state_value {
-                            self_clone.state.store(pin_value, Ordering::SeqCst);
+                            self_clone.state.store(pin_value, Ordering::Relaxed);
                             self_clone.events.emit(InputEvent::OnChange, pin_value);
                             match pin_value {
                                 true => self_clone.events.emit(InputEvent::OnHigh, pin_value),
@@ -188,7 +188,7 @@ impl Display for DigitalInput {
             f,
             "DigitalInput (pin={}) [state={}]",
             self.pin.id,
-            self.state.load(Ordering::SeqCst),
+            self.state.load(Ordering::Relaxed),
         )
     }
 }
@@ -199,7 +199,7 @@ impl Device for DigitalInput {}
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl Input for DigitalInput {
     fn get_state(&self) -> State {
-        State::from(self.state.load(Ordering::SeqCst))
+        State::from(self.state.load(Ordering::Relaxed))
     }
 }
 
@@ -255,7 +255,7 @@ mod tests {
         button.on(InputEvent::OnChange, move |new_state: bool| {
             let captured_flag = moved_change_flag.clone();
             async move {
-                captured_flag.store(new_state, Ordering::SeqCst);
+                captured_flag.store(new_state, Ordering::Relaxed);
             }
         });
 
@@ -265,7 +265,7 @@ mod tests {
         button.on(InputEvent::OnHigh, move |_: bool| {
             let captured_flag = moved_high_flag.clone();
             async move {
-                captured_flag.store(true, Ordering::SeqCst);
+                captured_flag.store(true, Ordering::Relaxed);
             }
         });
 
@@ -275,30 +275,30 @@ mod tests {
         button.on(InputEvent::OnLow, move |_: bool| {
             let captured_flag = moved_low_flag.clone();
             async move {
-                captured_flag.store(true, Ordering::SeqCst);
+                captured_flag.store(true, Ordering::Relaxed);
             }
         });
 
-        assert!(!change_flag.load(Ordering::SeqCst));
-        assert!(!high_flag.load(Ordering::SeqCst));
-        assert!(!low_flag.load(Ordering::SeqCst));
+        assert!(!change_flag.load(Ordering::Relaxed));
+        assert!(!high_flag.load(Ordering::Relaxed));
+        assert!(!low_flag.load(Ordering::Relaxed));
 
         // Simulate pin state change in the protocol => take value 0xFF
         button.get_pin().set_value(0xFF);
 
         pause!(500);
 
-        assert!(change_flag.load(Ordering::SeqCst));
-        assert!(high_flag.load(Ordering::SeqCst));
-        assert!(!low_flag.load(Ordering::SeqCst));
+        assert!(change_flag.load(Ordering::Relaxed));
+        assert!(high_flag.load(Ordering::Relaxed));
+        assert!(!low_flag.load(Ordering::Relaxed));
 
         // Simulate pin state change in the protocol => takes value 0
         button.get_pin().set_value(0);
 
         pause!(500);
 
-        assert!(!change_flag.load(Ordering::SeqCst)); // change switched back to 0
-        assert!(low_flag.load(Ordering::SeqCst));
+        assert!(!change_flag.load(Ordering::Relaxed)); // change switched back to 0
+        assert!(low_flag.load(Ordering::Relaxed));
 
         button.detach();
         board.disconnect().unwrap();

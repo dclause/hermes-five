@@ -113,7 +113,7 @@ pub mod serde_arc_atomic {
         T: AtomicPrimitive,
         T::Primitive: Serialize,
     {
-        val.load(Ordering::SeqCst).serialize(s)
+        val.load(Ordering::Relaxed).serialize(s)
     }
 
     pub fn deserialize<'de, D, T>(d: D) -> Result<Arc<T>, D::Error>
@@ -177,13 +177,13 @@ pub mod serde_arc_atomic {
             let deserialized: TestStruct = serde_json::from_str(&json).unwrap();
 
             // Assert equality of all fields
-            assert_eq!(deserialized.a_bool.load(Ordering::SeqCst), true);
-            assert_eq!(deserialized.a_u8.load(Ordering::SeqCst), 8);
-            assert_eq!(deserialized.a_u16.load(Ordering::SeqCst), 16000);
-            assert_eq!(deserialized.a_u32.load(Ordering::SeqCst), 320000);
-            assert_eq!(deserialized.a_u64.load(Ordering::SeqCst), 64_000_000);
-            assert_eq!(deserialized.a_isize.load(Ordering::SeqCst), -42);
-            assert_eq!(deserialized.a_usize.load(Ordering::SeqCst), 42);
+            assert_eq!(deserialized.a_bool.load(Ordering::Relaxed), true);
+            assert_eq!(deserialized.a_u8.load(Ordering::Relaxed), 8);
+            assert_eq!(deserialized.a_u16.load(Ordering::Relaxed), 16000);
+            assert_eq!(deserialized.a_u32.load(Ordering::Relaxed), 320000);
+            assert_eq!(deserialized.a_u64.load(Ordering::Relaxed), 64_000_000);
+            assert_eq!(deserialized.a_isize.load(Ordering::Relaxed), -42);
+            assert_eq!(deserialized.a_usize.load(Ordering::Relaxed), 42);
         }
     }
 }
