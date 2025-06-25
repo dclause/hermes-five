@@ -1,9 +1,10 @@
 use crate::errors::Error;
-use crate::hardware::Hardware;
-use crate::io::{IoData, IoTransport, RemoteIo, IO};
-use crate::io::{IoProtocol, PinModeId};
+use crate::hardware::{Hardware, I2CReply, LowLevelApi, Pin, PinModeId};
+use crate::protocols::{IoProtocol, RemoteIo};
+use crate::transports::IoTransport;
 use crate::utils::{task, EventManager, GenericResult, Range};
 use parking_lot::RwLock;
+use std::collections::HashMap;
 use std::fmt::Display;
 use std::future::Future;
 use std::sync::Arc;
@@ -26,7 +27,8 @@ pub struct Board {
     #[cfg_attr(feature = "serde", serde(skip))]
     events: EventManager<BoardEvent, Board>,
     /// The inner protocol used by this Board.
-    protocol: Box<dyn IoProtocol>,
+    #[cfg_attr(feature = "serde", serde(with = "crate::utils::serde_arc_protocol"))]
+    protocol: Arc<dyn IoProtocol>,
 }
 
 impl Default for Board {
@@ -42,7 +44,7 @@ impl Default for Board {
     ///
     /// ```
     /// use hermes_five::hardware::Board;
-    /// use hermes_five::io::RemoteIo;
+    /// use hermes_five::protocols::RemoteIo;
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
@@ -62,8 +64,8 @@ impl Default for Board {
 /// # Example
 /// ```
 /// use hermes_five::hardware::Board;
-/// use hermes_five::io::RemoteIo;
-/// use hermes_five::io::Serial;
+/// use hermes_five::protocols::RemoteIo;
+/// use hermes_five::transports::Serial;
 ///
 /// #[hermes_five::runtime]
 /// async fn main() {
@@ -74,7 +76,7 @@ impl<T: IoTransport + 'static> From<T> for Board {
     fn from(transport: T) -> Self {
         Self {
             events: EventManager::default(),
-            protocol: Box::new(RemoteIo::from(transport)),
+            protocol: Arc::new(RemoteIo::from(transport)),
         }
     }
 }
@@ -88,7 +90,7 @@ impl Board {
     /// # Example
     /// ```
     /// use hermes_five::hardware::Board;
-    /// use hermes_five::io::RemoteIo;
+    /// use hermes_five::protocols::RemoteIo;
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
@@ -107,7 +109,7 @@ impl Board {
     /// # Example
     /// ```
     /// use hermes_five::hardware::Board;
-    /// use hermes_five::io::RemoteIo;
+    /// use hermes_five::protocols::RemoteIo;
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
@@ -117,7 +119,7 @@ impl Board {
     pub fn new<P: IoProtocol + 'static>(protocol: P) -> Self {
         Self {
             events: EventManager::default(),
-            protocol: Box::new(protocol),
+            protocol: Arc::new(protocol),
         }
     }
 
@@ -131,8 +133,7 @@ impl Board {
     /// Have a look at the examples/board folder more detailed examples.
     ///
     /// ```
-    /// use hermes_five::hardware::{Board, BoardEvent};
-    /// use hermes_five::io::IO;
+    /// use hermes_five::hardware::{Board, BoardEvent, LowLevelApi};
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
@@ -170,7 +171,6 @@ impl Board {
     /// ```
     /// use hermes_five::pause;
     /// use hermes_five::hardware::{Board, BoardEvent};
-    /// use hermes_five::io::IO;
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
@@ -196,16 +196,16 @@ impl Board {
     }
 
     /// Blocking version of [`Self::connect()`] method.
-    pub fn blocking_open(mut self) -> Result<Self, Error> {
+    pub fn blocking_open(self) -> Result<Self, Error> {
         self.protocol.open()?;
         // trace!"Board is ready: {:#?}", self.get_io());
         Ok(self)
     }
 
     /// Blocking version of [`Self::disconnect()`] method.
-    pub fn blocking_close(mut self) -> Result<Self, Error> {
+    pub fn blocking_close(self) -> Result<Self, Error> {
         // Detach all pins.
-        let pins: Vec<u8> = self.get_io().read().pins.keys().copied().collect();
+        let pins: Vec<u8> = self.get_protocol().get_pins().keys().copied().collect();
         for id in pins {
             let _ = self.set_pin_mode(id, PinModeId::OUTPUT);
         }
@@ -246,78 +246,92 @@ impl Board {
 }
 
 impl Hardware for Board {
-    fn get_protocol(&self) -> Box<dyn IoProtocol> {
+    fn get_protocol(&self) -> Arc<dyn IoProtocol> {
         self.protocol.clone()
     }
 
-    /// @todo remove this when hermes_studio finds a way around.
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn set_protocol(&mut self, protocol: Box<dyn IoProtocol>) {
+    #[cfg(feature = "serde")]
+    fn set_protocol(&mut self, protocol: Arc<dyn IoProtocol>) {
         self.protocol = protocol;
     }
 }
 
 // Note: no need to test cover: those are simple pass through only.
 #[cfg_attr(coverage_nightly, coverage(off))]
-impl IO for Board {
-    /// Easy access to hardware through the board.
-    ///
-    /// # Example
-    /// ```
-    /// use hermes_five::hardware::Board;
-    /// use hermes_five::hardware::BoardEvent;
-    /// use hermes_five::io::IO;
-    ///
-    /// #[hermes_five::runtime]
-    /// async fn main() {
-    ///     let board = Board::start().unwrap();
-    ///     board.on(BoardEvent::OnReady, |mut board: Board| async move {
-    ///         println!("Board connected: {}", board);
-    ///         println!("Pins {:#?}", board.get_io().read().pins);
-    ///     });
-    /// }
-    fn get_io(&self) -> &Arc<RwLock<IoData>> {
-        self.protocol.get_io()
+impl LowLevelApi for Board {
+    #[inline(always)]
+    fn get_protocol_name(&self) -> &str {
+        self.protocol.get_protocol_name()
     }
 
-    fn is_connected(&self) -> bool {
-        self.protocol.is_connected()
+    #[inline(always)]
+    fn get_protocol_version(&self) -> &str {
+        self.protocol.get_protocol_version()
     }
 
-    fn set_pin_mode(&mut self, pin: u8, mode: PinModeId) -> Result<(), Error> {
+    #[inline(always)]
+    fn get_firmware_name(&self) -> &str {
+        self.protocol.get_firmware_name()
+    }
+
+    #[inline(always)]
+    fn get_firmware_version(&self) -> &str {
+        self.protocol.get_firmware_version()
+    }
+
+    #[inline(always)]
+    fn get_pins(&self) -> &HashMap<u8, Arc<Pin>> {
+        self.protocol.get_pins()
+    }
+
+    #[inline(always)]
+    fn set_pin_mode(&self, pin: u8, mode: PinModeId) -> Result<(), Error> {
         self.protocol.set_pin_mode(pin, mode)
     }
 
-    fn digital_write(&mut self, pin: u8, level: bool) -> Result<(), Error> {
+    #[inline(always)]
+    fn digital_write(&self, pin: u8, level: bool) -> Result<(), Error> {
         self.protocol.digital_write(pin, level)
     }
 
-    fn analog_write(&mut self, pin: u8, level: u16) -> Result<(), Error> {
+    #[inline(always)]
+    fn analog_write(&self, pin: u8, level: u16) -> Result<(), Error> {
         self.protocol.analog_write(pin, level)
     }
 
-    fn digital_read(&mut self, _: u8) -> Result<bool, Error> {
+    #[inline(always)]
+    fn digital_read(&self, _: u8) -> Result<bool, Error> {
         Err(Error::NotImplemented)
     }
 
-    fn analog_read(&mut self, _: u8) -> Result<u16, Error> {
+    #[inline(always)]
+    fn analog_read(&self, _: u8) -> Result<u16, Error> {
         Err(Error::NotImplemented)
     }
 
-    fn servo_config(&mut self, pin: u8, pwm_range: Range<u16>) -> Result<(), Error> {
+    #[inline(always)]
+    fn servo_config(&self, pin: u8, pwm_range: Range<u16>) -> Result<(), Error> {
         self.protocol.servo_config(pin, pwm_range)
     }
 
-    fn i2c_config(&mut self, delay: u16) -> Result<(), Error> {
+    #[inline(always)]
+    fn i2c_config(&self, delay: u16) -> Result<(), Error> {
         self.protocol.i2c_config(delay)
     }
 
-    fn i2c_read(&mut self, address: u8, size: u16) -> Result<(), Error> {
+    #[inline(always)]
+    fn i2c_read(&self, address: u8, size: u16) -> Result<(), Error> {
         self.protocol.i2c_read(address, size)
     }
 
-    fn i2c_write(&mut self, address: u8, data: &[u16]) -> Result<(), Error> {
+    #[inline(always)]
+    fn i2c_write(&self, address: u8, data: &[u16]) -> Result<(), Error> {
         self.protocol.i2c_write(address, data)
+    }
+
+    #[inline(always)]
+    fn get_i2c_data(&self, address: u8) -> Arc<RwLock<Vec<I2CReply>>> {
+        self.protocol.get_i2c_data(address)
     }
 }
 
@@ -330,11 +344,10 @@ impl Display for Board {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::Serial;
-    use crate::io::IO;
     use crate::mocks::MockProtocol;
     use crate::mocks::MockTransport;
     use crate::pause;
+    use crate::transports::Serial;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
 
@@ -342,9 +355,9 @@ mod tests {
     fn test_board_default() {
         // Default board can be created.
         let board = Board::default();
-        assert_eq!(
-            board.get_protocol_name(),
-            "RemoteIo",
+        let found_protocol = (*board.protocol).as_any().downcast_ref::<RemoteIo>();
+        assert!(
+            found_protocol.is_some(),
             "Default board uses the default protocol"
         );
     }
@@ -353,67 +366,41 @@ mod tests {
     fn test_board_from() {
         // Custom protocol can be used.
         let board = Board::new(MockProtocol::default());
-        assert_eq!(
-            board.get_protocol_name(),
-            "MockProtocol",
+        let found_protocol = (*board.protocol).as_any().downcast_ref::<MockProtocol>();
+        assert!(
+            found_protocol.is_some(),
             "Board can be created with a custom protocol"
         );
         // Custom transport can be used.
         let board = Board::from(Serial::default());
-        assert_eq!(
-            board.get_protocol_name(),
-            "RemoteIo",
-            "Board can be created with a custom transport"
+        let found_protocol = (*board.protocol).as_any().downcast_ref::<RemoteIo>();
+        assert!(
+            found_protocol.is_some(),
+            "Default board uses the default protocol"
         );
     }
 
     #[hermes_five_macros::test]
     async fn test_board_open() {
-        let mut transport = MockTransport {
-            read_index: 10,
-            ..Default::default()
-        };
-        // Result for query firmware
-        transport.read_buf[10..15].copy_from_slice(&[0xF0, 0x79, 0x01, 0x0C, 0xF7]);
-        // Result for report capabilities
-        transport.read_buf[15..26].copy_from_slice(&[
-            0xF0, 0x6C, 0x00, 0x08, 0x7F, 0x00, 0x08, 0x01, 0x08, 0x7F, 0xF7,
-        ]);
-        // Result for analog mapping
-        transport.read_buf[26..32].copy_from_slice(&[0xF0, 0x6A, 0x7F, 0x7F, 0x7F, 0xF7]);
-
+        let transport = MockTransport::default();
         let flag = Arc::new(AtomicBool::new(false));
         let moved_flag = flag.clone();
         let board = Board::new(RemoteIo::from(transport)).connect().unwrap();
-        board.on(BoardEvent::OnReady, move |board: Board| {
+        board.on(BoardEvent::OnReady, move |_| {
             let captured_flag = moved_flag.clone();
             async move {
-                captured_flag.store(true, Ordering::SeqCst);
-                assert!(board.is_connected());
+                captured_flag.store(true, Ordering::Relaxed);
             }
         });
         pause!(500);
-        assert!(flag.load(Ordering::SeqCst));
+        assert!(flag.load(Ordering::Relaxed));
     }
 
     #[test]
     fn test_board_blocking_open() {
-        let mut transport = MockTransport {
-            read_index: 10,
-            ..Default::default()
-        };
-        // Result for query firmware
-        transport.read_buf[10..15].copy_from_slice(&[0xF0, 0x79, 0x01, 0x0C, 0xF7]);
-        // Result for report capabilities
-        transport.read_buf[15..26].copy_from_slice(&[
-            0xF0, 0x6C, 0x00, 0x08, 0x7F, 0x00, 0x08, 0x01, 0x08, 0x7F, 0xF7,
-        ]);
-        // Result for analog mapping
-        transport.read_buf[26..32].copy_from_slice(&[0xF0, 0x6A, 0x7F, 0x7F, 0x7F, 0xF7]);
-
+        let transport = MockTransport::default();
         let protocol = RemoteIo::from(transport);
-        let board = Board::new(protocol).blocking_open().unwrap();
-        assert!(board.is_connected());
+        assert!(Board::new(protocol).blocking_open().is_ok());
     }
 
     #[hermes_five_macros::test]
@@ -424,30 +411,20 @@ mod tests {
         let board = Board::new(MockProtocol::default()).connect().unwrap();
         let board = board.disconnect().unwrap();
 
-        board.on(BoardEvent::OnClose, move |board: Board| {
+        board.on(BoardEvent::OnClose, move |_| {
             let captured_flag = moved_flag.clone();
             async move {
-                captured_flag.store(true, Ordering::SeqCst);
-                assert!(!board.is_connected());
+                captured_flag.store(true, Ordering::Relaxed);
             }
         });
 
         pause!(1000);
-        assert!(flag.load(Ordering::SeqCst));
-        assert!(!board.is_connected());
+        assert!(flag.load(Ordering::Relaxed));
     }
 
     #[hermes_five_macros::test]
     fn test_board_start() {
-        let board = Board::start().unwrap();
-        assert_eq!(board.get_protocol_name(), "RemoteIo");
-        board.disconnect().unwrap();
-    }
-
-    #[test]
-    fn test_board_get_hardware() {
-        let board = Board::new(MockProtocol::default());
-        assert_eq!(board.get_io().read().protocol_version, "fake.1.0");
+        assert!(Board::start().is_ok());
     }
 
     #[test]
@@ -456,7 +433,7 @@ mod tests {
         let output = format!("{}", board);
         assert_eq!(
             output,
-            "Board (MockProtocol [firmware=Fake protocol, version=fake.2.3, protocol=fake.1.0])"
+            "Board (MockProtocol [protocol=MockProtocol (version=fake.2.3), firmware=fake_firmware (version fake.1.0)])"
         );
     }
 }
@@ -464,9 +441,9 @@ mod tests {
 #[cfg(feature = "serde")]
 #[cfg(test)]
 mod serde_tests {
-    use crate::hardware::{Board, Hardware};
-    use crate::io::RemoteIo;
+    use crate::hardware::Board;
     use crate::mocks::MockProtocol;
+    use crate::protocols::RemoteIo;
 
     #[test]
     fn test_board_serialize() {
@@ -487,10 +464,13 @@ mod serde_tests {
         let json =
             r#"{"protocol":{"type":"RemoteIo","transport":{"type":"Serial","port":"mock"}}}"#;
         let board: Board = serde_json::from_str(json).unwrap();
-        assert_eq!(board.get_protocol_name(), "RemoteIo");
+        let protocol = (*board.protocol).as_any().downcast_ref::<RemoteIo>();
+        assert!(protocol.is_some());
 
         let json = r#"{"protocol":{"type":"MockProtocol"}}"#;
         let board: Board = serde_json::from_str(json).unwrap();
-        assert_eq!(board.get_protocol_name(), "MockProtocol");
+        let protocol = (*board.protocol).as_any().downcast_ref::<RemoteIo>();
+        assert_eq!(board.protocol.get_protocol_name(), "MockProtocol");
+        assert!(protocol.is_none());
     }
 }

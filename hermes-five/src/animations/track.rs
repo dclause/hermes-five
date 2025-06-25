@@ -21,7 +21,7 @@ use crate::utils::{Range, State};
 /// use hermes_five::animations::{Easing, Keyframe, Track};
 /// use hermes_five::hardware::Board;
 /// use hermes_five::devices::Servo;
-/// use hermes_five::io::RemoteIo;
+/// use hermes_five::protocols::RemoteIo;
 ///
 /// #[hermes_five::runtime]
 /// async fn main() {

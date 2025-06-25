@@ -7,8 +7,8 @@ use crate::animations::{Animation, Keyframe, Segment, Track};
 use crate::devices::OutputDevice;
 use crate::errors::HardwareError::IncompatiblePin;
 use crate::errors::{Error, StateError};
-use crate::hardware::Hardware;
-use crate::io::{IoProtocol, Pin, PinModeId};
+use crate::hardware::{Hardware, LowLevelApiExt, Pin, PinIdOrName, PinModeId};
+use crate::protocols::IoProtocol;
 use crate::utils::{task, Range, Scalable, State};
 use crate::{pause, pause_sync};
 use hermes_five_macros::output_device;
@@ -30,9 +30,10 @@ pub struct Servo {
     // ########################################
     // # Basics
     /// The pin (id) of the [`Board`] used to control the Servo.
-    pin: u8,
+    #[cfg_attr(feature = "serde", serde(rename = "pin"))]
+    id: u8,
     /// The current Servo state.
-    #[cfg_attr(feature = "serde", serde(with = "crate::utils::arc_atomic_serde"))]
+    #[cfg_attr(feature = "serde", serde(with = "crate::utils::serde_arc_atomic"))]
     state: Arc<AtomicU16>,
 
     // ########################################
@@ -69,8 +70,18 @@ pub struct Servo {
 
     // ########################################
     // # Volatile utility data.
+    /// The pin on the [`Board`] used to control the device.
     #[cfg_attr(feature = "serde", serde(skip))]
-    protocol: Box<dyn IoProtocol>,
+    pin: Arc<Pin>,
+    #[cfg_attr(
+        feature = "serde",
+        serde(
+            with = "crate::utils::serde_arc_protocol",
+            skip_serializing,
+            default = "crate::utils::serde_arc_protocol::get_default"
+        )
+    )]
+    protocol: Arc<dyn IoProtocol>,
     #[cfg_attr(feature = "serde", serde(skip))]
     last_move: Arc<RwLock<Option<SystemTime>>>,
 }
@@ -95,11 +106,18 @@ impl Servo {
     }
 
     /// Inner helper.
-    fn create(board: &dyn Hardware, pin: u8, default: u16, inverted: bool) -> Result<Self, Error> {
+    fn create<P: Into<PinIdOrName>>(
+        board: &dyn Hardware,
+        pin: P,
+        default: u16,
+        inverted: bool,
+    ) -> Result<Self, Error> {
         let pwm_range = Range::from([600, 2400]);
+        let pin = board.get_pin(pin)?;
 
         let mut servo = Self {
-            pin,
+            id: pin.id,
+            pin: pin.clone(),
             state: Arc::new(AtomicU16::new(default)),
             default,
             servo_type: ServoType::default(),
@@ -117,17 +135,15 @@ impl Servo {
         // --
         // The following may seem tedious, but it ensures we attach the servo with the default value already set.
         // Check if SERVO MODE exists for this pin.
-        servo
-            .get_pin_info()?
-            .supports_mode(PinModeId::SERVO)
-            .ok_or(IncompatiblePin {
-                pin,
+        if pin.is_supported(PinModeId::SERVO).is_none() {
+            return Err(Error::from(IncompatiblePin {
+                pin: pin.id,
                 mode: PinModeId::SERVO,
-                context: "create a new Servo device",
-            })?;
-        servo.protocol.servo_config(pin, pwm_range)?;
+            }));
+        }
+        servo.protocol.servo_config(pin.id, pwm_range)?;
         servo.reset()?;
-        servo.protocol.set_pin_mode(pin, PinModeId::SERVO)?;
+        servo.protocol.set_pin_mode(pin.id, PinModeId::SERVO)?;
         pause_sync!(100);
         Ok(servo)
     }
@@ -170,14 +186,13 @@ impl Servo {
     }
 
     /// Returns the pin (id) used by the device.
-    pub fn get_pin(&self) -> u8 {
-        self.pin
+    pub fn get_id(&self) -> u8 {
+        self.pin.id
     }
 
-    /// Returns [`Pin`] information.
-    pub fn get_pin_info(&self) -> Result<Pin, Error> {
-        let lock = self.protocol.get_io().read();
-        Ok(lock.get_pin(self.pin)?.clone())
+    /// Returns the pin used by the device.
+    pub fn get_pin(&self) -> Arc<Pin> {
+        self.pin.clone()
     }
 
     /// Returns the servo type.
@@ -279,7 +294,7 @@ impl Servo {
     pub fn set_pwn_range<R: Into<Range<u16>>>(mut self, pwm_range: R) -> Result<Self, Error> {
         let input = pwm_range.into();
         self.pwm_range = input;
-        self.protocol.servo_config(self.pin, input)?;
+        self.protocol.servo_config(self.pin.id, input)?;
         Ok(self)
     }
 
@@ -304,13 +319,13 @@ impl Servo {
         self.auto_detach = match auto_detach {
             false => {
                 self.protocol
-                    .set_pin_mode(self.pin, PinModeId::SERVO)
+                    .set_pin_mode(self.pin.id, PinModeId::SERVO)
                     .unwrap();
                 false
             }
             true => {
                 self.protocol
-                    .set_pin_mode(self.pin, PinModeId::OUTPUT)
+                    .set_pin_mode(self.pin.id, PinModeId::OUTPUT)
                     .unwrap();
                 true
             }
@@ -369,13 +384,13 @@ impl Servo {
 
         // Attach the pinMode if we are auto-detach mode.
         match self.auto_detach {
-            false => self.protocol.analog_write(self.pin, pwm)?,
+            false => self.protocol.analog_write(self.pin.id, pwm)?,
             true => {
-                self.protocol.set_pin_mode(self.pin, PinModeId::SERVO)?;
-                self.protocol.analog_write(self.pin, pwm)?;
+                self.protocol.set_pin_mode(self.pin.id, PinModeId::SERVO)?;
+                self.protocol.analog_write(self.pin.id, pwm)?;
                 *self.last_move.write() = Some(SystemTime::now());
 
-                let mut self_clone = self.clone();
+                let self_clone = self.clone();
                 task::run(async move {
                     pause!(self_clone.detach_delay);
                     if let Some(last_move) = self_clone.last_move.read().as_ref() {
@@ -384,7 +399,7 @@ impl Servo {
                         {
                             self_clone
                                 .protocol
-                                .set_pin_mode(self_clone.pin, PinModeId::UNSUPPORTED)
+                                .set_pin_mode(self_clone.pin.id, PinModeId::UNSUPPORTED)
                                 .unwrap();
                         }
                     }
@@ -402,7 +417,7 @@ impl Servo {
 
     #[inline(always)]
     fn set_value(&self, value: u16) {
-        self.state.store(value, Ordering::SeqCst)
+        self.state.store(value, Ordering::Relaxed)
     }
 }
 impl Display for Servo {
@@ -410,7 +425,7 @@ impl Display for Servo {
         write!(
             f,
             "SERVO (pin={}) [state={}, default={}, range={}-{}]",
-            self.pin,
+            self.pin.id,
             self.get_value(),
             self.default,
             self.range.start,
@@ -423,8 +438,7 @@ impl Display for Servo {
 mod tests {
     use crate::animations::Easing;
     use crate::devices::{OutputDevice, Servo};
-    use crate::hardware::Board;
-    use crate::io::PinModeId;
+    use crate::hardware::{Board, PinModeId};
     use crate::mocks::MockProtocol;
     use crate::pause;
     use crate::utils::{Range, State};
@@ -440,7 +454,7 @@ mod tests {
         let board = Board::new(MockProtocol::default());
 
         let servo = Servo::new(&board, 12, 90).unwrap();
-        assert_eq!(servo.get_pin(), 12);
+        assert_eq!(servo.get_id(), 12);
         assert_eq!(servo.get_value(), 90);
         assert!(!servo.is_inverted());
 
@@ -497,34 +511,31 @@ mod tests {
     fn test_servo_auto_detach() {
         let mut servo = _setup_servo(12).set_auto_detach(true).set_detach_delay(300);
         assert!(servo.is_auto_detach());
-        assert_eq!(servo.get_pin_info().unwrap().mode.id, PinModeId::OUTPUT);
+        assert_eq!(PinModeId::from(&servo.pin.mode), PinModeId::OUTPUT);
 
         // Do not auto-detach: should reset pinMode to SERVO for proper use.
         servo = servo.set_auto_detach(false);
         assert!(!servo.is_auto_detach());
-        assert_eq!(servo.get_pin_info().unwrap().mode.id, PinModeId::SERVO);
+        assert_eq!(PinModeId::from(&servo.pin.mode), PinModeId::SERVO);
         let _ = servo.to(180);
 
         // Auto-detach unmoved servo: it should detach right away.
         servo = servo.set_auto_detach(true);
-        assert_eq!(servo.get_pin_info().unwrap().mode.id, PinModeId::OUTPUT);
+        assert_eq!(PinModeId::from(&servo.pin.mode), PinModeId::OUTPUT);
         assert!(servo.is_auto_detach());
 
         // Moving should auto-reattach.
         servo.to(90).expect("");
-        assert_eq!(servo.get_pin_info().unwrap().mode.id, PinModeId::SERVO);
+        assert_eq!(PinModeId::from(&servo.pin.mode), PinModeId::SERVO);
         pause!(80);
         // Continue moving should reset detach timer
         servo.to(180).expect("");
         pause!(80);
-        assert_eq!(servo.get_pin_info().unwrap().mode.id, PinModeId::SERVO);
+        assert_eq!(PinModeId::from(&servo.pin.mode), PinModeId::SERVO);
         // No move ultimately leads to auto-detaching
         pause!(3000);
         assert!(servo.is_auto_detach());
-        assert_eq!(
-            servo.get_pin_info().unwrap().mode.id,
-            PinModeId::UNSUPPORTED
-        );
+        assert_eq!(PinModeId::from(&servo.pin.mode), PinModeId::UNSUPPORTED);
     }
 
     #[test]

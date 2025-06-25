@@ -5,7 +5,8 @@
 
 use hermes_five::devices::Led;
 use hermes_five::hardware::{Board, BoardEvent};
-use hermes_five::io::{RemoteIo, Serial};
+use hermes_five::protocols::RemoteIo;
+use hermes_five::transports::Serial;
 
 #[hermes_five::runtime]
 async fn main() {

@@ -22,7 +22,7 @@ use crate::pause;
 /// use hermes_five::animations::{Easing, Keyframe, Segment, Track};
 /// use hermes_five::hardware::Board;
 /// use hermes_five::devices::{Led, Servo};
-/// use hermes_five::io::RemoteIo;
+/// use hermes_five::protocols::RemoteIo;
 ///
 /// #[hermes_five::runtime]
 /// async fn main() {

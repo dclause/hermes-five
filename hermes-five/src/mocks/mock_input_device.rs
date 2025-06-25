@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU16, Ordering};
+use std::sync::Arc;
 
 use crate::devices::{Device, Input};
 use crate::utils::State;
@@ -9,7 +9,7 @@ use crate::utils::State;
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
 pub struct MockInputDevice {
-    #[cfg_attr(feature = "serde", serde(with = "crate::utils::arc_atomic_serde"))]
+    #[cfg_attr(feature = "serde", serde(with = "crate::utils::serde_arc_atomic"))]
     state: Arc<AtomicU16>,
 }
 
@@ -23,7 +23,11 @@ impl MockInputDevice {
 
 impl Display for MockInputDevice {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "MockActuator [state={}]", self.state.load(Ordering::SeqCst))
+        write!(
+            f,
+            "MockActuator [state={}]",
+            self.state.load(Ordering::Relaxed)
+        )
     }
 }
 
@@ -33,6 +37,6 @@ impl Device for MockInputDevice {}
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl Input for MockInputDevice {
     fn get_state(&self) -> State {
-        self.state.load(Ordering::SeqCst).into()
+        self.state.load(Ordering::Relaxed).into()
     }
 }

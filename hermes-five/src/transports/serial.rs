@@ -1,6 +1,6 @@
 use crate::errors::Error;
 use crate::errors::ProtocolError::NotInitialized;
-use crate::io::{IoTransport};
+use crate::transports::IoTransport;
 use parking_lot::Mutex;
 use serialport::{DataBits, FlowControl, Parity, SerialPort, StopBits};
 use std::fmt::{Display, Formatter};
@@ -27,7 +27,7 @@ impl Serial {
     /// # Example
     /// ```
     /// use hermes_five::hardware::Board;
-    /// use hermes_five::io::RemoteIo;
+    /// use hermes_five::protocols::RemoteIo;
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
@@ -78,7 +78,7 @@ impl Display for Serial {
 #[cfg_attr(coverage_nightly, coverage(off))]
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl IoTransport for Serial {
-    fn open(&mut self) -> Result<(), Error> {
+    fn open(&self) -> Result<(), Error> {
         let connection = serialport::new(self.port.clone(), 57_600)
             .data_bits(DataBits::Eight)
             .parity(Parity::None)
@@ -88,23 +88,23 @@ impl IoTransport for Serial {
             .open_native()?;
 
         // Save the IO (required by handshake).
-        self.io = Arc::new(Mutex::new(Some(Box::new(connection))));
+        *self.io.lock() = Some(Box::new(connection));
 
         Ok(())
     }
 
-    fn close(&mut self) -> Result<(), Error> {
+    fn close(&self) -> Result<(), Error> {
         *self.io.lock() = None;
         Ok(())
     }
 
-    fn write(&mut self, buf: &[u8]) -> Result<(), Error> {
+    fn write(&self, buf: &[u8]) -> Result<(), Error> {
         let mut lock = self.io.lock();
         lock.as_mut().ok_or(NotInitialized)?.write_all(buf)?;
         Ok(())
     }
 
-    fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), Error> {
+    fn read_exact(&self, buf: &mut [u8]) -> Result<(), Error> {
         let mut lock = self.io.lock();
         lock.as_mut().ok_or(NotInitialized)?.read_exact(buf)?;
         Ok(())

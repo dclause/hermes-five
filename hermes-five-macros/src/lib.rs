@@ -112,3 +112,9 @@ pub fn test(_: TokenStream, item: TokenStream) -> TokenStream {
 pub fn output_device(attr: TokenStream, item: TokenStream) -> TokenStream {
     output_device_macro(attr.into(), item.into()).into()
 }
+
+/// Derive macro to implement Expander.
+#[proc_macro_derive(Expander)]
+pub fn derive_expander(input: TokenStream) -> TokenStream {
+    internals::expander::derive_expander(input.into()).into()
+}

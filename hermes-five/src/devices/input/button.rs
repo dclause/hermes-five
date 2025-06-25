@@ -1,14 +1,14 @@
+use parking_lot::RwLock;
 use std::fmt::{Display, Formatter};
 use std::future::Future;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use parking_lot::RwLock;
+use std::sync::Arc;
 
 use crate::devices::{Device, Input, InputEvent};
 use crate::errors::Error;
-use crate::hardware::Hardware;
-use crate::io::{IoProtocol, PinIdOrName, PinModeId};
+use crate::hardware::{Hardware, LowLevelApiExt, Pin, PinIdOrName, PinModeId};
 use crate::pause;
+use crate::protocols::IoProtocol;
 use crate::utils::{task, EventManager, GenericResult, State, TaskHandler};
 
 /// Represents a simple push button as an input of the board.
@@ -23,9 +23,10 @@ pub struct Button {
     // ########################################
     // # Basics
     /// The pin (id) of the [`Board`] used to read the button value.
-    pin: u8,
+    #[cfg_attr(feature = "serde", serde(rename = "pin"))]
+    id: u8,
     /// The current Button state.
-    #[cfg_attr(feature = "serde", serde(with = "crate::utils::arc_atomic_serde"))]
+    #[cfg_attr(feature = "serde", serde(with = "crate::utils::serde_arc_atomic"))]
     state: Arc<AtomicBool>,
     /// Defines a PULL-UP/PULL_DOWN mode button (true=pull-up, false=pull-down).
     pullup: bool,
@@ -34,8 +35,14 @@ pub struct Button {
 
     // ########################################
     // # Volatile utility data.
+    /// The pin on the [`Board`] used to control the device.
     #[cfg_attr(feature = "serde", serde(skip))]
-    protocol: Box<dyn IoProtocol>,
+    pin: Arc<Pin>,
+    #[cfg_attr(
+        feature = "serde",
+        serde(with = "crate::utils::serde_arc_protocol", skip_serializing)
+    )]
+    protocol: Arc<dyn IoProtocol>,
     /// Inner handler to the task running the button value check.
     #[cfg_attr(feature = "serde", serde(skip))]
     handler: Arc<RwLock<Option<TaskHandler>>>,
@@ -45,7 +52,6 @@ pub struct Button {
 }
 
 impl Button {
-
     /// Creates an instance of a button attached to a given board.
     /// <https://docs.arduino.cc/built-in-examples/digital/Button/>
     ///
@@ -71,16 +77,37 @@ impl Button {
         is_inverted: bool,
         is_pullup: bool,
     ) -> Result<Self, Error> {
-        Self {
-            pin: 0,
-            state: Arc::new(AtomicBool::new(false)),
+        let pin = board.get_pin(pin)?;
+
+        let button = Button {
+            id: pin.id,
+            pin: pin.clone(),
+            state: Arc::new(AtomicBool::new(pin.get_value() != 0)),
             invert: is_inverted,
             pullup: is_pullup,
             protocol: board.get_protocol(),
             handler: Arc::new(RwLock::new(None)),
             events: EventManager::default(),
-        }
-            .start_with(board, pin)
+        };
+
+        // Set pin mode to INPUT/PULLUP.
+        match button.pullup {
+            true => {
+                button.protocol.set_pin_mode(pin.id, PinModeId::PULLUP)?;
+                pin.set_value(u16::MAX);
+            }
+            false => {
+                button.protocol.set_pin_mode(pin.id, PinModeId::INPUT)?;
+            }
+        };
+
+        // Set reporting for this pin.
+        button.protocol.report_digital(pin.id, true)?;
+
+        // Create a task to listen hardware value and emit events accordingly.
+        button.attach();
+
+        Ok(button)
     }
 
     /// Creates an instance of a PULL-DOWN button attached to a given board:
@@ -106,7 +133,10 @@ impl Button {
     /// # Errors
     /// * `UnknownPin`: this function will bail an error if the Button pin does not exist for this board.
     /// * `IncompatiblePin`: this function will bail an error if the Button pin does not support INPUT mode.
-    pub fn new_inverted_pulldown<T: Into<PinIdOrName>>(board: &dyn Hardware, pin: T) -> Result<Self, Error> {
+    pub fn new_inverted_pulldown<T: Into<PinIdOrName>>(
+        board: &dyn Hardware,
+        pin: T,
+    ) -> Result<Self, Error> {
         Self::new(board, pin, true, false)
     }
 
@@ -141,43 +171,16 @@ impl Button {
         Self::new(board, pin, true, true)
     }
 
-    /// Private helper method shared by constructors.
-    fn start_with<T: Into<PinIdOrName>>(
-        mut self,
-        board: &dyn Hardware,
-        pin: T,
-    ) -> Result<Self, Error> {
-        let pin = board.get_io().read().get_pin(pin)?.clone();
-
-        // Set pin ID and state from pin.
-        self.pin = pin.id;
-        self.state.store(pin.value != 0, Ordering::SeqCst);
-
-        // Set pin mode to INPUT/PULLUP.
-        match self.pullup {
-            true => {
-                self.protocol.set_pin_mode(self.pin, PinModeId::PULLUP)?;
-                self.protocol.get_io().write().get_pin_mut(self.pin)?.value = 1;
-            }
-            false => {
-                self.protocol.set_pin_mode(self.pin, PinModeId::INPUT)?;
-            }
-        };
-
-        // Set reporting for this pin.
-        self.protocol.report_digital(self.pin, true)?;
-
-        // Create a task to listen hardware value and emit events accordingly.
-        self.attach();
-
-        Ok(self)
-    }
-
     // ########################################
 
     /// Returns the pin (id) used by the device.
-    pub fn get_pin(&self) -> u8 {
-        self.pin
+    pub fn get_id(&self) -> u8 {
+        self.pin.id
+    }
+
+    /// Returns the pin used by the device.
+    pub fn get_pin(&self) -> Arc<Pin> {
+        self.pin.clone()
     }
 
     /// Returns  if the button is configured in PULL-UP mode.
@@ -202,16 +205,10 @@ impl Button {
             *self.handler.write() = Some(
                 task::run(async move {
                     loop {
-                        let pin_value = self_clone
-                            .protocol
-                            .get_io()
-                            .read()
-                            .get_pin(self_clone.pin)?
-                            .value
-                            != 0;
-                        let state_value = self_clone.state.load(Ordering::SeqCst);
+                        let pin_value = self_clone.get_pin().get_value() != 0;
+                        let state_value = self_clone.state.load(Ordering::Relaxed);
                         if pin_value != state_value {
-                            self_clone.state.store(pin_value, Ordering::SeqCst);
+                            self_clone.state.store(pin_value, Ordering::Relaxed);
 
                             // Depending on logical inversion mode, pin_value is inverted.
                             match self_clone.invert {
@@ -221,12 +218,16 @@ impl Button {
 
                             match self_clone.pullup {
                                 true => match pin_value {
-                                    true => self_clone.events.emit(InputEvent::OnRelease, pin_value),
+                                    true => {
+                                        self_clone.events.emit(InputEvent::OnRelease, pin_value)
+                                    }
                                     false => self_clone.events.emit(InputEvent::OnPress, pin_value),
                                 },
                                 false => match pin_value {
                                     true => self_clone.events.emit(InputEvent::OnPress, pin_value),
-                                    false => self_clone.events.emit(InputEvent::OnRelease, pin_value),
+                                    false => {
+                                        self_clone.events.emit(InputEvent::OnRelease, pin_value)
+                                    }
                                 },
                             };
                         }
@@ -297,7 +298,7 @@ impl Button {
     where
         F: Fn(bool) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = R> + Send + 'static,
-        R: Into<GenericResult>
+        R: Into<GenericResult>,
     {
         self.events.on(event, handler);
     }
@@ -310,8 +311,8 @@ impl Device for Button {}
 impl Input for Button {
     fn get_state(&self) -> State {
         match self.invert {
-            false => State::from(self.state.load(Ordering::SeqCst)),
-            true => State::from(!self.state.load(Ordering::SeqCst)),
+            false => State::from(self.state.load(Ordering::Relaxed)),
+            true => State::from(!self.state.load(Ordering::Relaxed)),
         }
     }
 }
@@ -321,8 +322,8 @@ impl Display for Button {
         write!(
             f,
             "Button (pin={}) [state={}, pullup={}, inverted={}]",
-            self.pin,
-            self.state.load(Ordering::SeqCst),
+            self.pin.id,
+            self.state.load(Ordering::Relaxed),
             self.pullup,
             self.invert
         )
@@ -345,7 +346,7 @@ mod tests {
 
         assert!(button.is_ok());
         let button = button.unwrap();
-        assert_eq!(button.get_pin(), 4);
+        assert_eq!(button.get_id(), 4);
         assert_eq!(button.get_state().as_bool(), true);
         assert!(!button.is_inverted());
         assert!(!button.is_pullup());
@@ -361,7 +362,7 @@ mod tests {
 
         assert!(button.is_ok());
         let button = button.unwrap();
-        assert_eq!(button.get_pin(), 4);
+        assert_eq!(button.get_id(), 4);
         assert_eq!(button.get_state().as_bool(), false);
         assert!(button.is_inverted());
         assert!(!button.is_pullup());
@@ -377,7 +378,7 @@ mod tests {
 
         assert!(button.is_ok());
         let button = button.unwrap();
-        assert_eq!(button.get_pin(), 4);
+        assert_eq!(button.get_id(), 4);
         assert_eq!(button.get_state().as_bool(), true);
         assert!(!button.is_inverted());
         assert!(button.is_pullup());
@@ -393,7 +394,7 @@ mod tests {
 
         assert!(button.is_ok());
         let button = button.unwrap();
-        assert_eq!(button.get_pin(), 4);
+        assert_eq!(button.get_id(), 4);
         assert_eq!(button.get_state().as_bool(), false);
         assert!(button.is_inverted());
         assert!(button.is_pullup());
@@ -403,37 +404,12 @@ mod tests {
     }
 
     #[hermes_five_macros::test]
-    fn test_button_helper() {
-        let board = Board::new(MockProtocol::default());
-        let button = Button::start_with(
-            Button {
-                pin: 0,
-                state: Arc::new(AtomicBool::new(false)),
-                invert: true,
-                pullup: false,
-                protocol: board.get_protocol(),
-                handler: Arc::new(RwLock::new(None)),
-                events: EventManager::default(),
-            },
-            &board,
-            13,
-        );
-        assert!(button.is_ok());
-        let button = button.unwrap();
-        assert_eq!(button.get_pin(), 13);
-        assert!(button.handler.read().is_some());
-        button.detach();
-        assert!(button.handler.read().is_none());
-        board.disconnect().unwrap();
-    }
-
-    #[hermes_five_macros::test]
     fn test_button_inverted_state_logic() {
         let board = Board::new(MockProtocol::default());
         let button = Button::new_inverted_pulldown(&board, 5).unwrap();
         assert_eq!(button.get_state().as_bool(), true);
 
-        button.state.store(true, Ordering::SeqCst); // Simulate a pressed button
+        button.state.store(true, Ordering::Relaxed); // Simulate a pressed button
         assert_eq!(button.get_state().as_bool(), false);
 
         button.detach();
@@ -451,7 +427,7 @@ mod tests {
         button.on(InputEvent::OnChange, move |new_state: bool| {
             let captured_flag = moved_change_flag.clone();
             async move {
-                captured_flag.store(new_state, Ordering::SeqCst);
+                captured_flag.store(new_state, Ordering::Relaxed);
             }
         });
 
@@ -461,7 +437,7 @@ mod tests {
         button.on(InputEvent::OnPress, move |_: bool| {
             let captured_flag = moved_pressed_flag.clone();
             async move {
-                captured_flag.store(true, Ordering::SeqCst);
+                captured_flag.store(true, Ordering::Relaxed);
             }
         });
 
@@ -471,42 +447,30 @@ mod tests {
         button.on(InputEvent::OnRelease, move |_: bool| {
             let captured_flag = moved_released_flag.clone();
             async move {
-                captured_flag.store(true, Ordering::SeqCst);
+                captured_flag.store(true, Ordering::Relaxed);
             }
         });
 
-        assert!(!change_flag.load(Ordering::SeqCst));
-        assert!(!pressed_flag.load(Ordering::SeqCst));
-        assert!(!released_flag.load(Ordering::SeqCst));
+        assert!(!change_flag.load(Ordering::Relaxed));
+        assert!(!pressed_flag.load(Ordering::Relaxed));
+        assert!(!released_flag.load(Ordering::Relaxed));
 
         // Simulate pin state change in the protocol => take value 0xFF
-        button
-            .protocol
-            .get_io()
-            .write()
-            .get_pin_mut(5)
-            .unwrap()
-            .value = 0xFF;
+        button.get_pin().set_value(0xFF);
 
         pause!(500);
 
-        assert!(change_flag.load(Ordering::SeqCst));
-        assert!(pressed_flag.load(Ordering::SeqCst));
-        assert!(!released_flag.load(Ordering::SeqCst));
+        assert!(change_flag.load(Ordering::Relaxed));
+        assert!(pressed_flag.load(Ordering::Relaxed));
+        assert!(!released_flag.load(Ordering::Relaxed));
 
         // Simulate pin state change in the protocol => takes value 0
-        button
-            .protocol
-            .get_io()
-            .write()
-            .get_pin_mut(5)
-            .unwrap()
-            .value = 0;
+        button.get_pin().set_value(0);
 
         pause!(500);
 
-        assert!(!change_flag.load(Ordering::SeqCst)); // change switched back to 0
-        assert!(released_flag.load(Ordering::SeqCst));
+        assert!(!change_flag.load(Ordering::Relaxed)); // change switched back to 0
+        assert!(released_flag.load(Ordering::Relaxed));
 
         button.detach();
         board.disconnect().unwrap();
@@ -523,7 +487,7 @@ mod tests {
         button.on(InputEvent::OnChange, move |new_state: bool| {
             let captured_flag = moved_change_flag.clone();
             async move {
-                captured_flag.store(new_state, Ordering::SeqCst);
+                captured_flag.store(new_state, Ordering::Relaxed);
             }
         });
 
@@ -533,7 +497,7 @@ mod tests {
         button.on(InputEvent::OnPress, move |_: bool| {
             let captured_flag = moved_pressed_flag.clone();
             async move {
-                captured_flag.store(true, Ordering::SeqCst);
+                captured_flag.store(true, Ordering::Relaxed);
                 Ok(())
             }
         });
@@ -544,43 +508,31 @@ mod tests {
         button.on(InputEvent::OnRelease, move |_: bool| {
             let captured_flag = moved_released_flag.clone();
             async move {
-                captured_flag.store(true, Ordering::SeqCst);
+                captured_flag.store(true, Ordering::Relaxed);
                 Ok(())
             }
         });
 
-        assert!(change_flag.load(Ordering::SeqCst)); // true by default
-        assert!(!pressed_flag.load(Ordering::SeqCst));
-        assert!(!released_flag.load(Ordering::SeqCst));
+        assert!(change_flag.load(Ordering::Relaxed)); // true by default
+        assert!(!pressed_flag.load(Ordering::Relaxed));
+        assert!(!released_flag.load(Ordering::Relaxed));
 
         // Simulate pin state change in the protocol => take value 0xFF
-        button
-            .protocol
-            .get_io()
-            .write()
-            .get_pin_mut(5)
-            .unwrap()
-            .value = 0xFF;
+        button.get_pin().set_value(0xFF);
 
         pause!(500);
 
-        assert!(!change_flag.load(Ordering::SeqCst)); // changed to false
-        assert!(pressed_flag.load(Ordering::SeqCst));
-        assert!(!released_flag.load(Ordering::SeqCst));
+        assert!(!change_flag.load(Ordering::Relaxed)); // changed to false
+        assert!(pressed_flag.load(Ordering::Relaxed));
+        assert!(!released_flag.load(Ordering::Relaxed));
 
         // Simulate pin state change in the protocol => takes value 0
-        button
-            .protocol
-            .get_io()
-            .write()
-            .get_pin_mut(5)
-            .unwrap()
-            .value = 0;
+        button.get_pin().set_value(0);
 
         pause!(500);
 
-        assert!(change_flag.load(Ordering::SeqCst)); // change switched back to true
-        assert!(released_flag.load(Ordering::SeqCst));
+        assert!(change_flag.load(Ordering::Relaxed)); // change switched back to true
+        assert!(released_flag.load(Ordering::Relaxed));
 
         button.detach();
         board.disconnect().unwrap();

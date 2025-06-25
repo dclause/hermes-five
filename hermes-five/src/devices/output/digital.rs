@@ -1,7 +1,7 @@
 use crate::devices::OutputDevice;
 use crate::errors::{Error, HardwareError, StateError};
-use crate::hardware::Hardware;
-use crate::io::{IoProtocol, Pin, PinIdOrName, PinModeId};
+use crate::hardware::{Hardware, LowLevelApiExt, Pin, PinIdOrName, PinModeId};
+use crate::protocols::IoProtocol;
 use crate::utils::State;
 use hermes_five_macros::output_device;
 use std::fmt::{Display, Formatter};
@@ -18,15 +18,22 @@ pub struct DigitalOutput {
     // ########################################
     // # Basics
     /// The pin (id) of the [`Board`] used to control the output value.
-    pin: u8,
+    #[cfg_attr(feature = "serde", serde(rename = "pin"))]
+    id: u8,
     /// The current output state.
-    #[cfg_attr(feature = "serde", serde(with = "crate::utils::arc_atomic_serde"))]
+    #[cfg_attr(feature = "serde", serde(with = "crate::utils::serde_arc_atomic"))]
     state: Arc<AtomicBool>,
 
     // ########################################
     // # Volatile utility data.
+    /// The pin on the [`Board`] used to control the device.
     #[cfg_attr(feature = "serde", serde(skip))]
-    protocol: Box<dyn IoProtocol>,
+    pin: Arc<Pin>,
+    #[cfg_attr(
+        feature = "serde",
+        serde(with = "crate::utils::serde_arc_protocol", skip_serializing)
+    )]
+    protocol: Arc<dyn IoProtocol>,
 }
 
 impl DigitalOutput {
@@ -40,10 +47,11 @@ impl DigitalOutput {
         pin: T,
         default: bool,
     ) -> Result<Self, Error> {
-        let pin = board.get_io().read().get_pin(pin)?.clone();
+        let pin = board.get_pin(pin)?;
 
         let mut output = Self {
-            pin: pin.id,
+            id: pin.id,
+            pin: pin.clone(),
             state: Arc::new(AtomicBool::new(default)),
             default,
             protocol: board.get_protocol(),
@@ -51,9 +59,7 @@ impl DigitalOutput {
         };
 
         // Set pin mode to OUTPUT.
-        output
-            .protocol
-            .set_pin_mode(output.pin, PinModeId::OUTPUT)?;
+        output.protocol.set_pin_mode(pin.id, PinModeId::OUTPUT)?;
 
         // Resets the output to default value.
         output.reset()?;
@@ -85,14 +91,13 @@ impl DigitalOutput {
     // Setters and Getters.
 
     /// Returns the pin (id) used by the device.
-    pub fn get_pin(&self) -> u8 {
-        self.pin
+    pub fn get_id(&self) -> u8 {
+        self.pin.id
     }
 
-    /// Returns  [`Pin`] information.
-    pub fn get_pin_info(&self) -> Result<Pin, Error> {
-        let lock = self.protocol.get_io().read();
-        Ok(lock.get_pin(self.pin)?.clone())
+    /// Returns the pin (id) used by the device.
+    pub fn get_pin(&self) -> Arc<Pin> {
+        self.pin.clone()
     }
 
     /// Indicates if the device state is HIGH.
@@ -120,13 +125,12 @@ impl DigitalOutput {
 
     #[inline(always)]
     fn apply_value(&mut self, value: bool) -> Result<(), Error> {
-        match self.get_pin_info()?.mode.id {
+        match PinModeId::from(&self.pin.mode) {
             // on/off digital operation.
-            PinModeId::OUTPUT => self.protocol.digital_write(self.pin, value),
+            PinModeId::OUTPUT => self.protocol.digital_write(self.pin.id, value),
             id => Err(Error::from(HardwareError::IncompatiblePin {
                 mode: id,
-                pin: self.pin,
-                context: "update digital output",
+                pin: self.pin.id,
             })),
         }
     }
@@ -136,7 +140,7 @@ impl DigitalOutput {
     }
     #[inline(always)]
     fn set_value(&self, value: bool) {
-        self.state.store(value, Ordering::SeqCst)
+        self.state.store(value, Ordering::Relaxed)
     }
 }
 
@@ -145,7 +149,7 @@ impl Display for DigitalOutput {
         write!(
             f,
             "DigitalOutput (pin={}) [state={}, default={}]",
-            self.pin,
+            self.pin.id,
             self.get_value(),
             self.default,
         )
@@ -157,11 +161,10 @@ mod tests {
     use crate::animations::Easing;
     use crate::devices::output::digital::DigitalOutput;
     use crate::devices::OutputDevice;
-    use crate::hardware::Board;
-    use crate::io::PinModeId;
+    use crate::hardware::{Board, LowLevelApiExt, PinModeId};
     use crate::mocks::MockProtocol;
     use crate::pause;
-    use crate::utils::State;
+    use crate::utils::{ArcOnceLockExt, State};
 
     #[test]
     fn test_creation() {
@@ -169,7 +172,7 @@ mod tests {
 
         // Default LOW state.
         let output = DigitalOutput::new(&board, 13, false).unwrap();
-        assert_eq!(output.get_pin(), 13);
+        assert_eq!(output.get_id(), 13);
         assert!(!output.get_value());
         assert!(!output.get_state().as_bool());
         assert!(!output.get_default().as_bool());
@@ -178,7 +181,7 @@ mod tests {
 
         // Default HIGH state.
         let output = DigitalOutput::new(&board, 4, true).unwrap();
-        assert_eq!(output.get_pin(), 4);
+        assert_eq!(output.get_id(), 4);
         assert!(output.get_value());
         assert!(output.get_state().as_bool());
         assert!(output.get_default().as_bool());
@@ -186,12 +189,14 @@ mod tests {
         assert!(!output.is_low());
 
         // Created from pin name
-        let output = DigitalOutput::new(&board, "D13", true).unwrap();
-        assert_eq!(output.get_pin(), 13);
-
-        // Created for a ANALOG pin.
-        let output = DigitalOutput::new(&board, "A14", false).unwrap();
-        assert_eq!(output.get_pin(), 14);
+        board
+            .get_pin(13)
+            .unwrap()
+            .name
+            .set_with_context(String::from("custom_name"), "")
+            .unwrap();
+        let output = DigitalOutput::new(&board, "custom_name", true).unwrap();
+        assert_eq!(output.get_id(), 13);
     }
 
     #[test]
@@ -241,17 +246,9 @@ mod tests {
                         // Force an incompatible pin mode
         let _ = output
             .protocol
-            .set_pin_mode(output.pin, PinModeId::UNSUPPORTED)
+            .set_pin_mode(output.pin.id, PinModeId::UNSUPPORTED)
             .is_ok();
         assert!(output.set_state(State::Boolean(true)).is_err()); // Should return an error due to incompatible pin mode.
-    }
-
-    #[test]
-    fn test_get_pin_info() {
-        let output = DigitalOutput::new(&Board::new(MockProtocol::default()), 13, false).unwrap();
-        let pin_info = output.get_pin_info();
-        assert!(pin_info.is_ok());
-        assert_eq!(pin_info.unwrap().id, 13);
     }
 
     #[hermes_five_macros::test]

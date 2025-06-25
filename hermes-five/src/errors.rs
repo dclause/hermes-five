@@ -4,9 +4,9 @@ use log::error;
 use snafu::Snafu;
 
 pub use crate::errors::Error::*;
-use crate::io::{PinIdOrName, PinModeId};
+use crate::hardware::{PinIdOrName, PinModeId};
 
-#[derive(Clone, Debug, PartialEq,  Snafu)]
+#[derive(Clone, Debug, PartialEq, Snafu)]
 #[snafu(visibility(pub))]
 pub enum Error {
     /// Not Implemented.
@@ -77,12 +77,8 @@ pub enum ProtocolError {
 #[derive(Clone, Debug, PartialEq, Snafu)]
 #[snafu(visibility(pub))]
 pub enum HardwareError {
-    /// Pin ({pin}) not compatible with mode ({mode}) - {context}
-    IncompatiblePin {
-        pin: u8,
-        mode: PinModeId,
-        context: &'static str,
-    },
+    /// Pin ({pin}) not compatible with mode ({mode})
+    IncompatiblePin { pin: u8, mode: PinModeId },
     /// Unknown pin {pin}
     UnknownPin { pin: PinIdOrName },
 }
@@ -116,11 +112,10 @@ mod tests {
         let hardware_error = Error::from(IncompatiblePin {
             pin: 1,
             mode: PinModeId::SERVO,
-            context: "test context",
         });
         assert_eq!(
             format!("{}", hardware_error),
-            "Hardware error: Pin (1) not compatible with mode (SERVO) - test context."
+            "Hardware error: Pin (1) not compatible with mode (SERVO)."
         );
 
         let unknown_error = InternalError {

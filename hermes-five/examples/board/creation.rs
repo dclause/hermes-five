@@ -5,8 +5,8 @@
 //! can use various [`IoTransport`] underneath (serial, bluetooth, wifi, etc.).
 
 use hermes_five::hardware::{Board, BoardEvent};
-use hermes_five::io::Serial;
-use hermes_five::io::{RemoteIo, WiFi};
+use hermes_five::protocols::RemoteIo;
+use hermes_five::transports::{Serial, WiFi};
 
 #[hermes_five::runtime]
 async fn main() {

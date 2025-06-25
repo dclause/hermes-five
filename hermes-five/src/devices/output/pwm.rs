@@ -1,8 +1,8 @@
 use crate::devices::OutputDevice;
 use crate::errors::HardwareError::IncompatiblePin;
 use crate::errors::{Error, StateError};
-use crate::hardware::Hardware;
-use crate::io::{IoProtocol, Pin, PinIdOrName, PinModeId};
+use crate::hardware::{Hardware, LowLevelApiExt, Pin, PinIdOrName, PinModeId};
+use crate::protocols::IoProtocol;
 use crate::utils::State;
 use hermes_five_macros::output_device;
 use std::fmt::{Display, Formatter};
@@ -18,19 +18,27 @@ pub struct PwmOutput {
     // ########################################
     // # Basics
     /// The pin (id) of the [`Board`] used to control the output value.
-    pin: u8,
+    #[cfg_attr(feature = "serde", serde(rename = "pin"))]
+    id: u8,
     /// The current output state.
-    #[cfg_attr(feature = "serde", serde(with = "crate::utils::arc_atomic_serde"))]
+    #[cfg_attr(feature = "serde", serde(with = "crate::utils::serde_arc_atomic"))]
     state: Arc<AtomicU16>,
 
     // ########################################
     // # Volatile utility data.
+    /// The pin on the [`Board`] used to control the device.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pin: Arc<Pin>,
+
     /// Caches the max output value depending on resolution.
     #[cfg_attr(feature = "serde", serde(skip))]
     max_value: u16,
     /// The protocol used by the board to communicate with the device.
-    #[cfg_attr(feature = "serde", serde(skip))]
-    protocol: Box<dyn IoProtocol>,
+    #[cfg_attr(
+        feature = "serde",
+        serde(with = "crate::utils::serde_arc_protocol", skip_serializing)
+    )]
+    protocol: Arc<dyn IoProtocol>,
 }
 
 impl PwmOutput {
@@ -39,15 +47,16 @@ impl PwmOutput {
     /// # Errors
     /// * `UnknownPin`: this function will bail an error if the pin does not exist for this board.
     /// * `IncompatiblePin`: this function will bail an error if the pin does not support PWM mode.
-    pub fn new<T: Into<PinIdOrName>>(
+    pub fn new<P: Into<PinIdOrName>>(
         board: &dyn Hardware,
-        pin: T,
+        pin: P,
         default: u16,
     ) -> Result<Self, Error> {
-        let pin = board.get_io().read().get_pin(pin)?.clone();
+        let pin = board.get_pin(pin)?;
 
         let mut output = Self {
-            pin: pin.id,
+            id: pin.id,
+            pin: pin.clone(),
             state: Arc::new(AtomicU16::new(default)),
             default,
             max_value: 0,
@@ -56,14 +65,10 @@ impl PwmOutput {
         };
 
         // Set pin mode to PWM.
-        output.protocol.set_pin_mode(output.pin, PinModeId::PWM)?;
+        output.protocol.set_pin_mode(pin.id, PinModeId::PWM)?;
 
         // Retrieve PWM max value for the pin.
-        output.max_value = board
-            .get_io()
-            .read()
-            .get_pin(pin.id)?
-            .get_max_possible_value();
+        output.max_value = pin.get_max_possible_value();
 
         // Resets the output to default value.
         output.reset()?;
@@ -90,14 +95,13 @@ impl PwmOutput {
     // Setters and Getters.
 
     /// Returns the pin (id) used by the device.
-    pub fn get_pin(&self) -> u8 {
-        self.pin
+    pub fn get_id(&self) -> u8 {
+        self.pin.id
     }
 
-    /// Returns [`Pin`] information.
-    pub fn get_pin_info(&self) -> Result<Pin, Error> {
-        let lock = self.protocol.get_io().read();
-        Ok(lock.get_pin(self.pin)?.clone())
+    /// Returns the pin used by the device.
+    pub fn get_pin(&self) -> Arc<Pin> {
+        self.pin.clone()
     }
 
     /// Gets the current PWM value.
@@ -129,12 +133,11 @@ impl PwmOutput {
 
     #[inline(always)]
     fn apply_value(&mut self, value: u16) -> Result<(), Error> {
-        match self.get_pin_info()?.mode.id {
-            PinModeId::PWM => self.protocol.analog_write(self.pin, value),
+        match PinModeId::from(&self.pin.mode) {
+            PinModeId::PWM => self.protocol.analog_write(self.pin.id, value),
             id => Err(Error::from(IncompatiblePin {
                 mode: id,
-                pin: self.pin,
-                context: "update pwm output",
+                pin: self.pin.id,
             })),
         }
     }
@@ -152,7 +155,7 @@ impl Display for PwmOutput {
         write!(
             f,
             "PwmOutput (pin={}) [state={} ({}%), default={}]",
-            self.pin,
+            self.pin.id,
             self.get_pwm(),
             self.get_percentage(),
             self.default,
@@ -165,8 +168,7 @@ mod tests {
     use crate::animations::Easing;
     use crate::devices::output::pwm::PwmOutput;
     use crate::devices::OutputDevice;
-    use crate::hardware::Board;
-    use crate::io::PinModeId;
+    use crate::hardware::{Board, LowLevelApiExt, PinModeId};
     use crate::mocks::MockProtocol;
     use crate::pause;
     use crate::utils::State;
@@ -177,21 +179,27 @@ mod tests {
 
         // Default LOW state.
         let output = PwmOutput::new(&board, 8, 0).unwrap();
-        assert_eq!(output.get_pin(), 8);
+        assert_eq!(output.get_id(), 8);
         assert_eq!(output.get_pwm(), 0);
         assert_eq!(output.get_state().as_integer(), 0);
         assert_eq!(output.get_default().as_integer(), 0);
 
         // Default HIGH state.
         let output = PwmOutput::new(&board, 8, 50).unwrap();
-        assert_eq!(output.get_pin(), 8);
+        assert_eq!(output.get_id(), 8);
         assert_eq!(output.get_pwm(), 50);
         assert_eq!(output.get_state().as_integer(), 50);
         assert_eq!(output.get_default().as_integer(), 50);
 
         // Created from pin name
+        board
+            .get_pin(11)
+            .unwrap()
+            .name
+            .set(String::from("D11"))
+            .unwrap();
         let output = PwmOutput::new(&board, "D11", 50).unwrap();
-        assert_eq!(output.get_pin(), 11);
+        assert_eq!(output.get_id(), 11);
     }
 
     #[test]
@@ -241,16 +249,8 @@ mod tests {
                         // Force an incompatible pin mode
         let _ = output
             .protocol
-            .set_pin_mode(output.pin, PinModeId::UNSUPPORTED);
+            .set_pin_mode(output.pin.id, PinModeId::UNSUPPORTED);
         assert!(output.set_state(State::Integer(1)).is_err()); // Should return an error due to incompatible pin mode.
-    }
-
-    #[test]
-    fn test_get_pin_info() {
-        let output = PwmOutput::new(&Board::new(MockProtocol::default()), 11, 20).unwrap();
-        let pin_info = output.get_pin_info();
-        assert!(pin_info.is_ok());
-        assert_eq!(pin_info.unwrap().id, 11);
     }
 
     #[hermes_five_macros::test]

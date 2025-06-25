@@ -1,11 +1,11 @@
+use crate::utils::{task, EventManager, GenericResult, TaskHandler};
 use parking_lot::RwLock;
 use std::fmt::{Display, Formatter};
 use std::future::Future;
-use crate::utils::{task, EventManager, GenericResult, TaskHandler};
 
 use crate::animations::{Segment, Track};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 /// Lists all events an Animation can emit/listen.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -115,7 +115,7 @@ impl Animation {
             let handler = match task::run(async move {
                 // Loop through the segments and run them one by one.
                 for index in self_clone.get_current()..self_clone.segments.len() {
-                    self_clone.current.store(index, Ordering::SeqCst);
+                    self_clone.current.store(index, Ordering::Relaxed);
 
                     // Retrieve the currently running segment.
                     let segment_playing = self_clone.segments.get_mut(index).unwrap();
@@ -125,7 +125,7 @@ impl Animation {
                         .emit(AnimationEvent::OnSegmentDone, self_clone.clone());
                 }
 
-                self_clone.current.store(0, Ordering::SeqCst); // reset to the beginning
+                self_clone.current.store(0, Ordering::Relaxed); // reset to the beginning
                 *self_clone.interval.write() = None;
                 self_clone
                     .events
@@ -172,8 +172,8 @@ impl Animation {
 
         // Move to the next segment if we are not at the end.
         match current < self.segments.len() - 1 {
-            true => self.current.store(current + 1, Ordering::SeqCst),
-            false => self.current.store(0, Ordering::SeqCst),
+            true => self.current.store(current + 1, Ordering::Relaxed),
+            false => self.current.store(0, Ordering::Relaxed),
         }
 
         // Restart the animation from the beginning of the next segment, if it was running.
@@ -194,7 +194,7 @@ impl Animation {
                 segment.reset();
             }
         }
-        self.current.store(0, Ordering::SeqCst);
+        self.current.store(0, Ordering::Relaxed);
         self
     }
 
@@ -219,7 +219,7 @@ impl Animation {
     /// Gets the current play time.
     /// @todo fix: because we clone self on .play(), the progress is no longer available on segment.
     pub fn get_progress(&self) -> u64 {
-        let current_segment_index = self.current.load(Ordering::SeqCst);
+        let current_segment_index = self.current.load(Ordering::Relaxed);
         match self.segments.get(current_segment_index) {
             None => 0,
             Some(segment_playing) => segment_playing.get_progress(),
@@ -262,12 +262,12 @@ impl Animation {
 
     /// Returns the index of the currently running segment.
     pub fn get_current(&self) -> usize {
-        self.current.load(Ordering::SeqCst)
+        self.current.load(Ordering::Relaxed)
     }
 
     /// Sets the index of the currently running segment.
     pub fn set_current(&self, index: usize) {
-        self.current.store(index, Ordering::SeqCst);
+        self.current.store(index, Ordering::Relaxed);
     }
 
     // ########################################
@@ -312,7 +312,7 @@ impl Animation {
     where
         F: Fn(Animation) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = R> + Send + 'static,
-        R: Into<GenericResult>
+        R: Into<GenericResult>,
     {
         self.events.on(event, handler);
     }
@@ -460,7 +460,7 @@ mod tests {
         animation.on(AnimationEvent::OnStart, move |animation: Animation| {
             let captured_flag = moved_flag.clone();
             async move {
-                captured_flag.store(true, Ordering::SeqCst);
+                captured_flag.store(true, Ordering::Relaxed);
                 assert_eq!(animation.get_current(), 0);
             }
         });
@@ -469,8 +469,8 @@ mod tests {
         animation.on(AnimationEvent::OnSegmentDone, move |_: Animation| {
             let captured_active_segment = moved_active_segment.clone();
             async move {
-                let index = captured_active_segment.load(Ordering::SeqCst) + 1;
-                captured_active_segment.store(index, Ordering::SeqCst);
+                let index = captured_active_segment.load(Ordering::Relaxed) + 1;
+                captured_active_segment.store(index, Ordering::Relaxed);
             }
         });
 
@@ -478,28 +478,28 @@ mod tests {
         animation.on(AnimationEvent::OnComplete, move |animation: Animation| {
             let captured_flag = moved_flag.clone();
             async move {
-                captured_flag.store(false, Ordering::SeqCst);
+                captured_flag.store(false, Ordering::Relaxed);
                 assert_eq!(animation.get_current(), 5);
             }
         });
 
         // Test animation play & event start.
-        assert!(!flag.load(Ordering::SeqCst));
+        assert!(!flag.load(Ordering::Relaxed));
         animation.play();
         assert!(animation.is_playing());
         pause!(150);
         // assert_ne!(animation.get_progress(), 0); // @todo fix
-        assert!(flag.load(Ordering::SeqCst));
+        assert!(flag.load(Ordering::Relaxed));
 
         // Test animation finished & event stop.
         pause!(500);
         assert!(animation.get_current() > 0);
         assert_eq!(
             animation.get_current(),
-            active_segment.load(Ordering::SeqCst)
+            active_segment.load(Ordering::Relaxed)
         );
         pause!(1000);
-        assert!(!flag.load(Ordering::SeqCst));
+        assert!(!flag.load(Ordering::Relaxed));
     }
 
     #[serial]

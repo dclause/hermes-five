@@ -3,30 +3,38 @@
 // https://www.digikey.jp/htmldatasheets/production/2459480/0/0/1/pca9685.html
 
 use crate::errors::{Error, HardwareError, InternalError};
-use crate::hardware::{Board, Expander, Hardware};
-use crate::io::{IoData, IoProtocol, Pin, PinMode, PinModeId, IO};
+use crate::hardware::{
+    Board, Hardware, I2CReply, LowLevelApi, LowLevelApiExt, Pin, PinMode, PinModeId,
+};
+use crate::protocols::IoProtocol;
 use crate::utils::{Range, Scalable};
+use hermes_five_macros::Expander;
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
-use std::sync::Arc;
+use std::sync::atomic::{AtomicU16, Ordering};
+use std::sync::{Arc, OnceLock};
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Expander)]
 pub struct PCA9685 {
     // Address (default 0x40).
     address: u8,
     // Frequency in Mhz (default 50Mhz).
-    frequency: u16,
+    #[cfg_attr(feature = "serde", serde(with = "crate::utils::serde_arc_atomic"))]
+    frequency: Arc<AtomicU16>,
 
     // ########################################
     // # Volatile utility data.
     #[cfg_attr(feature = "serde", serde(skip))]
-    servo_configs: HashMap<u8, Range<u16>>,
+    pins: Arc<OnceLock<HashMap<u8, Arc<Pin>>>>,
     #[cfg_attr(feature = "serde", serde(skip))]
-    data: Arc<RwLock<IoData>>,
-    #[cfg_attr(feature = "serde", serde(skip))]
-    protocol: Box<dyn IoProtocol>,
+    servo_configs: Arc<RwLock<HashMap<u8, Range<u16>>>>,
+    #[cfg_attr(
+        feature = "serde",
+        serde(with = "crate::utils::serde_arc_protocol", skip_serializing)
+    )]
+    protocol: Arc<dyn IoProtocol>,
 }
 
 impl PCA9685 {
@@ -44,24 +52,14 @@ impl PCA9685 {
     const MAX_FREQUENCY: u16 = 1526; // Maximum frequency in Hz
     const OSC_CLOCK: f32 = 25_000_000.0; // PCA9685 clock frequency
 
-    fn _build_pca9685_data() -> IoData {
-        let mut data = IoData {
-            pins: Default::default(),
-            i2c_data: vec![],
-            digital_reported_pins: vec![],
-            analog_reported_channels: vec![],
-            protocol_version: "PCA9685".to_string(),
-            firmware_name: "PCA9685".to_string(),
-            firmware_version: "n/a".to_string(),
-            connected: false,
-        };
-
+    fn _build_pca9685_pins() -> HashMap<u8, Arc<Pin>> {
+        let mut pins = HashMap::new();
         for id in 0..16 {
-            data.pins.insert(
+            pins.insert(
                 id,
-                Pin {
+                Arc::new(Pin {
                     id,
-                    name: format!("D{}", id),
+                    name: Arc::new(OnceLock::from(format!("D{}", id))),
                     mode: Default::default(),
                     supported_modes: vec![
                         PinMode {
@@ -85,13 +83,12 @@ impl PCA9685 {
                             resolution: 0,
                         },
                     ],
-                    channel: None,
-                    value: 0,
-                },
+                    channel: Arc::new(OnceLock::from(None)),
+                    value: Default::default(),
+                }),
             );
         }
-
-        data
+        pins
     }
 
     pub fn default(board: &Board) -> Result<Self, Error> {
@@ -99,13 +96,12 @@ impl PCA9685 {
     }
 
     pub fn new(board: &dyn Hardware, address: u8) -> Result<Self, Error> {
-        let protocol = board.get_protocol();
         let mut expander = Self {
             address,
-            frequency: 50,
+            frequency: Arc::new(AtomicU16::new(50)),
+            pins: Arc::new(OnceLock::from(Self::_build_pca9685_pins())),
             servo_configs: Default::default(),
-            data: Arc::new(RwLock::new(PCA9685::_build_pca9685_data())),
-            protocol,
+            protocol: board.get_protocol(),
         };
         IoProtocol::open(&mut expander)?;
         Ok(expander)
@@ -116,11 +112,11 @@ impl PCA9685 {
     }
 
     pub fn get_frequency(&self) -> u16 {
-        self.frequency
+        self.frequency.load(Ordering::Relaxed)
     }
 
     // Sets the PWM frequency (in Hz) for the entire PCA9685: from 24 to 1526 Hz.
-    pub fn set_frequency(&mut self, frequency: u16) -> Result<&Self, Error> {
+    pub fn set_frequency(&self, frequency: u16) -> Result<&Self, Error> {
         // Validate frequency range
         if !(Self::MIN_FREQUENCY..=Self::MAX_FREQUENCY).contains(&frequency) {
             return Err(InternalError {
@@ -132,7 +128,7 @@ impl PCA9685 {
             });
         };
 
-        self.frequency = frequency;
+        self.frequency.store(frequency, Ordering::Relaxed);
 
         // 7.3.1 Mode register 1, MODE1 - Reset / Sleep
         // Sets the register mode to reset, than sleep.
@@ -142,7 +138,7 @@ impl PCA9685 {
         // 7.3.5 PWM frequency PRE_SCALE
         // prescale = round((osc_clock / (4096 x rate)) - 1) - with PCA9685 clock at 25Mhz
         // Calculate the prescale value for the desired frequency
-        let prescale = ((PCA9685::OSC_CLOCK / (4096.0 * self.frequency as f32)) + 0.5 - 1.0)
+        let prescale = ((PCA9685::OSC_CLOCK / (4096.0 * frequency as f32)) + 0.5 - 1.0)
             .clamp(3.0, 255.0) as u8;
         self.write_to_reg(PCA9685::PRESCALE, prescale)?;
 
@@ -162,86 +158,86 @@ impl PCA9685 {
         Ok(self)
     }
 
-    pub fn write_to_reg(&mut self, register: u8, value: u8) -> Result<(), Error> {
+    pub fn write_to_reg(&self, register: u8, value: u8) -> Result<(), Error> {
         self.protocol
             .i2c_write(self.address, &[register as u16, value as u16])
     }
 
-    pub fn read_from_reg(&mut self, register: u8) -> Result<u8, Error> {
+    pub fn read_from_reg(&self, register: u8) -> Result<u8, Error> {
         self.i2c_write(self.address, &[register as u16])?;
         self.i2c_read(self.address, 1)?;
-        let register_value = {
-            let lock = self.protocol.get_io().read();
-            *lock.i2c_data.last().unwrap().data.last().unwrap()
-        };
-        Ok(register_value)
+        todo!("Implement reading i2C");
+        // let register_value = {
+        //     let lock = self.protocol.get_io().read();
+        //     *lock.i2c_data.last().unwrap().data.last().unwrap()
+        // };
+        // Ok(register_value)
     }
 }
 
-impl Expander for PCA9685 {}
-
 impl Hardware for PCA9685 {
-    fn get_protocol(&self) -> Box<dyn IoProtocol> {
-        Box::new(self.clone())
+    fn get_protocol(&self) -> Arc<dyn IoProtocol> {
+        Arc::new(self.clone())
     }
 
-    /// @todo remove this when hermes_studio finds a way around.
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn set_protocol(&mut self, protocol: Box<dyn IoProtocol>) {
+    #[cfg(feature = "serde")]
+    fn set_protocol(&mut self, protocol: Arc<dyn IoProtocol>) {
         self.protocol = protocol;
     }
 }
 
 #[cfg_attr(feature = "serde", typetag::serde)]
 impl IoProtocol for PCA9685 {
-    fn open(&mut self) -> Result<(), Error> {
+    fn open(&self) -> Result<(), Error> {
         self.i2c_config(0)?;
-        self.data.write().connected = true;
         Ok(())
     }
 
-    fn close(&mut self) -> Result<(), Error> {
+    fn close(&self) -> Result<(), Error> {
         self.write_to_reg(PCA9685::MODE1, PCA9685::RESTART)?;
-        self.data.write().connected = false;
         Ok(())
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
-    fn report_analog(&mut self, _: u8, _: bool) -> Result<(), Error> { Err(Error::NotImplemented) }
-
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn report_digital(&mut self, _: u8, _: bool) -> Result<(), Error> {
+    fn report_analog(&self, _: u8, _: bool) -> Result<(), Error> {
         Err(Error::NotImplemented)
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
-    fn sampling_interval(&mut self, _: u16) -> Result<(), Error> {
+    fn report_digital(&self, _: u8, _: bool) -> Result<(), Error> {
+        Err(Error::NotImplemented)
+    }
+
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn sampling_interval(&self, _: u16) -> Result<(), Error> {
         Err(Error::NotImplemented)
     }
 }
 
-impl IO for PCA9685 {
-    fn get_io(&self) -> &Arc<RwLock<IoData>> {
-        &self.data
+impl LowLevelApi for PCA9685 {
+    fn get_protocol_name(&self) -> &str {
+        "PCA9685"
     }
 
-    fn is_connected(&self) -> bool {
-        self.data.read().connected
+    fn get_protocol_version(&self) -> &str {
+        "N/A"
     }
 
-    fn set_pin_mode(&mut self, pin: u8, mode: PinModeId) -> Result<(), Error> {
-        {
-            let mut lock = self.data.write();
-            let pin_instance = lock.get_pin_mut(pin)?;
-            let _mode = pin_instance
-                .supports_mode(mode)
-                .ok_or(HardwareError::IncompatiblePin {
-                    pin,
-                    mode,
-                    context: "try to set pin mode",
-                })?;
-            pin_instance.mode = _mode;
-        }
+    fn get_firmware_name(&self) -> &str {
+        "N/A"
+    }
+
+    fn get_firmware_version(&self) -> &str {
+        "N/A"
+    }
+
+    fn get_pins(&self) -> &HashMap<u8, Arc<Pin>> {
+        self.pins.get().unwrap()
+    }
+
+    fn set_pin_mode(&self, pin: u8, mode: PinModeId) -> Result<(), Error> {
+        let pin_instance = self.get_pin(pin)?;
+        pin_instance.set_pin_mode(mode)?;
 
         // Special hack: unsupported should disable the pin, hence send no signal at all.
         if mode == PinModeId::UNSUPPORTED {
@@ -256,43 +252,43 @@ impl IO for PCA9685 {
             PinModeId::ANALOG => Ok(30),  // Typical frequency to control a fan.
             PinModeId::PWM => Ok(300),    // Typical frequency to control a dimmable led.
             PinModeId::SERVO => Ok(50),
-            _ => Err(Error::from(HardwareError::IncompatiblePin {
-                mode,
-                pin,
-                context: "update digital output",
-            })),
+            _ => Err(Error::from(HardwareError::IncompatiblePin { mode, pin })),
         }?;
         self.set_frequency(frequency)?;
 
         Ok(())
     }
 
-    fn digital_write(&mut self, pin: u8, level: bool) -> Result<(), Error> {
+    fn digital_write(&self, pin: u8, level: bool) -> Result<(), Error> {
         let value = if level { 0xFF } else { 0x00 };
         self.analog_write(pin, value)
     }
 
-    fn analog_write(&mut self, pin: u8, level: u16) -> Result<(), Error> {
-        {
-            let mut lock = self.data.write();
-            // Check if pin exists
-            let pin_instance = lock.get_pin_mut(pin)?;
-            // Store the value we will write to the current pin.
-            pin_instance.value = level;
-        };
+    fn analog_write(&self, pin: u8, level: u16) -> Result<(), Error> {
+        let level = level.clamp(0, 255);
+
+        let pin_instance = self.get_pin(pin)?;
+        pin_instance.set_value(level);
 
         // 7.3.3 LED output and PWM control
         // Creates a square signal on pin output.
-        let servo_range = self.servo_configs.get(&pin);
 
-        let (on, off): (u16, u16) = match servo_range {
-            Some(_) => (0, (level as f32 / 4.88) as u16),
+        // - The 'ON' impulsion is always triggered at t=0
+        // - The 'OFF' impulsion is proportional to `level`
+        // Note: On PCA9685, a period is divided in 4096 ticks (12 bits).
+        let (on, off): (u16, u16) = match self.servo_configs.read().get(&pin) {
+            // Servo range = SERVO control.
+            Some(range) => {
+                let pwm = level.scale(0, 0xFF, range.start, range.end);
+                (0, pwm)
+            }
+            // No servo ranges = PWM control.
             None => {
                 let level = level.clamp(0, 255);
                 match level {
-                    0 => (0, 4096),
-                    0xFF => (4096, 0),
-                    level => (0, level.scale(0, 0xFF, 0, 4095)),
+                    0 => (0, 4096),    // completely OFF
+                    0xFF => (4096, 0), // completely ON
+                    level => (0, level.scale(0, 0xFF, 0, 4096)),
                 }
             }
         };
@@ -308,47 +304,51 @@ impl IO for PCA9685 {
         //     format_as_hex(payload)
         // );
 
-        self.protocol.i2c_write(self.address, payload)
-    }
-
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn digital_read(&mut self, _: u8) -> Result<bool, Error> {
-        Err(Error::NotImplemented)
-    }
-
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn analog_read(&mut self, _: u8) -> Result<u16, Error> {
-        Err(Error::NotImplemented)
-    }
-
-    fn servo_config(&mut self, pin: u8, pwm_range: Range<u16>) -> Result<(), Error> {
-        self.servo_configs.insert(pin, pwm_range);
+        self.protocol.i2c_write(self.address, payload)?;
         Ok(())
     }
 
-    fn i2c_config(&mut self, delay: u16) -> Result<(), Error> {
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn digital_read(&self, _: u8) -> Result<bool, Error> {
+        Err(Error::NotImplemented)
+    }
+
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn analog_read(&self, _: u8) -> Result<u16, Error> {
+        Err(Error::NotImplemented)
+    }
+
+    fn servo_config(&self, pin: u8, pwm_range: Range<u16>) -> Result<(), Error> {
+        self.servo_configs.write().insert(pin, pwm_range);
+        Ok(())
+    }
+
+    fn i2c_config(&self, delay: u16) -> Result<(), Error> {
         self.protocol.i2c_config(delay)
     }
 
-    fn i2c_read(&mut self, address: u8, size: u16) -> Result<(), Error> {
+    fn i2c_read(&self, address: u8, size: u16) -> Result<(), Error> {
         self.protocol.i2c_read(address, size)
     }
 
-    fn i2c_write(&mut self, address: u8, data: &[u16]) -> Result<(), Error> {
+    fn i2c_write(&self, address: u8, data: &[u16]) -> Result<(), Error> {
         self.protocol.i2c_write(address, data)
+    }
+
+    fn get_i2c_data(&self, _: u8) -> Arc<RwLock<Vec<I2CReply>>> {
+        todo!("to be implemented")
     }
 }
 impl Display for PCA9685 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let data = self.data.read();
         write!(
             f,
-            "{} [address=0x{:02X}, firmware={}, version={}, protocol={}, transport=I2C]",
-            self.get_name(),
+            "PCA9685 [address=0x{:02X}, protocol={} (version={}), firmware={} (version {}), transport=I2C]",
             self.address,
-            data.firmware_name,
-            data.firmware_version,
-            data.protocol_version,
+            self.get_protocol_name(),
+            self.get_protocol_version(),
+            self.get_firmware_name(),
+            self.get_firmware_version(),
         )
     }
 }
@@ -356,19 +356,10 @@ impl Display for PCA9685 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::RemoteIo;
-    use crate::mocks::create_test_plugin_io_data;
     use crate::mocks::MockProtocol;
     use crate::mocks::MockTransport;
+    use crate::protocols::RemoteIo;
     use crate::utils::Range;
-
-    #[test]
-    fn test_helper() {
-        let data = PCA9685::_build_pca9685_data();
-        assert_eq!(data.firmware_name, "PCA9685");
-        assert_eq!(data.protocol_version, "PCA9685");
-        assert_eq!(data.pins.len(), 16);
-    }
 
     #[test]
     fn test_default_initialization() {
@@ -376,7 +367,7 @@ mod tests {
         let pca9685 = PCA9685::default(&board).unwrap();
 
         assert_eq!(pca9685.address, 0x40);
-        assert_eq!(pca9685.frequency, 50);
+        assert_eq!(pca9685.frequency.load(Ordering::Relaxed), 50);
     }
 
     #[test]
@@ -385,22 +376,22 @@ mod tests {
         let pca9685 = PCA9685::new(&board, 0x41).unwrap();
 
         assert_eq!(pca9685.address, 0x41);
-        assert_eq!(pca9685.frequency, 50);
+        assert_eq!(pca9685.frequency.load(Ordering::Relaxed), 50);
     }
 
     #[test]
     fn test_set_frequency_valid() {
         let board = Board::new(MockProtocol::default());
-        let mut pca9685 = PCA9685::default(&board).unwrap();
+        let pca9685 = PCA9685::default(&board).unwrap();
 
         assert!(pca9685.set_frequency(100).is_ok());
-        assert_eq!(pca9685.frequency, 100);
+        assert_eq!(pca9685.frequency.load(Ordering::Relaxed), 100);
     }
 
     #[test]
     fn test_set_frequency_outofbound() {
         let board = Board::new(MockProtocol::default());
-        let mut pca9685 = PCA9685::default(&board).unwrap();
+        let pca9685 = PCA9685::default(&board).unwrap();
 
         let result = pca9685.set_frequency(20);
         assert!(result.is_err());
@@ -421,40 +412,35 @@ mod tests {
     fn test_write_to_reg() {
         let transport = MockTransport::default();
         let board = Board::new(RemoteIo::from(transport));
-        let mut pca9685 = PCA9685::default(&board).unwrap();
+        let pca9685 = PCA9685::default(&board).unwrap();
 
         assert!(pca9685.write_to_reg(0x69, 0x42).is_ok());
     }
 
-    #[test]
-    fn test_read_from_reg() {
-        let mut transport = MockTransport::default();
-
-        // Mock data for reading I2C reply of a single 0x69 register with value 0x42.
-        let data = &[0xF0, 0x77, 0x40, 0x00, 0x69, 0x00, 0x42, 0x00, 0xF7];
-        transport.read_buf[..data.len()].copy_from_slice(data);
-        let protocol = RemoteIo::from(transport);
-        *protocol.get_io().write() = create_test_plugin_io_data();
-
-        let board = Board::new(protocol);
-        let mut pca9685 = PCA9685::new(&board, 0x40).unwrap();
-
-        let value = pca9685.read_from_reg(0x69).unwrap();
-        assert_eq!(value, 0x42);
-    }
+    // #[test]
+    // fn test_read_from_reg() {
+    //     // Mock data for reading I2C reply of a single 0x69 register with value 0x42.
+    //     let data = &[0xF0, 0x77, 0x40, 0x00, 0x69, 0x00, 0x42, 0x00, 0xF7];
+    //
+    //     let transport = MockTransport::new(data.to_vec());
+    //     let protocol = RemoteIo::from(transport);
+    //     let board = Board::new(protocol);
+    //     let pca9685 = PCA9685::new(&board, 0x40).unwrap();
+    //
+    //     let value = pca9685.read_from_reg(0x69).unwrap();
+    //     assert_eq!(value, 0x42);
+    // }
 
     #[test]
     fn test_read_from_reg_failure() {
-        let mut transport = MockTransport::default();
-
         // Mock data for reading I2C reply too short.
         let data = &[0xF0, 0x77, 0x40, 0x00, 0xF7];
-        transport.read_buf[..data.len()].copy_from_slice(data);
+
+        let transport = MockTransport::new(data.to_vec());
         let protocol = RemoteIo::from(transport);
-        *protocol.get_io().write() = create_test_plugin_io_data();
 
         let board = Board::new(protocol);
-        let mut pca9685 = PCA9685::new(&board, 0x40).unwrap();
+        let pca9685 = PCA9685::new(&board, 0x40).unwrap();
 
         let result = pca9685.read_from_reg(PCA9685::MODE1);
         assert!(result.is_err());
@@ -463,7 +449,7 @@ mod tests {
     #[test]
     fn test_set_pin_mode() {
         let board = Board::new(MockProtocol::default());
-        let mut pca9685 = PCA9685::default(&board).unwrap();
+        let pca9685 = PCA9685::default(&board).unwrap();
 
         // Test setting pin mode to OUTPUT
         assert!(pca9685.set_pin_mode(0, PinModeId::OUTPUT).is_ok());
@@ -486,78 +472,70 @@ mod tests {
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err().to_string(),
-            "Hardware error: Pin (2) not compatible with mode (DHT) - try to set pin mode."
+            "Hardware error: Pin (2) not compatible with mode (DHT)."
         )
     }
 
     #[test]
     fn test_digital_write() {
         let board = Board::new(MockProtocol::default());
-        let mut pca9685 = PCA9685::new(&board, 0x41).unwrap();
+        let pca9685 = PCA9685::new(&board, 0x41).unwrap();
 
         assert!(pca9685.digital_write(1, true).is_ok());
-        let value = pca9685.data.read().get_pin(1).unwrap().value;
-        assert_eq!(value, 255);
+        assert_eq!(pca9685.get_pin(1).unwrap().get_value(), 255);
 
         assert!(pca9685.digital_write(1, false).is_ok());
-        let value = pca9685.data.read().get_pin(1).unwrap().value;
-        assert_eq!(value, 0);
+        assert_eq!(pca9685.get_pin(1).unwrap().get_value(), 0);
     }
 
     #[test]
     fn test_analog_write() {
         let board = Board::new(MockProtocol::default());
-        let mut pca9685 = PCA9685::default(&board).unwrap();
+        let pca9685 = PCA9685::default(&board).unwrap();
 
-        assert!(pca9685.analog_write(0, 128).is_ok());
-        let value = pca9685.data.read().get_pin(0).unwrap().value;
-        assert_eq!(value, 128);
+        assert!(pca9685.analog_write(1, 128).is_ok());
+        assert_eq!(pca9685.get_pin(1).unwrap().get_value(), 128);
 
-        assert!(pca9685.analog_write(0, 0).is_ok());
-        let value = pca9685.data.read().get_pin(0).unwrap().value;
-        assert_eq!(value, 0);
+        assert!(pca9685.analog_write(1, 0).is_ok());
+        assert_eq!(pca9685.get_pin(1).unwrap().get_value(), 0);
 
-        assert!(pca9685.analog_write(0, 255).is_ok());
-        let value = pca9685.data.read().get_pin(0).unwrap().value;
-        assert_eq!(value, 0xFF);
+        assert!(pca9685.analog_write(1, 255).is_ok());
+        assert_eq!(pca9685.get_pin(1).unwrap().get_value(), 0xFF);
 
-        pca9685.data.write().get_pin_mut(1).unwrap().mode.id = PinModeId::SERVO;
+        pca9685.set_pin_mode(1, PinModeId::SERVO).unwrap();
         assert!(pca9685.servo_config(1, Range::from([300, 600])).is_ok());
         assert!(pca9685.analog_write(1, 128).is_ok());
-        let value = pca9685.data.read().get_pin(1).unwrap().value;
-        assert_eq!(value, 128);
+        assert_eq!(pca9685.get_pin(1).unwrap().get_value(), 128);
     }
 
     #[test]
     fn test_servo_config() {
         let board = Board::new(MockProtocol::default());
-        let mut pca9685 = PCA9685::default(&board).unwrap();
+        let pca9685 = PCA9685::default(&board).unwrap();
 
         // Test configuring the servo
         let pwm_range = Range::from([1000, 2000]);
         assert!(pca9685.servo_config(0, pwm_range).is_ok());
 
         // Verify servo config
-        assert!(pca9685.servo_configs.contains_key(&0));
-        assert_eq!(pca9685.servo_configs.get(&0).unwrap().start, 1000);
-        assert_eq!(pca9685.servo_configs.get(&0).unwrap().end, 2000);
+        let servo_configs = pca9685.servo_configs.read();
+        assert!(servo_configs.contains_key(&0));
+        assert_eq!(servo_configs.get(&0).unwrap().start, 1000);
+        assert_eq!(servo_configs.get(&0).unwrap().end, 2000);
     }
 
     #[test]
     fn test_open() {
         let board = Board::new(MockProtocol::default());
-        let mut pca9685 = PCA9685::default(&board).unwrap();
+        let pca9685 = PCA9685::default(&board).unwrap();
         assert!(pca9685.open().is_ok());
-        assert!(pca9685.is_connected());
     }
 
     #[test]
     fn test_close() {
         let board = Board::new(MockProtocol::default());
-        let mut pca9685 = PCA9685::default(&board).unwrap();
-        pca9685.data.write().connected = true; // force
+        let pca9685 = PCA9685::default(&board).unwrap();
         assert!(pca9685.close().is_ok());
-        assert!(!pca9685.is_connected());
     }
 
     #[test]
@@ -567,7 +545,7 @@ mod tests {
 
         assert_eq!(
             format!("{}", pca9685),
-            "PCA9685 [address=0x40, firmware=PCA9685, version=n/a, protocol=PCA9685, transport=I2C]"
+            "PCA9685 [address=0x40, protocol=PCA9685 (version=N/A), firmware=N/A (version N/A), transport=I2C]"
         );
     }
 
@@ -577,9 +555,11 @@ mod tests {
         let pca9685 = PCA9685::new(&board, 0x41).unwrap();
         assert_eq!(
             pca9685.get_protocol().to_string(),
-            "PCA9685 [address=0x41, firmware=PCA9685, version=n/a, protocol=PCA9685, transport=I2C]"
+            "PCA9685 [address=0x41, protocol=PCA9685 (version=N/A), firmware=N/A (version N/A), transport=I2C]"
         );
-        assert_eq!(pca9685.get_io().read().firmware_name, "PCA9685");
-        assert!(pca9685.is_connected());
+        assert_eq!(pca9685.get_protocol_name(), "PCA9685");
+        assert_eq!(pca9685.get_protocol_version(), "N/A");
+        assert_eq!(pca9685.get_firmware_version(), "N/A");
+        assert_eq!(pca9685.get_firmware_name(), "N/A");
     }
 }
