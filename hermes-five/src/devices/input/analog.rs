@@ -22,6 +22,7 @@ pub struct AnalogInput {
     // ########################################
     // # Basics
     /// The pin (id) of the [`Board`] used to read the analog value.
+    #[cfg_attr(feature = "serde", serde(rename = "pin"))]
     id: u8,
     /// The current AnalogInput state.
     #[cfg_attr(feature = "serde", serde(with = "crate::utils::serde_arc_atomic"))]

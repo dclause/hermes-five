@@ -42,6 +42,7 @@ pub struct Led {
     // ########################################
     // # Basics
     /// Matches the pin (id) of the [`Board`] used to control the LED.
+    #[cfg_attr(feature = "serde", serde(rename = "pin"))]
     id: u8,
     /// The current LED state.
     #[cfg_attr(feature = "serde", serde(with = "crate::utils::serde_arc_atomic"))]
@@ -348,8 +349,10 @@ impl Display for Led {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::animations::Easing;
     use crate::hardware::{Board, PinMode, PinModeId};
     use crate::mocks::MockProtocol;
+    use crate::pause;
     use crate::utils::State;
 
     fn _setup_led(pin: u8) -> Led {
@@ -522,39 +525,39 @@ mod tests {
 
     #[hermes_five_macros::test]
     fn test_led_blink() {
-        // let mut led = _setup_led(13);
-        // assert!(!led.is_busy());
-        // led.stop(); // Stop something not started should not fail.
-        // led.blink(50); // Set a blink interval of 50 ms
-        // pause!(100);
-        // assert!(led.is_busy()); // Animation is currently running.
-        // led.stop();
-        // assert!(!led.is_busy());
+        let mut led = _setup_led(13);
+        assert!(!led.is_busy());
+        led.stop(); // Stop something not started should not fail.
+        led.blink(50); // Set a blink interval of 50 ms
+        pause!(100);
+        assert!(led.is_busy()); // Animation is currently running.
+        led.stop();
+        assert!(!led.is_busy());
     }
 
     #[hermes_five_macros::test]
     fn test_led_pulse() {
-        // let mut led = _setup_led(8);
-        // assert!(!led.is_busy());
-        // led.stop(); // Stop something not started should not fail.
-        // led.pulse(50); // Set a fading pulse interval of 50 ms
-        // pause!(100);
-        // assert!(led.is_busy()); // Animation is currently running.
-        // led.stop();
-        // assert!(!led.is_busy());
+        let mut led = _setup_led(8);
+        assert!(!led.is_busy());
+        led.stop(); // Stop something not started should not fail.
+        led.pulse(50); // Set a fading pulse interval of 50 ms
+        pause!(100);
+        assert!(led.is_busy()); // Animation is currently running.
+        led.stop();
+        assert!(!led.is_busy());
     }
 
     #[hermes_five_macros::test]
     fn test_animation() {
-        // let mut led = _setup_led(8);
-        // assert!(!led.is_busy());
-        // // Stop something not started should not fail.
-        // led.stop();
-        // // Fade in the LED to brightness
-        // led.animate(led.get_brightness(), 500, Easing::Linear);
-        // pause!(100);
-        // assert!(led.is_busy()); // Animation is currently running.
-        // led.stop();
+        let mut led = _setup_led(8);
+        assert!(!led.is_busy());
+        // Stop something not started should not fail.
+        led.stop();
+        // Fade in the LED to brightness
+        led.animate(led.get_brightness(), 500, Easing::Linear);
+        pause!(100);
+        assert!(led.is_busy()); // Animation is currently running.
+        led.stop();
     }
 
     #[test]

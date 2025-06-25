@@ -51,13 +51,13 @@ pub mod serde_arc_rwlock {
             let serialized = serde_json::to_string(&test);
             assert!(serialized.is_ok());
 
-            let expected_json = r#"{"state":20,"default":0,"locked_state":42}"#;
+            let expected_json = r#"{"test":20}"#;
             assert_eq!(serialized.unwrap(), expected_json);
         }
 
         #[test]
         fn test_deserialize() {
-            let json_data = r#"{"state":20,"default":0,"locked_state":42}"#;
+            let json_data = r#"{"test":42}"#;
             let deserialized = serde_json::from_str::<MyStruct>(json_data);
 
             assert!(deserialized.is_ok());
@@ -229,9 +229,10 @@ pub mod serde_mode {
 /// ```
 pub mod serde_arc_protocol {
     use crate::errors::Error;
-    use crate::hardware::{LowLevelApi, Pin, PinModeId};
+    use crate::hardware::{I2CReply, LowLevelApi, Pin, PinModeId};
     use crate::protocols::IoProtocol;
     use crate::utils::Range;
+    use parking_lot::RwLock;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
     use std::collections::HashMap;
     use std::fmt::{Display, Formatter};
@@ -335,6 +336,10 @@ pub mod serde_arc_protocol {
 
         fn i2c_write(&self, _: u8, _: &[u16]) -> Result<(), Error> {
             self.throw_error()
+        }
+
+        fn get_i2c_data(&self, _: u8) -> Arc<RwLock<Vec<I2CReply>>> {
+            todo!()
         }
     }
 

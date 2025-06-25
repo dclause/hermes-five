@@ -18,6 +18,7 @@ pub struct PwmOutput {
     // ########################################
     // # Basics
     /// The pin (id) of the [`Board`] used to control the output value.
+    #[cfg_attr(feature = "serde", serde(rename = "pin"))]
     id: u8,
     /// The current output state.
     #[cfg_attr(feature = "serde", serde(with = "crate::utils::serde_arc_atomic"))]

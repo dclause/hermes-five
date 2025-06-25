@@ -21,6 +21,7 @@ pub struct DigitalInput {
     // ########################################
     // # Basics
     /// The pin (id) of the [`Board`] used to read the digital value.
+    #[cfg_attr(feature = "serde", serde(rename = "pin"))]
     id: u8,
     /// The current digital state.
     #[cfg_attr(feature = "serde", serde(with = "crate::utils::serde_arc_atomic"))]

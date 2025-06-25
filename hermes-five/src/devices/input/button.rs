@@ -23,6 +23,7 @@ pub struct Button {
     // ########################################
     // # Basics
     /// The pin (id) of the [`Board`] used to read the button value.
+    #[cfg_attr(feature = "serde", serde(rename = "pin"))]
     id: u8,
     /// The current Button state.
     #[cfg_attr(feature = "serde", serde(with = "crate::utils::serde_arc_atomic"))]

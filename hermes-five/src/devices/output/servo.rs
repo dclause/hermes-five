@@ -30,6 +30,7 @@ pub struct Servo {
     // ########################################
     // # Basics
     /// The pin (id) of the [`Board`] used to control the Servo.
+    #[cfg_attr(feature = "serde", serde(rename = "pin"))]
     id: u8,
     /// The current Servo state.
     #[cfg_attr(feature = "serde", serde(with = "crate::utils::serde_arc_atomic"))]

@@ -464,12 +464,13 @@ mod serde_tests {
         let json =
             r#"{"protocol":{"type":"RemoteIo","transport":{"type":"Serial","port":"mock"}}}"#;
         let board: Board = serde_json::from_str(json).unwrap();
-        let protocol = board.protocol.as_any().downcast_ref::<RemoteIo>();
+        let protocol = (*board.protocol).as_any().downcast_ref::<RemoteIo>();
         assert!(protocol.is_some());
 
         let json = r#"{"protocol":{"type":"MockProtocol"}}"#;
         let board: Board = serde_json::from_str(json).unwrap();
-        let protocol = board.protocol.as_any().downcast_ref::<MockProtocol>();
+        let protocol = (*board.protocol).as_any().downcast_ref::<RemoteIo>();
+        assert_eq!(board.protocol.get_protocol_name(), "MockProtocol");
         assert!(protocol.is_none());
     }
 }
