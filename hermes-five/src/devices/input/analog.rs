@@ -159,7 +159,7 @@ impl AnalogInput {
     ///         // It means the program will run forever listening to the InputEvent,
     ///         // until we detach the device and close the board.
     ///         potentiometer.detach();
-    ///         board.disconnect().unwrap();
+    ///         board.close().unwrap();
     ///
     ///         Ok(())
     ///     });
@@ -228,7 +228,7 @@ mod tests {
         assert_eq!(sensor.get_state().as_integer(), 222);
 
         sensor.detach();
-        board.disconnect().unwrap();
+        board.close().unwrap();
     }
 
     #[hermes_five_macros::test]
@@ -248,7 +248,7 @@ mod tests {
         );
 
         sensor.detach();
-        board.disconnect().unwrap();
+        board.close().unwrap();
     }
 
     #[hermes_five_macros::test]

@@ -288,7 +288,7 @@ impl Button {
     ///         // It means the program will run forever listening to the InputEvent,
     ///         // until we detach the device and close the board.
     ///         button.detach();
-    ///         board.disconnect().unwrap();
+    ///         board.close().unwrap();
     ///
     ///         Ok(())
     ///     });
@@ -352,7 +352,7 @@ mod tests {
         assert!(!button.is_pullup());
 
         button.detach();
-        board.disconnect().unwrap();
+        board.close().unwrap();
     }
 
     #[hermes_five_macros::test]
@@ -368,7 +368,7 @@ mod tests {
         assert!(!button.is_pullup());
 
         button.detach();
-        board.disconnect().unwrap();
+        board.close().unwrap();
     }
 
     #[hermes_five_macros::test]
@@ -384,7 +384,7 @@ mod tests {
         assert!(button.is_pullup());
 
         button.detach();
-        board.disconnect().unwrap();
+        board.close().unwrap();
     }
 
     #[hermes_five_macros::test]
@@ -400,7 +400,7 @@ mod tests {
         assert!(button.is_pullup());
 
         button.detach();
-        board.disconnect().unwrap();
+        board.close().unwrap();
     }
 
     #[hermes_five_macros::test]
@@ -413,7 +413,7 @@ mod tests {
         assert_eq!(button.get_state().as_bool(), false);
 
         button.detach();
-        board.disconnect().unwrap();
+        board.close().unwrap();
     }
 
     #[hermes_five_macros::test]
@@ -473,7 +473,7 @@ mod tests {
         assert!(released_flag.load(Ordering::Relaxed));
 
         button.detach();
-        board.disconnect().unwrap();
+        board.close().unwrap();
     }
 
     #[hermes_five_macros::test]
@@ -535,7 +535,7 @@ mod tests {
         assert!(released_flag.load(Ordering::Relaxed));
 
         button.detach();
-        board.disconnect().unwrap();
+        board.close().unwrap();
     }
 
     #[hermes_five_macros::test]
@@ -549,6 +549,6 @@ mod tests {
         );
 
         button.detach();
-        board.disconnect().unwrap();
+        board.close().unwrap();
     }
 }

@@ -22,7 +22,7 @@ async fn main() {
         output.set_percentage(50)?;
 
         // Disconnect the board since we finished with it.
-        board.disconnect().unwrap();
+        board.close().unwrap();
 
         Ok(())
     });

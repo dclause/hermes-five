@@ -27,7 +27,7 @@ use crate::pause;
 /// #[hermes_five::runtime]
 /// async fn main() {
 ///     // Define a board on COM4.
-///     let board = Board::new(RemoteIo::new("COM4")).connect().unwrap();
+///     let board = Board::new(RemoteIo::new("COM4")).open().unwrap();
 ///
 ///     // Define a servo attached to the board on PIN 9 (default servo position is 90°).
 ///     let servo = Servo::new(&board, 9, 90).unwrap();

@@ -11,14 +11,14 @@ use hermes_five::transports::Serial;
 #[hermes_five::runtime]
 async fn main() {
     // Initialize a serial connection with auto-detected port.
-    let _board = Board::from(Serial::default()).connect().unwrap();
+    let _board = Board::from(Serial::default()).open().unwrap();
 
     // Initialize a serial connection with custom port.
-    let _board = Board::from(Serial::new("/dev/ttyUSB0")).connect().unwrap();
+    let _board = Board::from(Serial::new("/dev/ttyUSB0")).open().unwrap();
 
     // Equivalent with full syntax:
     let board = Board::new(RemoteIo::from(Serial::new("/dev/ttyUSB0")))
-        .connect()
+        .open()
         .unwrap();
 
     board.on(BoardEvent::OnReady, |board: Board| async move {

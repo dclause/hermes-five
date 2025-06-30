@@ -1,4 +1,3 @@
-use std::time::{Duration, SystemTime};
 use gilrs::EventType::{AxisChanged, ButtonChanged};
 /// Gamepad controller example with a servo motor.
 ///
@@ -12,38 +11,41 @@ use hermes_five::devices::{Led, Servo};
 use hermes_five::hardware::{Board, BoardEvent};
 use hermes_five::pause;
 use hermes_five::utils::Range;
+use std::time::{Duration, SystemTime};
 
 // ######################
 // DEMO CONFIGURATION
 // For demonstration purpose, the configuration as left basic.
 // No acceleration or inertia considered.
-const UPDATE_INTERVAL_MS: u64 = 20;                         // ~50 Hz
-const IDLE_DELAY: u64 = 5000;                               // Time after which the servo and led are reset.
-// servo
-const SERVO_PIN: u8 = 9;                                    // Board pin
-const SERVO_REST_POSITION: f32 = 90.0;                      // center
+const UPDATE_INTERVAL_MS: u64 = 20; // ~50 Hz
+const IDLE_DELAY: u64 = 5000; // Time after which the servo and led are reset.
+                              // servo
+const SERVO_PIN: u8 = 9; // Board pin
+const SERVO_REST_POSITION: f32 = 90.0; // center
 const SERVO_RANGE: Range<u16> = Range { start: 0, end: 180 };
-const SERVO_ACCELERATION: f32 = 200.0;                      // °/s²
-const SERVO_INVERSION: i8 = 1;                              // 1: normal, -1: inverted
- // led
-const LED_PIN: u8 = 13;                                     // Embedded arduino led by default
-const LED_SPEED: Range<u16> = Range {start: 50, end: 500 };
-const LED_DELAY_ACCELERATION: f32 = 100.0;                   // ms/s²
+const SERVO_ACCELERATION: f32 = 200.0; // °/s²
+const SERVO_INVERSION: i8 = 1; // 1: normal, -1: inverted
+                               // led
+const LED_PIN: u8 = 13; // Embedded arduino led by default
+const LED_SPEED: Range<u16> = Range {
+    start: 50,
+    end: 500,
+};
+const LED_DELAY_ACCELERATION: f32 = 100.0; // ms/s²
 
 #[hermes_five::runtime]
 async fn main() {
-
     // Initiate a board on auto-detected port.
     // Don't forget to flash it first with
     // https://github.com/firmata/arduino/blob/main/examples/StandardFirmataPlus/StandardFirmataPlus.ino
     let board = Board::start().unwrap();
     board.on(BoardEvent::OnReady, |board: Board| async move {
-
         // Init gamepad.
         let mut gilrs = Gilrs::new().unwrap();
 
         // Initialize servo
-        let mut servo = Servo::new(&board, SERVO_PIN, SERVO_REST_POSITION as u16)?.set_range(SERVO_RANGE);
+        let mut servo =
+            Servo::new(&board, SERVO_PIN, SERVO_REST_POSITION as u16)?.set_range(SERVO_RANGE);
         let mut servo_req_position = SERVO_REST_POSITION as f32;
         let mut servo_acceleration = 0.0;
         let mut servo_last_activity_time = SystemTime::now();
@@ -64,22 +66,25 @@ async fn main() {
                 // Set the servo and led accelerations accordingly.
                 match event {
                     AxisChanged(Axis::LeftStickX, acceleration, _) => {
-                        servo_acceleration = acceleration * SERVO_ACCELERATION * SERVO_INVERSION as f32;
-                        servo_last_activity_time  =  time;
+                        servo_acceleration =
+                            acceleration * SERVO_ACCELERATION * SERVO_INVERSION as f32;
+                        servo_last_activity_time = time;
                         servo_need_idle = acceleration == 0.0;
-                    },
+                    }
                     ButtonChanged(Button::LeftTrigger2, acceleration, _) => {
                         led_acceleration = acceleration * -LED_DELAY_ACCELERATION;
-                    },
+                    }
                     ButtonChanged(Button::RightTrigger2, acceleration, _) => {
                         led_acceleration = acceleration * LED_DELAY_ACCELERATION;
-                    },
+                    }
                     _ => {}
                 }
             }
 
             // Adjust servo position: auto-back to center after IDLE_DELAY ms.
-            if servo_need_idle && servo_last_activity_time.elapsed().unwrap() > Duration::from_millis(IDLE_DELAY) {
+            if servo_need_idle
+                && servo_last_activity_time.elapsed().unwrap() > Duration::from_millis(IDLE_DELAY)
+            {
                 servo.to(SERVO_REST_POSITION as u16)?;
                 servo_req_position = SERVO_REST_POSITION;
                 servo_need_idle = false;

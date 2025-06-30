@@ -166,7 +166,7 @@ impl DigitalInput {
     ///         // It means the program will run forever listening to the InputEvent,
     ///         // until we detach the device and close the board.
     ///         sensor.detach();
-    ///         board.disconnect().unwrap();
+    ///         board.close().unwrap();
     ///
     ///         Ok(())
     ///     });
@@ -227,7 +227,7 @@ mod tests {
         assert!(sensor.get_state().as_bool());
 
         sensor.detach();
-        board.disconnect().unwrap();
+        board.close().unwrap();
     }
 
     #[hermes_five_macros::test]
@@ -241,7 +241,7 @@ mod tests {
         );
 
         sensor.detach();
-        board.disconnect().unwrap();
+        board.close().unwrap();
     }
 
     #[hermes_five_macros::test]
@@ -301,6 +301,6 @@ mod tests {
         assert!(low_flag.load(Ordering::Relaxed));
 
         button.detach();
-        board.disconnect().unwrap();
+        board.close().unwrap();
     }
 }

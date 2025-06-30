@@ -32,7 +32,7 @@ impl Serial {
     /// #[hermes_five::runtime]
     /// async fn main() {
     ///     let protocol = RemoteIo::new("/dev/ttyACM0");
-    ///     let board = Board::new(protocol).connect().unwrap();
+    ///     let board = Board::new(protocol).open().unwrap();
     /// }
     /// ```
     pub fn new<P: Into<String>>(port: P) -> Self {

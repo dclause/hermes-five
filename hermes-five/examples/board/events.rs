@@ -3,7 +3,7 @@
 //!
 //! In this example, we register two event handlers:
 //! - `OnReady`: This event is triggered when the board is ready to use.
-//! - `OnClose`: This event is triggered when the board is closed.
+//! - `OnClosed`: This event is triggered when the board is closed.
 //!
 //! # Notes
 //! - The [`Board.on`] method is used to register the event handlers on the board.
@@ -23,10 +23,10 @@ async fn main() {
 
     board.on(BoardEvent::OnReady, |board: Board| async move {
         println!("Connection done on board.");
-        board.disconnect().unwrap();
+        board.close().unwrap();
     });
 
-    board.on(BoardEvent::OnClose, |_: Board| async move {
+    board.on(BoardEvent::OnClosed, |_: Board| async move {
         println!("Connection closed on board.");
     });
 

@@ -16,7 +16,6 @@ async fn main() {
     let board = Board::start().unwrap();
 
     board.on(BoardEvent::OnReady, |board: Board| async move {
-
         // Register a LED on pin 13 (default arduino led): OFF by default.
         // Notice how we simply used `new_sink` instead of `new` here:
         // the rest of the code is the same as usual.

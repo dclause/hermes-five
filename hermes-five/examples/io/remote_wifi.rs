@@ -11,7 +11,7 @@ use hermes_five::transports::WiFi;
 #[hermes_five::runtime]
 async fn main() {
     // Initialize a TCP connection with the given IP board.
-    let board = Board::from(WiFi::new("127.0.0.1:3030")).connect().unwrap();
+    let board = Board::from(WiFi::new("127.0.0.1:3030")).open().unwrap();
 
     // Note: Equivalent with full syntax:
     // let board = Board::new(RemoteIo::from(WiFi::new("127.0.0.1:3030"))).connect().unwrap();

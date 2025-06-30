@@ -22,7 +22,7 @@ async fn main() {
         output.turn_off()?;
 
         // Disconnect the board since we finished with it.
-        board.disconnect().unwrap();
+        board.close().unwrap();
 
         Ok(())
     });

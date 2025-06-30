@@ -32,7 +32,7 @@ impl WiFi {
     /// #[hermes_five::runtime]
     /// async fn main() {
     ///     let protocol = RemoteIo::from(WiFi::new("192.168.1.186:3030"));
-    ///     let board = Board::new(protocol).connect().unwrap();
+    ///     let board = Board::new(protocol).open().unwrap();
     /// }
     /// ```
     pub fn new<P: Into<String>>(address: P) -> Self {
