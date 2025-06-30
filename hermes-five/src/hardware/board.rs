@@ -153,7 +153,7 @@ impl Board {
         let callback_board = self.clone();
 
         task::run(async move {
-            let board = callback_board.blocking_open()?;
+            let board = callback_board.blocking_connect()?;
             board.events.emit(BoardEvent::OnReady, board.clone());
             Ok(())
         })?;
@@ -188,7 +188,7 @@ impl Board {
     pub fn disconnect(self) -> Result<Self, Error> {
         let callback_board = self.clone();
         task::run(async move {
-            let board = callback_board.blocking_close()?;
+            let board = callback_board.blocking_disconnect()?;
             board.events.emit(BoardEvent::OnClose, board.clone());
             Ok(())
         })?;
@@ -196,14 +196,14 @@ impl Board {
     }
 
     /// Blocking version of [`Self::connect()`] method.
-    pub fn blocking_open(self) -> Result<Self, Error> {
+    pub fn blocking_connect(self) -> Result<Self, Error> {
         self.protocol.open()?;
-        // trace!"Board is ready: {:#?}", self.get_io());
+        // trace!"(Board is ready: {:#?}", self.get_io());
         Ok(self)
     }
 
     /// Blocking version of [`Self::disconnect()`] method.
-    pub fn blocking_close(self) -> Result<Self, Error> {
+    pub fn blocking_disconnect(self) -> Result<Self, Error> {
         // Detach all pins.
         let pins: Vec<u8> = self.get_protocol().get_pins().keys().copied().collect();
         for id in pins {
@@ -400,7 +400,7 @@ mod tests {
     fn test_board_blocking_open() {
         let transport = MockTransport::default();
         let protocol = RemoteIo::from(transport);
-        assert!(Board::new(protocol).blocking_open().is_ok());
+        assert!(Board::new(protocol).blocking_connect().is_ok());
     }
 
     #[hermes_five_macros::test]
