@@ -43,13 +43,13 @@ impl From<AnimationEvent> for String {
 /// ```
 /// use hermes_five::pause;
 /// use hermes_five::animations::{Animation, Easing, Keyframe, Segment, Track};
-/// use hermes_five::hardware::{Board, BoardEvent};
+/// use hermes_five::hardware::Board;
 /// use hermes_five::devices::Servo;
 ///
 /// #[hermes_five::runtime]
 /// async fn main() {
 ///     let board = Board::start().unwrap();
-///     board.on(BoardEvent::OnReady, |board: Board| async move {
+///     board.on_ready(|board: Board| async move {
 ///         let servo = Servo::new(&board, 9, 0)?;
 ///
 ///         let mut animation = Animation::from(
@@ -293,7 +293,7 @@ impl Animation {
     /// #[hermes_five::runtime]
     /// async fn main() {
     ///     let board = Board::start().unwrap();
-    ///     board.on(BoardEvent::OnReady, |board: Board| async move {
+    ///     board.on_ready(|board: Board| async move {
     ///         let mut led = Led::new(&board, 11, false)?;
     ///         // This is a dummy animation (does nothing).
     ///         let animation = Animation::default();

@@ -8,14 +8,14 @@
 //! This example uses pin 13 (default Arduino onboard LED).
 
 use hermes_five::devices::Led;
-use hermes_five::hardware::{Board, BoardEvent};
+use hermes_five::hardware::Board;
 use hermes_five::pause;
 
 #[hermes_five::runtime]
 async fn main() {
     let board = Board::start().unwrap();
 
-    board.on(BoardEvent::OnReady, |board: Board| async move {
+    board.on_ready(|board: Board| async move {
         // Register a LED on pin 13 (default arduino led): OFF by default.
         // Notice how we simply used `new_sink` instead of `new` here:
         // the rest of the code is the same as usual.

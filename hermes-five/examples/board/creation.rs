@@ -4,7 +4,7 @@
 //! A board uses a 'protocol' which defines how to communicate with the software. The default is [`RemoteIo`] which itself
 //! can use various [`IoTransport`] underneath (serial, bluetooth, wifi, etc.).
 
-use hermes_five::hardware::{Board, BoardEvent};
+use hermes_five::hardware::Board;
 use hermes_five::protocols::RemoteIo;
 use hermes_five::transports::{Serial, WiFi};
 
@@ -19,7 +19,7 @@ async fn main() {
 
     // Beware: the program will stop here since no work as been registered through the `BoardEvent::OnReady` event.
     // Find more about this in the 'examples/board/creation.rs' example.
-    board.on(BoardEvent::OnReady, |_: Board| async move {
+    board.on_ready(|_: Board| async move {
         // Do something here !
     });
 

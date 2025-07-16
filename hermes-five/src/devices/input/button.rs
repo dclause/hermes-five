@@ -266,12 +266,12 @@ impl Button {
     ///
     /// ```
     /// use hermes_five::devices::{Button, InputEvent};
-    /// use hermes_five::hardware::{Board, BoardEvent};
+    /// use hermes_five::hardware::Board;
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
     ///     let board = Board::start().unwrap();
-    ///     board.on(BoardEvent::OnReady, |board: Board| async move {
+    ///     board.on_ready(|board: Board| async move {
     ///
     ///         // Register a Button on pin 2.
     ///         let button = Button::new_pulldown(&board, 2)?;

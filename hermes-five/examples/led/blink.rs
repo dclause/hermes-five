@@ -1,12 +1,12 @@
 use hermes_five::devices::{Led, OutputDevice};
-use hermes_five::hardware::{Board, BoardEvent};
+use hermes_five::hardware::Board;
 use hermes_five::pause;
 
 #[hermes_five::runtime]
 async fn main() {
     let board = Board::start().unwrap();
 
-    board.on(BoardEvent::OnReady, |board: Board| async move {
+    board.on_ready(|board: Board| async move {
         // Register a LED on pin 13 (default arduino led).
         let mut led = Led::new(&board, 13, false)?;
 

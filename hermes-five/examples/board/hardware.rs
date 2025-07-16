@@ -1,12 +1,12 @@
 //! This example shows how to access and control the hardware associated with a board: low level style!
 
-use hermes_five::hardware::{Board, BoardEvent, LowLevelApi, PinModeId};
+use hermes_five::hardware::{Board, LowLevelApi, PinModeId};
 
 #[hermes_five::runtime]
 async fn main() {
     let board = Board::start().unwrap();
 
-    board.on(BoardEvent::OnReady, |board: Board| async move {
+    board.on_ready(|board: Board| async move {
         println!("Protocol {:#?}", board.get_protocol_name());
         println!(
             "Firmware {:#?} version={}",

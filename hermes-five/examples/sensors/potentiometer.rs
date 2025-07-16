@@ -2,13 +2,13 @@
 //! https://docs.arduino.cc/built-in-examples/analog/AnalogInput/
 
 use hermes_five::devices::{AnalogInput, InputEvent};
-use hermes_five::hardware::{Board, BoardEvent};
+use hermes_five::hardware::Board;
 
 #[hermes_five::runtime]
 async fn main() {
     let board = Board::start().unwrap();
 
-    board.on(BoardEvent::OnReady, |board: Board| async move {
+    board.on_ready(|board: Board| async move {
         // Register a Sensor on pin 14 (A0).
         let potentiometer = AnalogInput::new(&board, "A0")?;
         //

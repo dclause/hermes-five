@@ -2,14 +2,14 @@
 
 use hermes_five::animations::Easing;
 use hermes_five::devices::{OutputDevice, Servo};
-use hermes_five::hardware::{Board, BoardEvent};
+use hermes_five::hardware::Board;
 use hermes_five::pause;
 
 #[hermes_five::runtime]
 async fn main() {
     let board = Board::start().unwrap();
 
-    board.on(BoardEvent::OnReady, |board: Board| async move {
+    board.on_ready(|board: Board| async move {
         // Register a Servo on pin 9.
         let mut servo = Servo::new(&board, 9, 0).expect("Servo is instantiated");
 

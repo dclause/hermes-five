@@ -2,13 +2,13 @@
 //! have their press/release state inverted compared to the real value.
 
 use hermes_five::devices::{Button, InputEvent};
-use hermes_five::hardware::{Board, BoardEvent};
+use hermes_five::hardware::Board;
 
 #[hermes_five::runtime]
 async fn main() {
     let board = Board::start().unwrap();
 
-    board.on(BoardEvent::OnReady, |board: Board| async move {
+    board.on_ready(|board: Board| async move {
         let button_inverted = Button::new_inverted_pulldown(&board, 2)?;
 
         button_inverted.on(InputEvent::OnChange, |value: bool| async move {

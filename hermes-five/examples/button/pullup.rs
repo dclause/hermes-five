@@ -2,13 +2,13 @@
 //! https://docs.arduino.cc/built-in-examples/digital/InputPullupSerial/
 
 use hermes_five::devices::{Button, InputEvent};
-use hermes_five::hardware::{Board, BoardEvent};
+use hermes_five::hardware::Board;
 
 #[hermes_five::runtime]
 async fn main() {
     let board = Board::start().unwrap();
 
-    board.on(BoardEvent::OnReady, |board: Board| async move {
+    board.on_ready(|board: Board| async move {
         // Register a PUL-UP Button on pin 8.
         let button = Button::new_pullup(&board, 8)?;
 

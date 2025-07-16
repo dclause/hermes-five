@@ -1,5 +1,5 @@
 use hermes_five::devices::Led;
-use hermes_five::hardware::{Board, BoardEvent};
+use hermes_five::hardware::Board;
 // /!\ Use of brightness requires a PWM compatible pin.
 // Consult your board schematics to know which ones are compatible.
 
@@ -7,7 +7,7 @@ use hermes_five::hardware::{Board, BoardEvent};
 async fn main() {
     let board = Board::start().unwrap();
 
-    board.on(BoardEvent::OnReady, |board: Board| async move {
+    board.on_ready(|board: Board| async move {
         // Register a LED on pin 11.
         let mut led = Led::new(&board, 11, false)?;
 

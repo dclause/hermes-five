@@ -46,7 +46,7 @@
 //!
 //! The following code demonstrates the simplest program we could imagine: blink the Arduino embedded led on pin 13.
 //! ```rust
-//! use hermes_five::hardware::{Board, BoardEvent};
+//! use hermes_five::hardware::Board;
 //! use hermes_five::devices::Led;
 //!
 //! #[hermes_five::runtime]
@@ -57,7 +57,7 @@
 //!     let board = Board::start().unwrap();
 //!
 //!     // When board communication is ready:
-//!     board.on(BoardEvent::OnReady, |board: Board| async move {
+//!     board.on_ready(|board: Board| async move {
 //!
 //!         // Register a LED on pin 13 (arduino embedded led).
 //!         // Pin: 13; OFF by default

@@ -2,13 +2,13 @@
 //! Example with DFRobot SEN0192: https://wiki.dfrobot.com/MicroWave_Sensor_SKU__SEN0192
 
 use hermes_five::devices::{DigitalInput, InputEvent};
-use hermes_five::hardware::{Board, BoardEvent};
+use hermes_five::hardware::Board;
 
 #[hermes_five::runtime]
 async fn main() {
     let board = Board::start().unwrap();
 
-    board.on(BoardEvent::OnReady, |board: Board| async move {
+    board.on_ready(|board: Board| async move {
         // Register a sensor on pin 7.
         let sensor = DigitalInput::new(&board, 7)?;
 

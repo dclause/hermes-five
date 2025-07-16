@@ -118,3 +118,8 @@ pub fn output_device(attr: TokenStream, item: TokenStream) -> TokenStream {
 pub fn derive_expander(input: TokenStream) -> TokenStream {
     internals::expander::derive_expander(input.into()).into()
 }
+
+#[proc_macro]
+pub fn generate_events(input: TokenStream) -> TokenStream {
+    internals::events::generate_events(input.into()).into()
+}

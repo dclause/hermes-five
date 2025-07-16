@@ -4,7 +4,7 @@
 //!`https://github.com/firmata/arduino/blob/main/examples/StandardFirmata/StandardFirmata.ino`
 
 use hermes_five::devices::Led;
-use hermes_five::hardware::{Board, BoardEvent};
+use hermes_five::hardware::Board;
 use hermes_five::protocols::RemoteIo;
 use hermes_five::transports::Serial;
 
@@ -21,7 +21,7 @@ async fn main() {
         .open()
         .unwrap();
 
-    board.on(BoardEvent::OnReady, |board: Board| async move {
+    board.on_ready(|board: Board| async move {
         let mut led = Led::new(&board, 13, false)?;
         led.blink(500);
         Ok(())

@@ -7,6 +7,7 @@
 //!
 //! # Notes
 //! - The [`Board.on`] method is used to register the event handlers on the board.
+//! - The [`Board.on_ready`] and [`Board.on_closed`] methods are alias of the former.
 //! - The [`BoardEvent`] structure lists all events a board may emit.
 //! - You can register multiple callbacks for a same event.
 //! - Callbacks are asynchronous futures, hence the `async move` syntax.
@@ -21,17 +22,23 @@ async fn main() {
     // Note: this line is equivalent to: `Board::default().connect().unwrap()`
     let board = Board::start().unwrap();
 
-    board.on(BoardEvent::OnReady, |board: Board| async move {
+    board.on_ready(|board: Board| async move {
         println!("Connection done on board.");
         board.close().unwrap();
     });
 
-    board.on(BoardEvent::OnClosed, |_: Board| async move {
+    board.on_closed(|_: Board| async move {
         println!("Connection closed on board.");
     });
 
     // Note that you can register as many event handlers as you want on a same event.
-    board.on(BoardEvent::OnReady, |_: Board| async move {
+    board.on_ready(|_: Board| async move {
         println!("Hello from another event handler!");
+    });
+
+    // Note the all the above is actually an alias to:
+    board.on(BoardEvent::OnReady, |board: Board| async move {
+        println!("Connection done on board.");
+        board.close().unwrap();
     });
 }

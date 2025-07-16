@@ -3,20 +3,23 @@ use crate::hardware::{Hardware, I2CReply, LowLevelApi, Pin, PinModeId};
 use crate::protocols::{IoProtocol, RemoteIo};
 use crate::transports::IoTransport;
 use crate::utils::{task, EventManager, GenericResult, Range};
+use hermes_five_macros::generate_events;
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::fmt::Display;
-use std::future::Future;
 use std::sync::Arc;
 
-/// Lists all events a Board can emit/listen.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum BoardEvent {
-    /// Triggered when the board connection is established and the handshake has been made.
-    OnReady,
-    /// Triggered when the board connection is closed (gracefully).
-    OnClosed,
-}
+generate_events!(
+    Board,
+    /// Lists all events a Board can emit/listen.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+    pub enum BoardEvent {
+        /// Triggered when the board connection is established and the handshake has been made.
+        OnReady,
+        /// Triggered when the board connection is closed (gracefully).
+        OnClosed,
+    }
+);
 
 /// Represents a physical board (Arduino most-likely) where your [`Device`] can be attached and controlled through this API.
 /// The board gives access to [`IoData`] through a communication [`IoProtocol`].
@@ -143,7 +146,7 @@ impl Board {
     ///     let mut board = Board::default().open().unwrap();
     ///
     ///     // Register something to do when the board is connected.
-    ///     board.on(BoardEvent::OnReady, |_: Board| async move {
+    ///     board.on_ready(|_: Board| async move {
     ///         // Something to do when connected.
     ///     });
     ///     // code here will be executed right away, before the board is actually connected.
@@ -172,17 +175,17 @@ impl Board {
     ///
     /// ```
     /// use hermes_five::pause;
-    /// use hermes_five::hardware::{Board, BoardEvent};
+    /// use hermes_five::hardware::Board;
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
     ///     let board = Board::start().unwrap();
-    ///     board.on(BoardEvent::OnReady, |mut board: Board| async move {
+    ///     board.on_ready(|mut board: Board| async move {
     ///         // Something to do when connected.
     ///         pause!(3000);
     ///         board.close().unwrap();
     ///     });
-    ///     board.on(BoardEvent::OnClosed, |_: Board| async move {
+    ///     board.on_closed(|_: Board| async move {
     ///         // Something to do when connection closes.
     ///     });
     /// }
@@ -214,36 +217,6 @@ impl Board {
         self.protocol.close()?;
         // trace!("Board is closed");
         Ok(self)
-    }
-
-    /// Registers a callback to be executed on a given event.
-    ///
-    /// Available events for a board are defined by the enum: [`BoardEvent`]:
-    /// - **`OnReady`:** Triggered when the board is connected and ready to run.
-    ///    _The callback must receive the following parameter: `|_: Board| { ... }`_
-    /// - **`OnClosed`:** Triggered when the board is disconnected.
-    ///    _The callback must receive the following parameter: `|_: Board| { ... }`_
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use hermes_five::hardware::{Board, BoardEvent};
-    ///
-    /// #[hermes_five::runtime]
-    /// async fn main() {
-    ///     let board = Board::start().unwrap();
-    ///     board.on(BoardEvent::OnReady, |_: Board| async move {
-    ///         // Here, you know the board to be connected and ready to receive data.
-    ///     });
-    /// }
-    /// ```
-    pub fn on<F, Fut, R>(&self, event: BoardEvent, handler: F)
-    where
-        F: Fn(Board) -> Fut + Send + Sync + 'static,
-        Fut: Future<Output = R> + Send + 'static,
-        R: Into<GenericResult>,
-    {
-        self.events.on(event, handler);
     }
 }
 
@@ -388,7 +361,7 @@ mod tests {
         let flag = Arc::new(AtomicBool::new(false));
         let moved_flag = flag.clone();
         let board = Board::new(RemoteIo::from(transport)).open().unwrap();
-        board.on(BoardEvent::OnReady, move |_| {
+        board.on_ready(move |_| {
             let captured_flag = moved_flag.clone();
             async move {
                 captured_flag.store(true, Ordering::Relaxed);
@@ -413,7 +386,7 @@ mod tests {
         let board = Board::new(MockProtocol::default()).open().unwrap();
         let board = board.close().unwrap();
 
-        board.on(BoardEvent::OnClosed, move |_| {
+        board.on_closed(move |_| {
             let captured_flag = moved_flag.clone();
             async move {
                 captured_flag.store(true, Ordering::Relaxed);

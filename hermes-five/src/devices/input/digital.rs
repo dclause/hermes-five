@@ -1,9 +1,3 @@
-use parking_lot::RwLock;
-use std::fmt::{Display, Formatter};
-use std::future::Future;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-
 use crate::devices::input::{Input, InputEvent};
 use crate::devices::Device;
 use crate::errors::Error;
@@ -11,6 +5,11 @@ use crate::hardware::{Hardware, LowLevelApiExt, Pin, PinIdOrName, PinModeId};
 use crate::pause;
 use crate::protocols::IoProtocol;
 use crate::utils::{task, EventManager, GenericResult, State, TaskHandler};
+use parking_lot::RwLock;
+use std::fmt::{Display, Formatter};
+use std::future::Future;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 /// Represents a digital sensor of unspecified type: an [`Input`] [`Device`] that reads digital values
 /// from an INPUT compatible pin.
@@ -133,7 +132,7 @@ impl DigitalInput {
 
     /// Registers a callback to be executed on a given event on the DigitalInput.
     ///
-    /// Available events for a button are:
+    /// Available events for this device are: [`DigitalEvent`]
     /// - **`InputEvent::OnChange` | `change`:** Triggered when the input value changes.    
     ///   _The callback must receive the following parameter: `|value: bool| { ... }`_
     /// - **`InputEvent::OnHigh` | `high`:** Triggered when the input value changes.     
@@ -145,12 +144,12 @@ impl DigitalInput {
     ///
     ///```
     /// use hermes_five::devices::{DigitalInput, InputEvent};
-    /// use hermes_five::hardware::{Board, BoardEvent};
+    /// use hermes_five::hardware::Board;
     ///
     /// #[hermes_five::runtime]
     /// async fn main() {
     ///     let board = Board::start().unwrap();
-    ///     board.on(BoardEvent::OnReady, |board: Board| async move {
+    ///     board.on_ready(|board: Board| async move {
     ///
     ///         // Register a sensor on pin 7.
     ///         let sensor = DigitalInput::new(&board, 7)?;

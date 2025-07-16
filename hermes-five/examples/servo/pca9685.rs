@@ -2,14 +2,14 @@
 //! <https://learn.adafruit.com/16-channel-pwm-servo-driver>
 
 use hermes_five::devices::{OutputDevice, Servo};
-use hermes_five::hardware::{Board, BoardEvent, PCA9685};
+use hermes_five::hardware::{Board, PCA9685};
 use hermes_five::pause;
 
 #[hermes_five::runtime]
 async fn main() {
     let board = Board::start().unwrap();
 
-    board.on(BoardEvent::OnReady, |board: Board| async move {
+    board.on_ready(|board: Board| async move {
         let pca9685 = PCA9685::default(&board)?;
 
         // Register servos on channel 0, 1 and 2 of the PCA9685.

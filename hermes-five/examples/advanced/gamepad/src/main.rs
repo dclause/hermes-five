@@ -8,7 +8,7 @@ use gilrs::EventType::{AxisChanged, ButtonChanged};
 /// the servo motor.
 use gilrs::{Axis, Button, Event, Gilrs};
 use hermes_five::devices::{Led, Servo};
-use hermes_five::hardware::{Board, BoardEvent};
+use hermes_five::hardware::Board;
 use hermes_five::pause;
 use hermes_five::utils::Range;
 use std::time::{Duration, SystemTime};
@@ -39,7 +39,7 @@ async fn main() {
     // Don't forget to flash it first with
     // https://github.com/firmata/arduino/blob/main/examples/StandardFirmataPlus/StandardFirmataPlus.ino
     let board = Board::start().unwrap();
-    board.on(BoardEvent::OnReady, |board: Board| async move {
+    board.on_ready(|board: Board| async move {
         // Init gamepad.
         let mut gilrs = Gilrs::new().unwrap();
 
